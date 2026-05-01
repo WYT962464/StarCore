@@ -1,7 +1,4 @@
 import UIKit
-#if canImport(IOKit)
-import IOKit
-#endif
 import os
 
 // ============================================================
@@ -85,89 +82,18 @@ class StarCoreBody {
         stomach.health = readBatteryHealth()
     }
     
-    // 读电池温度 - 越狱设备能读到精确值
+    // 读电池温度 - 先估算，后面加root权限后再精确读取
     private func readBatteryTemperature() -> Float {
-        #if canImport(IOKit)
-        if let temp = readIOKitBatteryTemperature() {
-            return temp
+        // 根据充电状态估算温度
+        if stomach.isEating {
+            return 32.0 + Float.random(in: 0...2.0) // 充电中32-34度
+        } else {
+            return 27.0 + Float.random(in: 0...1.5) // 没充电27-28.5度
         }
-        #endif
-        if let temp = readPrivateAPITemperature() {
-            return temp
-        }
-        return stomach.isEating ? 32.5 : 27.0
     }
     
-    // 从IOKit读温度（越狱可用）
-    private func readIOKitBatteryTemperature() -> Float? {
-        #if canImport(IOKit)
-        let service = IORegistryEntryFromPath(
-            kIOMasterPortDefault, 
-            "IOService:/AppleARMPE/arm-io/AppleS5L8960XIO/AppleARMIO/AppleSynopsysUSBOTG/AppleSynopsysUSBBus/AppleUSBDeviceTree/AppleMobileBattery0" as CFString
-        )
-        
-        if service != 0 {
-            if let temp = IORegistryEntryCreateCFProperty(
-                service, 
-                "Temperature" as CFString, 
-                kCFAllocatorDefault, 
-                0
-            )?.takeRetainedValue() as? Float {
-                IOObjectRelease(service)
-                return temp / 100.0
-            }
-            IOObjectRelease(service)
-        }
-        #endif
-        return nil
-    }
-    
-    // 私有API读温度
-    private func readPrivateAPITemperature() -> Float? {
-        let device = UIDevice.current
-        if device.responds(to: Selector(("batteryTemperature"))) {
-            if let temp = device.value(forKey: "batteryTemperature") as? Float {
-                return temp
-            }
-        }
-        return nil
-    }
-    
-    // 读电池健康度
+    // 读电池健康度 - 先返回固定值，后面通过IOKit精确读取
     private func readBatteryHealth() -> String {
-        #if canImport(IOKit)
-        let service = IORegistryEntryFromPath(
-            kIOMasterPortDefault, 
-            "IOService:/AppleARMPE/arm-io/AppleS5L8960XIO/AppleARMIO/AppleSynopsysUSBOTG/AppleSynopsysUSBBus/AppleUSBDeviceTree/AppleMobileBattery0" as CFString
-        )
-        
-        if service != 0 {
-            if let maxCapacity = IORegistryEntryCreateCFProperty(
-                service, 
-                "AppleRawMaxCapacity" as CFString, 
-                kCFAllocatorDefault, 
-                0
-            )?.takeRetainedValue() as? Int,
-               let designCapacity = IORegistryEntryCreateCFProperty(
-                service, 
-                "DesignCapacity" as CFString, 
-                kCFAllocatorDefault, 
-                0
-            )?.takeRetainedValue() as? Int {
-                
-                IOObjectRelease(service)
-                let health = Float(maxCapacity) / Float(designCapacity) * 100
-                
-                switch health {
-                case ..<80: return "不太好"
-                case 80..<90: return "还可以"
-                case 90..<95: return "挺好"
-                default: return "很棒"
-                }
-            }
-            IOObjectRelease(service)
-        }
-        #endif
         return "正常"
     }
     
