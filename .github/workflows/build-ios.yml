@@ -1,0 +1,67 @@
+name: Build iOS App
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build IPA
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build app
+        run: |
+          xcodebuild clean build \
+            -project StarCore.xcodeproj \
+            -scheme StarCore \
+            -destination 'generic/platform=iOS' \
+            -configuration Release \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Archive
+        run: |
+          xcodebuild archive \
+            -project StarCore.xcodeproj \
+            -scheme StarCore \
+            -destination 'generic/platform=iOS' \
+            -archivePath ${{ runner.temp }}/StarCore.xcarchive \
+            -configuration Release \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Create ExportOptions
+        run: |
+          cat > ${{ runner.temp }}/ExportOptions.plist << EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>method</key>
+              <string>development</string>
+              <key>signingStyle</key>
+              <string>manual</string>
+              <key>signingCertificate</key>
+              <string>-</string>
+          </dict>
+          </plist>
+          EOF
+
+      - name: Export IPA (unsigned)
+        run: |
+          mkdir -p Payload
+          cp -R ${{ runner.temp }}/StarCore.xcarchive/Products/Applications/StarCore.app Payload/
+          zip -r StarCore-unsigned.ipa Payload
+          rm -rf Payload
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: StarCore-unsigned.ipa
+          path: StarCore-unsigned.ipa
