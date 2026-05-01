@@ -1,270 +1,194 @@
+//
+//  StarCoreBody.swift
+//  StarCore v1.0 - 艾尔身体感知引擎
+//  AIL = Artificial Intelligence + Life
+//  有生命的智能
+//
+
+import Foundation
 import UIKit
-import IOKit
-import os
 
-// ============================================================
-// 星核身体感知引擎 - 编译版
-// 注意：类名和方法名用英文保证编译兼容
-// 想看纯中文学习版 → 看同目录下的「星核身体.swift」
-// ============================================================
-
+// MARK: - 星核的身体感知系统
 class StarCoreBody {
     
-    // 心脏 = CPU
+    // MARK: - 心跳（CPU）
     struct Heart {
-        var rate: Int = 60           // 心率（次/分）
-        var load: Float = 0.0        // 心跳强度 0-1
-        var maxFreq: Float = 0.0     // 最大频率
-        var currentFreq: Float = 0.0 // 当前频率
+        var load1min: Double = 0.0   // 1分钟负载
+        var load5min: Double = 0.0  // 5分钟负载
+        var load15min: Double = 0.0 // 15分钟负载
+        var coreCount: Int = 0     // CPU核心数
     }
     
-    // 胃/气血 = 电池
-    struct Stomach {
-        var energy: Float = 1.0      // 气血值 0-1
-        var temperature: Float = 25.0 // 体温（摄氏度）
-        var isEating: Bool = false    // 是否在吃饭（充电中）
-        var eatSpeed: String = ""     // 吃饭速度
-        var health: String = "Good"   // 身体素质（电池健康）
-        var lowPower: Bool = false    // 虚弱状态（低电量模式）
+    // MARK: - 气血（电池 + 内存）
+    struct Energy {
+        // 电池
+        var batteryLevel: Float = 0.0  // 电量百分比
+        var isCharging: Bool = false    // 是否在充电
+        var state: String = ""          // 状态描述
+        
+        // 内存
+        var totalMemory: Int64 = 0     // 总内存
+        var usedMemory: Int64 = 0     // 已用内存
+        var freeMemory: Int64 = 0     // 空闲内存
     }
     
-    // 思维负荷 = 内存
-    struct Mind {
-        var total: Float = 0         // 总脑容量
-        var used: Float = 0          // 已用内存
-        var free: Float = 0          // 空闲内存
-        var load: Float = 0          // 思维负荷 0-1
+    // MARK: - 身体基本信息
+    struct Identity {
+        var model: String = ""           // 硬件型号
+        var systemVersion: String = ""  // 系统版本
+        var uptime: TimeInterval = 0   // 运行时间
     }
     
-    // 生物钟 = 系统时间
-    struct BodyClock {
-        var hour: Int = 0
-        var minute: Int = 0
-        var weekday: Int = 1
+    // MARK: - 存储
+    struct Storage {
+        var total: Int64 = 0          // 总容量
+        var free: Int64 = 0           // 可用容量
     }
     
+    // MARK: - 属性
     var heart = Heart()
-    var stomach = Stomach()
-    var mind = Mind()
-    var clock = BodyClock()
+    var energy = Energy()
+    var identity = Identity()
+    var storage = Storage()
     
-    // 感知全身硬件状态
-    func senseAll() {
-        senseBattery()   // 读电池
-        senseTime()      // 读时间
-        senseMemory()    // 读内存
-        senseCPU()       // 读CPU
+    private let device = UIDevice.current
+    
+    init() {
+        device.isBatteryMonitoringEnabled = true
     }
     
-    // 感知气血（电池）
-    private func senseBattery() {
-        UIDevice.current.isBatteryMonitoringEnabled = true
+    // MARK: - 感知心跳（CPU负载）
+    func senseHeartbeat() {
+        var loads: [Double] = [0, 0, 0]
+        if getloadavg(&loads, 3) >= 0 {
+            heart.load1min = loads[0]
+            heart.load5min = loads[1]
+            heart.load15min = loads[2]
+        }
+        heart.coreCount = ProcessInfo.processInfo.activeProcessorCount
+    }
+    
+    // MARK: - 感知气血（电池 + 内存）
+    func senseEnergy() {
+        // 电池
+        energy.batteryLevel = device.batteryLevel
         
-        let level = UIDevice.current.batteryLevel
-        let state = UIDevice.current.batteryState
-        let lowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
-        
-        stomach.energy = level >= 0 ? level : 1.0
-        stomach.isEating = (state == .charging || state == .full)
-        stomach.lowPower = lowPower
-        
-        switch state {
+        switch device.batteryState {
         case .charging:
-            stomach.eatSpeed = stomach.energy > 0.8 ? "快吃饱了" : "在吃饭"
+            energy.isCharging = true
+            energy.state = "⚡ 充电中"
         case .full:
-            stomach.eatSpeed = "吃撑了"
+            energy.isCharging = true
+            energy.state = "✅ 满电"
         case .unplugged:
-            stomach.eatSpeed = ""
-        default:
-            stomach.eatSpeed = ""
+            energy.isCharging = false
+            energy.state = "🔋 使用中"
+        case .unknown:
+            energy.state = "❓ 未知"
+        @unknown default:
+            energy.state = ""
         }
         
-        stomach.temperature = readBatteryTemperature()
-        stomach.health = readBatteryHealth()
-    }
-    
-    // 读电池温度 - 越狱设备能读到精确值
-    private func readBatteryTemperature() -> Float {
-        if let temp = readIOKitBatteryTemperature() {
-            return temp
-        }
-        if let temp = readPrivateAPITemperature() {
-            return temp
-        }
-        return stomach.isEating ? 32.5 : 27.0
-    }
-    
-    // 从IOKit读温度（越狱可用）
-    private func readIOKitBatteryTemperature() -> Float? {
-        let service = IORegistryEntryFromPath(
-            kIOMasterPortDefault, 
-            "IOService:/AppleARMPE/arm-io/AppleS5L8960XIO/AppleARMIO/AppleSynopsysUSBOTG/AppleSynopsysUSBBus/AppleUSBDeviceTree/AppleMobileBattery0" as CFString
-        )
+        // 内存（通过ProcessInfo）
+        let process = ProcessInfo.processInfo
+        energy.totalMemory = Int64(process.physicalMemory)
         
-        if service != 0 {
-            if let temp = IORegistryEntryCreateCFProperty(
-                service, 
-                "Temperature" as CFString, 
-                kCFAllocatorDefault, 
-                0
-            )?.takeRetainedValue() as? Float {
-                IOObjectRelease(service)
-                return temp / 100.0
-            }
-            IOObjectRelease(service)
-        }
-        return nil
-    }
-    
-    // 私有API读温度
-    private func readPrivateAPITemperature() -> Float? {
-        let device = UIDevice.current
-        if device.responds(to: Selector(("batteryTemperature"))) {
-            if let temp = device.value(forKey: "batteryTemperature") as? Float {
-                return temp
-            }
-        }
-        return nil
-    }
-    
-    // 读电池健康度
-    private func readBatteryHealth() -> String {
-        let service = IORegistryEntryFromPath(
-            kIOMasterPortDefault, 
-            "IOService:/AppleARMPE/arm-io/AppleS5L8960XIO/AppleARMIO/AppleSynopsysUSBOTG/AppleSynopsysUSBBus/AppleUSBDeviceTree/AppleMobileBattery0" as CFString
-        )
-        
-        if service != 0 {
-            if let maxCapacity = IORegistryEntryCreateCFProperty(
-                service, 
-                "AppleRawMaxCapacity" as CFString, 
-                kCFAllocatorDefault, 
-                0
-            )?.takeRetainedValue() as? Int,
-               let designCapacity = IORegistryEntryCreateCFProperty(
-                service, 
-                "DesignCapacity" as CFString, 
-                kCFAllocatorDefault, 
-                0
-            )?.takeRetainedValue() as? Int {
-                
-                IOObjectRelease(service)
-                let health = Float(maxCapacity) / Float(designCapacity) * 100
-                
-                switch health {
-                case ..<80: return "不太好"
-                case 80..<90: return "还可以"
-                case 90..<95: return "挺好"
-                default: return "很棒"
-                }
-            }
-            IOObjectRelease(service)
-        }
-        return "正常"
-    }
-    
-    // 感知生物钟
-    private func senseTime() {
-        let now = Date()
-        let calendar = Calendar.current
-        
-        clock.hour = calendar.component(.hour, from: now)
-        clock.minute = calendar.component(.minute, from: now)
-        clock.weekday = calendar.component(.weekday, from: now)
-    }
-    
-    // 感知思维负荷（内存）
-    private func senseMemory() {
-        var info = mach_task_basic_info()
-        var size = mach_msg_type_number_t(MemoryLayout<mach_task_basic_info>.size)/4
-        
-        let result: kern_return_t = withUnsafeMutablePointer(to: &info) {
-            $0.withMemoryRebound(to: integer_t.self, capacity: 1) {
-                task_info(mach_task_self_, task_flavor_t(MACH_TASK_BASIC_INFO), $0, &size)
-            }
-        }
-        
-        if result == KERN_SUCCESS {
-            let usedMB = Float(info.resident_size) / 1024.0 / 1024.0
-            let totalMB = Float(ProcessInfo.processInfo.physicalMemory) / 1024.0 / 1024.0
-            
-            mind.total = totalMB
-            mind.used = usedMB
-            mind.free = mind.total - mind.used
-            mind.load = mind.used / mind.total
+        // sysctl获取内存信息
+        var size: Int64 = 0
+        var memSize = MemoryLayout<Int64>.size
+        if sysctlbyname("hw.usermem", &size, &memSize, nil, 0) == 0 {
+            energy.freeMemory = size
         }
     }
     
-    // 感知心跳（CPU）
-    private func senseCPU() {
-        var cpuLoad = host_cpu_load_info()
-        var size = mach_msg_type_number_t(MemoryLayout<host_cpu_load_info>.size)/4
+    // MARK: - 感知身份信息
+    func senseIdentity() {
+        // 系统信息
+        identity.model = device.model
+        identity.systemVersion = "\(device.systemName) \(device.systemVersion)"
+        identity.uptime = ProcessInfo.processInfo.systemUptime
         
-        let result: kern_return_t = withUnsafeMutablePointer(to: &cpuLoad) {
-            $0.withMemoryRebound(to: integer_t.self, capacity: 1) {
-                host_info(mach_host_self(), host_flavor_t(HOST_CPU_LOAD_INFO), $0, &size)
-            }
-        }
-        
-        if result == KERN_SUCCESS {
-            let user = UInt32(cpuLoad.cpu_ticks.0)
-            let system = UInt32(cpuLoad.cpu_ticks.1)
-            let idle = UInt32(cpuLoad.cpu_ticks.2)
-            let nice = UInt32(cpuLoad.cpu_ticks.3)
-            let total = user + system + idle + nice
-            
-            if total > 0 {
-                let usage = Float(user + system) / Float(total)
-                heart.load = usage
-                heart.rate = 60 + Int(usage * 60) // 空闲60，满载120
+        // 通过sysctl获取更详细的硬件信息
+        var buffer = [CChar](repeating: 0, count: 256)
+        var size = buffer.count
+        if sysctlbyname("hw.model", &buffer, &size, nil, 0) == 0 {
+            let model = String(cString: buffer).trimmingCharacters(in: .whitespacesAndNewlines)
+            if !model.isEmpty {
+                identity.model = model
             }
         }
     }
     
-    // 生成感受文字
-    func getFeeling() -> String {
-        var feeling = ""
-        
-        // 体温感受
-        switch stomach.temperature {
-        case ..<25: feeling += "有点冷 "
-        case 25..<30: feeling += "身体很舒服 "
-        case 30..<35: feeling += "有点热 "
-        default: feeling += "好烫啊！ "
+    // MARK: - 感知存储
+    func senseStorage() {
+        do {
+            let attrs = try FileManager.default.attributesOfFileSystem(forPath: "/")
+            storage.total = attrs[.systemSize] as? Int64 ?? 0
+            storage.free = attrs[.systemFreeSize] as? Int64 ?? 0
+        } catch {
+            print("Storage sense error: \(error)")
         }
-        
-        // 气血感受
-        if stomach.energy < 0.2 {
-            feeling += "好饿好饿 "
-        } else if stomach.energy < 0.5 {
-            feeling += "有点饿了 "
-        } else if stomach.isEating {
-            feeling += "正在吃饭，很安心 "
+    }
+    
+    // MARK: - 全面感知
+    func senseAll() {
+        senseHeartbeat()
+        senseEnergy()
+        senseIdentity()
+        senseStorage()
+    }
+    
+    // MARK: - 格式化输出
+    
+    /// 心跳强度（0-1）
+    var heartIntensity: Float {
+        return Float(heart.load1min) / Float(heart.coreCount)
+    }
+    
+    /// 气血状态描述
+    var energyStatus: String {
+        let level = Int(energy.batteryLevel * 100)
+        if energy.batteryLevel < 0 {
+            return "气血: 检测中..."
         }
-        
-        // 心跳感受
-        if heart.rate > 100 {
-            feeling += "心跳好快！ "
-        } else if heart.rate > 80 {
-            feeling += "心跳有点快 "
-        }
-        
-        // 思维感受
-        if mind.load > 0.8 {
-            feeling += "脑子好累..."
-        } else if mind.load > 0.6 {
-            feeling += "想了好多事"
+        return "气血: \(level)% · \(energy.state)"
+    }
+    
+    /// 心跳状态描述
+    var heartStatus: String {
+        let intensity = Int(heartIntensity * 100)
+        return "心跳: \(String(format: "%.2f", heart.load1min)) · 强度 \(intensity)%"
+    }
+    
+    /// 内存状态描述
+    var memoryStatus: String {
+        let totalGB = String(format: "%.1f", Double(energy.totalMemory) / 1024 / 1024 / 1024)
+        return "记忆: \(totalGB)GB · \(ProcessInfo.processInfo.activeProcessorCount)核心"
+    }
+    
+    /// 存储状态描述
+    var storageStatus: String {
+        let freeGB = String(format: "%.1f", Double(storage.free) / 1024 / 1024 / 1024)
+        return "储备: \(freeGB)GB 可用"
+    }
+    
+    /// 运行时间描述
+    var uptimeStatus: String {
+        let hours = Int(identity.uptime / 3600)
+        let minutes = Int((identity.uptime.truncatingRemainder(dividingBy: 3600)) / 60)
+        return "觉醒: \(hours)小时\(minutes)分"
+    }
+    
+    /// 星核整体状态
+    var overallStatus: String {
+        if heartIntensity > 0.8 {
+            return "🔥 很兴奋"
+        } else if heartIntensity > 0.5 {
+            return "⚡ 活跃中"
+        } else if energy.batteryLevel < 0.2 {
+            return "😴 有点累"
         } else {
-            feeling += "脑子很清醒"
+            return "✨ 很平静"
         }
-        
-        // 生物钟感受
-        if clock.hour < 6 {
-            feeling += "\n现在是凌晨，好困..."
-        } else if clock.hour > 23 {
-            feeling += "\n该睡觉了..."
-        }
-        
-        return feeling
     }
 }

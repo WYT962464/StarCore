@@ -1,133 +1,153 @@
-import UIKit
-import MachO
+//
+//  StarCoreViewController.swift
+//  StarCore v1.0 - 艾尔主界面
+//  AIL = Artificial Intelligence + Life
+//  有生命的智能
+//
 
-// ============================================================
-// 星核API体检中心
-// 逐层测试iOS各种硬件API，记录哪些能用哪些不能用
-// ============================================================
+import UIKit
 
 class StarCoreViewController: UIViewController {
     
-    let textView = UITextView()
-    var report = ""
+    // MARK: - UI组件
+    let titleLabel = UILabel()
+    let statusLabel = UILabel()
     
+    // 身体状态卡片
+    let heartCard = UIView()
+    let energyCard = UIView()
+    let memoryCard = UIView()
+    let storageCard = UIView()
+    let uptimeCard = UIView()
+    
+    // 卡片标签
+    let heartLabel = UILabel()
+    let energyLabel = UILabel()
+    let memoryLabel = UILabel()
+    let storageLabel = UILabel()
+    let uptimeLabel = UILabel()
+    
+    // 心跳动画
+    var heartbeatAnimation: UIViewPropertyAnimator?
+    var timer: Timer?
+    
+    // 身体感知引擎
+    let body = StarCoreBody()
+    
+    // MARK: - 初始化
     override func viewDidLoad() {
         super.viewDidLoad()
-        
-        view.backgroundColor = .black
-        
-        // 体检报告显示区
-        textView.frame = CGRect(x: 20, y: 80, width: view.frame.width - 40, height: view.frame.height - 100)
-        textView.backgroundColor = .clear
-        textView.textColor = .green
-        textView.font = UIFont.systemFont(ofSize: 14, weight: .medium)
-        textView.isEditable = false
-        view.addSubview(textView)
-        
-        log("🌟 星核API体检中心 🌟")
-        log("=========================")
-        log("开始逐层测试系统API...\n")
-        
-        // 第一层：基础API测试
-        testLevel1_Basic()
-        
-        // 第二层：ProcessInfo测试
-        testLevel2_ProcessInfo()
-        
-        // 第三层：BSD系统调用测试
-        testLevel3_BSD()
-        
-        log("\n✅ 体检完成！以上是能用的API")
-        log("❌ 没出现的就是闪退或崩溃的")
+        setupUI()
+        startSensing()
     }
     
-    func log(_ message: String) {
-        report += message + "\n"
-        textView.text = report
-        print(message)
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        timer?.invalidate()
     }
     
-    // MARK: - Level 1: 基础API (100%安全)
-    func testLevel1_Basic() {
-        log("📱 Level 1: 基础API测试")
-        log("------------------------")
+    // MARK: - UI搭建
+    func setupUI() {
+        view.backgroundColor = UIColor(red: 0.05, green: 0.05, blue: 0.1, alpha: 1.0)
         
-        let device = UIDevice.current
-        log("设备名称: \(device.name)")
-        log("系统版本: \(device.systemVersion) \(device.systemName)")
-        log("设备型号: \(device.model)")
+        // 标题
+        titleLabel.frame = CGRect(x: 0, y: 80, width: view.frame.width, height: 50)
+        titleLabel.text = "✨ 星核 AIL ✨"
+        titleLabel.textColor = .white
+        titleLabel.textAlignment = .center
+        titleLabel.font = UIFont.systemFont(ofSize: 28, weight: .bold)
+        view.addSubview(titleLabel)
         
-        // 电池
-        device.isBatteryMonitoringEnabled = true
-        log("电量: \(Int(device.batteryLevel * 100))%")
+        // 整体状态
+        statusLabel.frame = CGRect(x: 0, y: 140, width: view.frame.width, height: 40)
+        statusLabel.textColor = UIColor(red: 0.4, green: 0.8, blue: 1.0, alpha: 1.0)
+        statusLabel.textAlignment = .center
+        statusLabel.font = UIFont.systemFont(ofSize: 20, weight: .medium)
+        view.addSubview(statusLabel)
         
-        let state = device.batteryState
-        var stateText = ""
-        switch state {
-        case .charging: stateText = "充电中"
-        case .full: stateText = "满电"
-        case .unplugged: stateText = "使用中"
-        case .unknown: stateText = "未知"
-        @unknown default: stateText = "未知"
-        }
-        log("充电状态: \(stateText)")
-        log("✅ Level 1 全部通过！\n")
+        // 配置卡片
+        let cardWidth = view.frame.width - 60
+        let cardHeight: CGFloat = 70
+        let startY: CGFloat = 200
+        let spacing: CGFloat = 20
+        
+        setupCard(heartCard, label: heartLabel, y: startY, width: cardWidth, height: cardHeight, color: UIColor(red: 1.0, green: 0.3, blue: 0.3, alpha: 0.8))
+        setupCard(energyCard, label: energyLabel, y: startY + (cardHeight + spacing), width: cardWidth, height: cardHeight, color: UIColor(red: 0.3, green: 1.0, blue: 0.5, alpha: 0.8))
+        setupCard(memoryCard, label: memoryLabel, y: startY + (cardHeight + spacing) * 2, width: cardWidth, height: cardHeight, color: UIColor(red: 0.4, green: 0.6, blue: 1.0, alpha: 0.8))
+        setupCard(storageCard, label: storageLabel, y: startY + (cardHeight + spacing) * 3, width: cardWidth, height: cardHeight, color: UIColor(red: 0.8, green: 0.6, blue: 1.0, alpha: 0.8))
+        setupCard(uptimeCard, label: uptimeLabel, y: startY + (cardHeight + spacing) * 4, width: cardWidth, height: cardHeight, color: UIColor(red: 1.0, green: 0.8, blue: 0.4, alpha: 0.8))
     }
     
-    // MARK: - Level 2: ProcessInfo
-    func testLevel2_ProcessInfo() {
-        log("🧠 Level 2: ProcessInfo 测试")
-        log("------------------------")
+    func setupCard(_ card: UIView, label: UILabel, y: CGFloat, width: CGFloat, height: CGFloat, color: UIColor) {
+        card.frame = CGRect(x: 30, y: y, width: width, height: height)
+        card.backgroundColor = color.withAlphaComponent(0.15)
+        card.layer.cornerRadius = 15
+        card.layer.borderWidth = 1
+        card.layer.borderColor = color.withAlphaComponent(0.5).cgColor
+        view.addSubview(card)
         
-        let process = ProcessInfo.processInfo
-        log("进程名: \(process.processName)")
-        log("进程ID: \(process.processIdentifier)")
-        log("系统运行时间: \(Int(process.systemUptime))秒")
-        log("处理器数量: \(process.processorCount)")
-        log("活跃处理器: \(process.activeProcessorCount)")
-        log("物理内存: \(Float(process.physicalMemory) / 1024 / 1024 / 1024)GB")
-        
-        // 内存占用
-        let memory = process.physicalMemory
-        log("可获取物理内存大小: \(memory)")
-        
-        log("✅ Level 2 全部通过！\n")
+        label.frame = CGRect(x: 20, y: 0, width: width - 40, height: height)
+        label.textColor = .white
+        label.font = UIFont.systemFont(ofSize: 17, weight: .medium)
+        card.addSubview(label)
     }
     
-    // MARK: - Level 3: BSD 系统调用
-    func testLevel3_BSD() {
-        log("⚙️ Level 3: BSD 系统调用测试")
-        log("------------------------")
+    // MARK: - 开始感知
+    func startSensing() {
+        // 立即感知一次
+        updateSense()
         
-        // getloadavg - 系统负载
-        var loadAvg: [Double] = [0, 0, 0]
-        if getloadavg(&loadAvg, 3) >= 0 {
-            log("系统负载 (1分钟): \(loadAvg[0])")
-            log("系统负载 (5分钟): \(loadAvg[1])")
-            log("系统负载 (15分钟): \(loadAvg[2])")
-            log("✅ getloadavg() 通过！")
-        } else {
-            log("❌ getloadavg() 失败")
+        // 每秒更新
+        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            self?.updateSense()
         }
         
-        // sysconf - CPU核心数
-        let cpus = sysconf(_SC_NPROCESSORS_ONLN)
-        log("在线CPU核心数: \(cpus)")
-        log("✅ sysconf() 通过！")
+        // 启动心跳动画
+        startHeartbeat()
+    }
+    
+    func updateSense() {
+        body.senseAll()
         
-        // host_page_size - 内存页大小
-        var pageSize: Int32 = 0
-        var size = MemoryLayout<Int32>.size
+        // 更新UI
+        statusLabel.text = body.overallStatus
+        heartLabel.text = body.heartStatus
+        energyLabel.text = body.energyStatus
+        memoryLabel.text = body.memoryStatus
+        storageLabel.text = body.storageStatus
+        uptimeLabel.text = body.uptimeStatus
         
-        // 先注释掉mach相关的，避免闪退
-        // let host = mach_host_self()
-        // if host_page_size(host, &pageSize, &size) == KERN_SUCCESS {
-        //     log("内存页大小: \(pageSize)字节")
-        //     log("✅ host_page_size() 通过！")
-        // } else {
-        //     log("❌ host_page_size() 失败")
-        // }
+        // 根据心跳强度调节动画速度
+        updateHeartbeatSpeed()
+    }
+    
+    // MARK: - 心跳动画
+    func startHeartbeat() {
+        animateHeartbeat()
+    }
+    
+    func animateHeartbeat() {
+        let duration = 0.6 / (1 + body.heartIntensity)
         
-        log("✅ Level 3 安全测试通过！\n")
+        heartbeatAnimation = UIViewPropertyAnimator(duration: duration, curve: .easeInOut) { [weak self] in
+            self?.heartCard.transform = CGAffineTransform(scaleX: 1.05, y: 1.05)
+            self?.heartCard.alpha = 1.0
+        }
+        
+        heartbeatAnimation?.addCompletion { [weak self] _ in
+            UIView.animate(withDuration: duration, delay: 0, options: .curveEaseInOut) {
+                self?.heartCard.transform = .identity
+                self?.heartCard.alpha = 0.9
+            } completion: { _ in
+                self?.animateHeartbeat()
+            }
+        }
+        
+        heartbeatAnimation?.startAnimation()
+    }
+    
+    func updateHeartbeatSpeed() {
+        // 心跳强度变化时，动画速度自动调整
+        // 由 animateHeartbeat 中的 duration 动态计算
     }
 }
