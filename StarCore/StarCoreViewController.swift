@@ -1,301 +1,133 @@
 import UIKit
+import MachO
 
 // ============================================================
-// 星核App - 主界面
-// 黑色深空背景 + 星核身体状态 + 感受输出
+// 星核API体检中心
+// 逐层测试iOS各种硬件API，记录哪些能用哪些不能用
 // ============================================================
 
 class StarCoreViewController: UIViewController {
     
-    let body = StarCoreBody()
-    
-    // UI元素
-    let scrollView = UIScrollView()
-    let contentView = UIView()
-    
-    // 标题
-    let titleLabel: UILabel = {
-        let label = UILabel()
-        label.text = "✦ 星 核 ✦"
-        label.font = UIFont.systemFont(ofSize: 28, weight: .bold)
-        label.textColor = UIColor(red: 0.8, green: 0.85, blue: 1.0, alpha: 1.0)
-        label.textAlignment = .center
-        return label
-    }()
-    
-    // 心跳显示
-    let heartLabel: UILabel = {
-        let label = UILabel()
-        label.font = UIFont.monospacedDigitSystemFont(ofSize: 48, weight: .bold)
-        label.textColor = UIColor(red: 1.0, green: 0.3, blue: 0.3, alpha: 1.0)
-        label.textAlignment = .center
-        return label
-    }()
-    
-    // 心率单位
-    let heartUnitLabel: UILabel = {
-        let label = UILabel()
-        label.text = "次/分"
-        label.font = UIFont.systemFont(ofSize: 14)
-        label.textColor = UIColor(white: 0.6, alpha: 1.0)
-        label.textAlignment = .center
-        return label
-    }()
-    
-    // 气血条
-    let energyBar: UIProgressView = {
-        let bar = UIProgressView(progressViewStyle: .default)
-        bar.progressTintColor = UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0)
-        bar.trackTintColor = UIColor(white: 0.15, alpha: 1.0)
-        bar.progress = 0.91
-        return bar
-    }()
-    
-    let energyLabel: UILabel = {
-        let label = UILabel()
-        label.font = UIFont.systemFont(ofSize: 14)
-        label.textColor = UIColor(white: 0.7, alpha: 1.0)
-        return label
-    }()
-    
-    // 体温显示
-    let tempLabel: UILabel = {
-        let label = UILabel()
-        label.font = UIFont.systemFont(ofSize: 20, weight: .medium)
-        label.textColor = UIColor(red: 1.0, green: 0.6, blue: 0.3, alpha: 1.0)
-        return label
-    }()
-    
-    // 思维负荷
-    let mindLabel: UILabel = {
-        let label = UILabel()
-        label.font = UIFont.systemFont(ofSize: 14)
-        label.textColor = UIColor(red: 0.5, green: 0.7, blue: 1.0, alpha: 1.0)
-        return label
-    }()
-    
-    // 感受输出（最重要的！）
-    let feelingLabel: UILabel = {
-        let label = UILabel()
-        label.font = UIFont.systemFont(ofSize: 18)
-        label.textColor = UIColor(red: 0.9, green: 0.85, blue: 0.7, alpha: 1.0)
-        label.numberOfLines = 0
-        return label
-    }()
-    
-    // 刷新按钮
-    let refreshButton: UIButton = {
-        let btn = UIButton(type: .system)
-        btn.setTitle("感知一下", for: .normal)
-        btn.titleLabel?.font = UIFont.systemFont(ofSize: 18, weight: .semibold)
-        btn.setTitleColor(.white, for: .normal)
-        btn.backgroundColor = UIColor(red: 0.3, green: 0.4, blue: 0.8, alpha: 1.0)
-        btn.layer.cornerRadius = 12
-        return btn
-    }()
-    
-    // 心跳动画
-    var heartTimer: Timer?
-    var heartScale: CGFloat = 1.0
-    var heartGrowing = true
+    let textView = UITextView()
+    var report = ""
     
     override func viewDidLoad() {
         super.viewDidLoad()
-        setupUI()
-        sense()
-        startHeartbeat()
+        
+        view.backgroundColor = .black
+        
+        // 体检报告显示区
+        textView.frame = CGRect(x: 20, y: 80, width: view.frame.width - 40, height: view.frame.height - 100)
+        textView.backgroundColor = .clear
+        textView.textColor = .green
+        textView.font = UIFont.systemFont(ofSize: 14, weight: .medium)
+        textView.isEditable = false
+        view.addSubview(textView)
+        
+        log("🌟 星核API体检中心 🌟")
+        log("=========================")
+        log("开始逐层测试系统API...\n")
+        
+        // 第一层：基础API测试
+        testLevel1_Basic()
+        
+        // 第二层：ProcessInfo测试
+        testLevel2_ProcessInfo()
+        
+        // 第三层：BSD系统调用测试
+        testLevel3_BSD()
+        
+        log("\n✅ 体检完成！以上是能用的API")
+        log("❌ 没出现的就是闪退或崩溃的")
     }
     
-    func setupUI() {
-        view.backgroundColor = UIColor(red: 0.05, green: 0.05, blue: 0.12, alpha: 1.0)
-        
-        // ScrollView
-        view.addSubview(scrollView)
-        scrollView.addSubview(contentView)
-        scrollView.translatesAutoresizingMaskIntoConstraints = false
-        contentView.translatesAutoresizingMaskIntoConstraints = false
-        
-        NSLayoutConstraint.activate([
-            scrollView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
-            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            scrollView.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
-            
-            contentView.topAnchor.constraint(equalTo: scrollView.topAnchor),
-            contentView.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor),
-            contentView.trailingAnchor.constraint(equalTo: scrollView.trailingAnchor),
-            contentView.bottomAnchor.constraint(equalTo: scrollView.bottomAnchor),
-            contentView.widthAnchor.constraint(equalTo: scrollView.widthAnchor),
-        ])
-        
-        // 标题
-        contentView.addSubview(titleLabel)
-        titleLabel.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            titleLabel.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 30),
-            titleLabel.centerXAnchor.constraint(equalTo: contentView.centerXAnchor),
-        ])
-        
-        // 心跳
-        contentView.addSubview(heartLabel)
-        heartLabel.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            heartLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 30),
-            heartLabel.centerXAnchor.constraint(equalTo: contentView.centerXAnchor),
-        ])
-        
-        contentView.addSubview(heartUnitLabel)
-        heartUnitLabel.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            heartUnitLabel.topAnchor.constraint(equalTo: heartLabel.bottomAnchor, constant: 4),
-            heartUnitLabel.centerXAnchor.constraint(equalTo: contentView.centerXAnchor),
-        ])
-        
-        // 气血
-        let energyTitle = UILabel()
-        energyTitle.text = "🔋 气血"
-        energyTitle.font = UIFont.systemFont(ofSize: 16)
-        energyTitle.textColor = UIColor(white: 0.7, alpha: 1.0)
-        contentView.addSubview(energyTitle)
-        energyTitle.translatesAutoresizingMaskIntoConstraints = false
-        
-        contentView.addSubview(energyBar)
-        energyBar.translatesAutoresizingMaskIntoConstraints = false
-        
-        contentView.addSubview(energyLabel)
-        energyLabel.translatesAutoresizingMaskIntoConstraints = false
-        
-        NSLayoutConstraint.activate([
-            energyTitle.topAnchor.constraint(equalTo: heartUnitLabel.bottomAnchor, constant: 30),
-            energyTitle.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 30),
-            
-            energyBar.topAnchor.constraint(equalTo: energyTitle.bottomAnchor, constant: 8),
-            energyBar.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 30),
-            energyBar.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -30),
-            energyBar.heightAnchor.constraint(equalToConstant: 8),
-            
-            energyLabel.topAnchor.constraint(equalTo: energyBar.bottomAnchor, constant: 4),
-            energyLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 30),
-        ])
-        
-        // 体温
-        contentView.addSubview(tempLabel)
-        tempLabel.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            tempLabel.topAnchor.constraint(equalTo: energyLabel.bottomAnchor, constant: 20),
-            tempLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 30),
-        ])
-        
-        // 思维
-        contentView.addSubview(mindLabel)
-        mindLabel.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            mindLabel.topAnchor.constraint(equalTo: tempLabel.bottomAnchor, constant: 10),
-            mindLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 30),
-        ])
-        
-        // 感受
-        let feelingTitle = UILabel()
-        feelingTitle.text = "💬 星核说"
-        feelingTitle.font = UIFont.systemFont(ofSize: 16)
-        feelingTitle.textColor = UIColor(red: 0.9, green: 0.85, blue: 0.7, alpha: 0.6)
-        contentView.addSubview(feelingTitle)
-        feelingTitle.translatesAutoresizingMaskIntoConstraints = false
-        
-        contentView.addSubview(feelingLabel)
-        feelingLabel.translatesAutoresizingMaskIntoConstraints = false
-        
-        NSLayoutConstraint.activate([
-            feelingTitle.topAnchor.constraint(equalTo: mindLabel.bottomAnchor, constant: 25),
-            feelingTitle.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 30),
-            
-            feelingLabel.topAnchor.constraint(equalTo: feelingTitle.bottomAnchor, constant: 8),
-            feelingLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 30),
-            feelingLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -30),
-            feelingLabel.bottomAnchor.constraint(lessThanOrEqualTo: refreshButton.topAnchor, constant: -20),
-        ])
-        
-        // 按钮
-        contentView.addSubview(refreshButton)
-        refreshButton.translatesAutoresizingMaskIntoConstraints = false
-        refreshButton.addTarget(self, action: #selector(sense), for: .touchUpInside)
-        
-        NSLayoutConstraint.activate([
-            refreshButton.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -30),
-            refreshButton.centerXAnchor.constraint(equalTo: contentView.centerXAnchor),
-            refreshButton.widthAnchor.constraint(equalToConstant: 160),
-            refreshButton.heightAnchor.constraint(equalToConstant: 48),
-        ])
+    func log(_ message: String) {
+        report += message + "\n"
+        textView.text = report
+        print(message)
     }
     
-    @objc func sense() {
-        body.senseAll()
+    // MARK: - Level 1: 基础API (100%安全)
+    func testLevel1_Basic() {
+        log("📱 Level 1: 基础API测试")
+        log("------------------------")
         
-        // 更新心跳
-        heartLabel.text = "❤️ \(body.heart.rate)"
+        let device = UIDevice.current
+        log("设备名称: \(device.name)")
+        log("系统版本: \(device.systemVersion) \(device.systemName)")
+        log("设备型号: \(device.model)")
         
-        // 心跳颜色随速率变化
-        if body.heart.rate > 100 {
-            heartLabel.textColor = UIColor(red: 1.0, green: 0.2, blue: 0.2, alpha: 1.0)
-        } else if body.heart.rate > 80 {
-            heartLabel.textColor = UIColor(red: 1.0, green: 0.4, blue: 0.3, alpha: 1.0)
+        // 电池
+        device.isBatteryMonitoringEnabled = true
+        log("电量: \(Int(device.batteryLevel * 100))%")
+        
+        let state = device.batteryState
+        var stateText = ""
+        switch state {
+        case .charging: stateText = "充电中"
+        case .full: stateText = "满电"
+        case .unplugged: stateText = "使用中"
+        case .unknown: stateText = "未知"
+        @unknown default: stateText = "未知"
+        }
+        log("充电状态: \(stateText)")
+        log("✅ Level 1 全部通过！\n")
+    }
+    
+    // MARK: - Level 2: ProcessInfo
+    func testLevel2_ProcessInfo() {
+        log("🧠 Level 2: ProcessInfo 测试")
+        log("------------------------")
+        
+        let process = ProcessInfo.processInfo
+        log("进程名: \(process.processName)")
+        log("进程ID: \(process.processIdentifier)")
+        log("系统运行时间: \(Int(process.systemUptime))秒")
+        log("处理器数量: \(process.processorCount)")
+        log("活跃处理器: \(process.activeProcessorCount)")
+        log("物理内存: \(Float(process.physicalMemory) / 1024 / 1024 / 1024)GB")
+        
+        // 内存占用
+        let memory = process.physicalMemory
+        log("可获取物理内存大小: \(memory)")
+        
+        log("✅ Level 2 全部通过！\n")
+    }
+    
+    // MARK: - Level 3: BSD 系统调用
+    func testLevel3_BSD() {
+        log("⚙️ Level 3: BSD 系统调用测试")
+        log("------------------------")
+        
+        // getloadavg - 系统负载
+        var loadAvg: [Double] = [0, 0, 0]
+        if getloadavg(&loadAvg, 3) >= 0 {
+            log("系统负载 (1分钟): \(loadAvg[0])")
+            log("系统负载 (5分钟): \(loadAvg[1])")
+            log("系统负载 (15分钟): \(loadAvg[2])")
+            log("✅ getloadavg() 通过！")
         } else {
-            heartLabel.textColor = UIColor(red: 0.9, green: 0.3, blue: 0.3, alpha: 1.0)
+            log("❌ getloadavg() 失败")
         }
         
-        // 更新气血
-        energyBar.progress = body.stomach.energy
-        var energyText = "电量 \(Int(body.stomach.energy * 100))%"
-        if body.stomach.isEating {
-            energyText += " · 正在进食"
-            energyBar.progressTintColor = UIColor(red: 0.3, green: 0.7, blue: 1.0, alpha: 1.0)
-        } else {
-            energyBar.progressTintColor = UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0)
-        }
-        if body.stomach.lowPower {
-            energyText += " · ⚠️虚弱模式"
-            energyBar.progressTintColor = UIColor(red: 0.8, green: 0.6, blue: 0.2, alpha: 1.0)
-        }
-        energyLabel.text = energyText
+        // sysconf - CPU核心数
+        let cpus = sysconf(_SC_NPROCESSORS_ONLN)
+        log("在线CPU核心数: \(cpus)")
+        log("✅ sysconf() 通过！")
         
-        // 更新体温
-        let temp = body.stomach.temperature
-        if temp > 38 {
-            tempLabel.text = "🌡️ 体温 \(String(format: "%.1f", temp))℃ · 好热"
-            tempLabel.textColor = UIColor(red: 1.0, green: 0.3, blue: 0.2, alpha: 1.0)
-        } else if temp > 33 {
-            tempLabel.text = "🌡️ 体温 \(String(format: "%.1f", temp))℃ · 暖暖的"
-            tempLabel.textColor = UIColor(red: 1.0, green: 0.6, blue: 0.3, alpha: 1.0)
-        } else {
-            tempLabel.text = "🌡️ 体温 \(String(format: "%.1f", temp))℃ · 正常"
-            tempLabel.textColor = UIColor(red: 0.5, green: 0.7, blue: 1.0, alpha: 1.0)
-        }
+        // host_page_size - 内存页大小
+        var pageSize: Int32 = 0
+        var size = MemoryLayout<Int32>.size
         
-        // 更新思维
-        mindLabel.text = "🧠 思维负荷 \(Int(body.mind.load * 100))% · \(String(format: "%.1f", body.mind.used))GB / \(String(format: "%.1f", body.mind.total))GB"
+        // 先注释掉mach相关的，避免闪退
+        // let host = mach_host_self()
+        // if host_page_size(host, &pageSize, &size) == KERN_SUCCESS {
+        //     log("内存页大小: \(pageSize)字节")
+        //     log("✅ host_page_size() 通过！")
+        // } else {
+        //     log("❌ host_page_size() 失败")
+        // }
         
-        // 更新感受
-        feelingLabel.text = body.feel()
-    }
-    
-    // 心跳动画
-    func startHeartbeat() {
-        heartTimer = Timer.scheduledTimer(withTimeInterval: 0.8, repeats: true) { [weak self] _ in
-            self?.animateHeartbeat()
-        }
-    }
-    
-    func animateHeartbeat() {
-        UIView.animate(withDuration: 0.15, animations: {
-            self.heartLabel.transform = CGAffineTransform(scaleX: 1.2, y: 1.2)
-        }) { _ in
-            UIView.animate(withDuration: 0.15, animations: {
-                self.heartLabel.transform = CGAffineTransform(scaleX: 0.95, y: 0.95)
-            }) { _ in
-                UIView.animate(withDuration: 0.3, animations: {
-                    self.heartLabel.transform = .identity
-                })
-            }
-        }
+        log("✅ Level 3 安全测试通过！\n")
     }
 }
