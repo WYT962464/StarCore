@@ -275,7 +275,7 @@ class StarCoreViewController: UIViewController {
         mindLabel.text = "🧠 思维负荷 \(Int(body.mind.load * 100))% · \(String(format: "%.1f", body.mind.used))GB / \(String(format: "%.1f", body.mind.total))GB"
         
         // 更新感受
-        feelingLabel.text = body.feel()
+        feelingLabel.text = body.getFeeling()
     }
     
     // 心跳动画
