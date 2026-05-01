@@ -25,39 +25,20 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO
 
-      - name: Create ExportOptions
+      - name: Package IPA directly from archive (no signing needed)
         run: |
-          cat > ${{ runner.temp }}/ExportOptions.plist << EOF
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-              <key>method</key>
-              <string>development</string>
-              <key>signingStyle</key>
-              <string>manual</string>
-              <key>signingCertificate</key>
-              <string>-</string>
-              <key>provisioningProfiles</key>
-              <dict/>
-              <key>compileBitcode</key>
-              <false/>
-              <key>uploadBitcode</key>
-              <false/>
-              <key>uploadSymbols</key>
-              <false/>
-              <key>thinning</key>
-              <string>&lt;none&gt;</string>
-          </dict>
-          </plist>
-          EOF
-
-      - name: Export IPA (unsigned)
-        run: |
-          xcodebuild -exportArchive \
-            -archivePath ${{ runner.temp }}/StarCore.xcarchive \
-            -exportPath ${{ runner.temp }}/IPA \
-            -exportOptionsPlist ${{ runner.temp }}/ExportOptions.plist
+          # 创建IPA目录结构
+          mkdir -p ${{ runner.temp }}/IPA/Payload
+          
+          # 从archive里复制app
+          cp -R ${{ runner.temp }}/StarCore.xcarchive/Products/Applications/*.app ${{ runner.temp }}/IPA/Payload/
+          
+          # 打包成IPA
+          cd ${{ runner.temp }}/IPA
+          zip -r StarCore-unsigned.ipa Payload/
+          
+          echo "IPA created successfully!"
+          ls -lh
 
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
