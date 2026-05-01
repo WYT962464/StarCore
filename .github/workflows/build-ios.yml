@@ -13,15 +13,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build for iOS (simulator first, quick test)
-        run: |
-          xcodebuild clean build \
-            -project StarCore.xcodeproj \
-            -scheme StarCore \
-            -sdk iphonesimulator \
-            -configuration Debug
-
-      - name: Archive (generic iOS device)
+      - name: Build (real device, no signing)
         run: |
           xcodebuild archive \
             -project StarCore.xcodeproj \

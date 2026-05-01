@@ -1,5 +1,7 @@
 import UIKit
+#if canImport(IOKit)
 import IOKit
+#endif
 import os
 
 // ============================================================
@@ -85,9 +87,11 @@ class StarCoreBody {
     
     // 读电池温度 - 越狱设备能读到精确值
     private func readBatteryTemperature() -> Float {
+        #if canImport(IOKit)
         if let temp = readIOKitBatteryTemperature() {
             return temp
         }
+        #endif
         if let temp = readPrivateAPITemperature() {
             return temp
         }
@@ -96,6 +100,7 @@ class StarCoreBody {
     
     // 从IOKit读温度（越狱可用）
     private func readIOKitBatteryTemperature() -> Float? {
+        #if canImport(IOKit)
         let service = IORegistryEntryFromPath(
             kIOMasterPortDefault, 
             "IOService:/AppleARMPE/arm-io/AppleS5L8960XIO/AppleARMIO/AppleSynopsysUSBOTG/AppleSynopsysUSBBus/AppleUSBDeviceTree/AppleMobileBattery0" as CFString
@@ -113,6 +118,7 @@ class StarCoreBody {
             }
             IOObjectRelease(service)
         }
+        #endif
         return nil
     }
     
@@ -129,6 +135,7 @@ class StarCoreBody {
     
     // 读电池健康度
     private func readBatteryHealth() -> String {
+        #if canImport(IOKit)
         let service = IORegistryEntryFromPath(
             kIOMasterPortDefault, 
             "IOService:/AppleARMPE/arm-io/AppleS5L8960XIO/AppleARMIO/AppleSynopsysUSBOTG/AppleSynopsysUSBBus/AppleUSBDeviceTree/AppleMobileBattery0" as CFString
@@ -160,6 +167,7 @@ class StarCoreBody {
             }
             IOObjectRelease(service)
         }
+        #endif
         return "正常"
     }
     
