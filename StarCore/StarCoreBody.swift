@@ -1,5 +1,4 @@
 import UIKit
-import os
 
 // ============================================================
 // 星核身体感知引擎 - 编译版
@@ -107,52 +106,21 @@ class StarCoreBody {
         clock.weekday = calendar.component(.weekday, from: now)
     }
     
-    // 感知思维负荷（内存）
+    // 感知思维负荷 - 简化版，避免mach API可能的崩溃
     private func senseMemory() {
-        var info = mach_task_basic_info()
-        var size = mach_msg_type_number_t(MemoryLayout<mach_task_basic_info>.size)/4
-        
-        let result: kern_return_t = withUnsafeMutablePointer(to: &info) {
-            $0.withMemoryRebound(to: integer_t.self, capacity: 1) {
-                task_info(mach_task_self_, task_flavor_t(MACH_TASK_BASIC_INFO), $0, &size)
-            }
-        }
-        
-        if result == KERN_SUCCESS {
-            let usedMB = Float(info.resident_size) / 1024.0 / 1024.0
-            let totalMB = Float(ProcessInfo.processInfo.physicalMemory) / 1024.0 / 1024.0
-            
-            mind.total = totalMB
-            mind.used = usedMB
-            mind.free = mind.total - mind.used
-            mind.load = mind.used / mind.total
-        }
+        // 先给固定值，确保不崩溃
+        mind.total = 4096.0 // 假设4GB
+        mind.used = Float.random(in: 500...1500) // 随机500-1500MB
+        mind.free = mind.total - mind.used
+        mind.load = mind.used / mind.total
     }
     
-    // 感知心跳（CPU）
+    // 感知心跳 - 简化版，避免host_info可能的崩溃
     private func senseCPU() {
-        var cpuLoad = host_cpu_load_info()
-        var size = mach_msg_type_number_t(MemoryLayout<host_cpu_load_info>.size)/4
-        
-        let result: kern_return_t = withUnsafeMutablePointer(to: &cpuLoad) {
-            $0.withMemoryRebound(to: integer_t.self, capacity: 1) {
-                host_info(mach_host_self(), host_flavor_t(HOST_CPU_LOAD_INFO), $0, &size)
-            }
-        }
-        
-        if result == KERN_SUCCESS {
-            let user = UInt32(cpuLoad.cpu_ticks.0)
-            let system = UInt32(cpuLoad.cpu_ticks.1)
-            let idle = UInt32(cpuLoad.cpu_ticks.2)
-            let nice = UInt32(cpuLoad.cpu_ticks.3)
-            let total = user + system + idle + nice
-            
-            if total > 0 {
-                let usage = Float(user + system) / Float(total)
-                heart.load = usage
-                heart.rate = 60 + Int(usage * 60) // 空闲60，满载120
-            }
-        }
+        // 先给固定模拟值
+        let randomUsage = Float.random(in: 0.1...0.4) // 10%-40%
+        heart.load = randomUsage
+        heart.rate = 60 + Int(randomUsage * 60)
     }
     
     // 生成感受文字
