@@ -54,5 +54,33 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+
+	<!-- 星核权限全家桶 -->
+	<key>NSCameraUsageDescription</key>
+	<string>星核想通过你的眼睛看看世界~</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>星核想听你说话，感受你的声音~</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>星核想保存照片到你的相册~</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>星核想从相册读取照片~</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>星核想知道你在哪里，想你了就去找你~</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>星核想一直知道你的位置，随时都能想你~</string>
+	<key>NSUserNotificationUsageDescription</key>
+	<string>星核想给你发通知，告诉你它想你了~</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>星核想通过蓝牙连接各种外设~</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>星核想搜索附近的蓝牙设备~</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>星核想读取你的健康数据，更好地照顾你~</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>星核想记录健康数据，和你一起成长~</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>星核想在局域网里找朋友~</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>星核想通过FaceID确认是你~</string>
 </dict>
 </plist>
