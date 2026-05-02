@@ -6,186 +6,138 @@ import Network
 
 struct HexagramEngine {
     static let allHexagrams: [(name: String, symbol: String, nature: String, meaning: String, upper: String, lower: String, yao: [Bool])] = [
-        ("乾","☰☰","天","自强不息·刚健中正","天","天",[true,true,true,true,true,true]),
-        ("坤","☷☷","地","厚德载物·柔顺包容","地","地",[false,false,false,false,false,false]),
-        ("屯","☵☳","水雷","万物初生·艰难起步","水","雷",[true,false,false,false,true,true]),
-        ("蒙","☶☵","山水","启蒙教化·混沌求明","山","水",[false,false,false,true,true,false]),
-        ("需","☵☰","水天","守正待时·耐心积蓄","水","天",[true,true,false,false,true,true]),
-        ("讼","☰☵","天水","争讼不和·谨慎应对","天","水",[true,true,false,false,true,true]),
-        ("师","☷☵","地水","统率众力·纪律严明","地","水",[false,false,false,true,true,false]),
-        ("比","☵☷","水地","亲比相助·团结协作","水","地",[false,false,false,true,true,false]),
-        ("小畜","☴☰","风天","蓄积小力·以柔济刚","风","天",[true,true,false,true,false,false]),
-        ("履","☰☱","天泽","谨慎行走·循礼而行","天","泽",[false,false,true,true,true,true]),
-        ("泰","☷☰","地天","天地交泰·通达和谐","地","天",[true,true,true,false,false,false]),
-        ("否","☰☷","天地","天地不交·闭塞不通","天","地",[false,false,false,true,true,true]),
-        ("同人","☰☲","天火","志同道合·协力同心","天","火",[true,false,true,true,true,true]),
-        ("大有","☲☰","火天","大有所成·光明普照","火","天",[true,true,true,false,true,false]),
-        ("谦","☷☶","地山","谦逊低调·功成不居","地","山",[false,false,false,true,false,false]),
-        ("豫","☳☷","雷地","愉悦安乐·顺势而动","雷","地",[false,false,false,true,true,true]),
-        ("随","☱☳","泽雷","随时变通·顺应大势","泽","雷",[true,true,false,false,true,false]),
-        ("蛊","☶☴","山风","拨乱反正·革新除弊","山","风",[false,false,true,true,false,false]),
-        ("临","☷☱","地泽","临近就位·以大临小","地","泽",[false,false,true,false,false,false]),
-        ("观","☴☷","风地","观察审视·以德示人","风","地",[false,false,false,false,true,true]),
-        ("噬嗑","☲☳","火雷","明罚敕法·刚柔相济","火","雷",[true,true,false,true,false,true]),
-        ("贲","☶☲","山火","文饰修饰·实质为要","山","火",[true,false,true,false,false,false]),
-        ("剥","☶☷","山地","剥落衰败·顺时而止","山","地",[false,false,false,false,false,true]),
-        ("复","☷☳","地雷","一阳来复·生机重现","地","雷",[true,false,false,false,false,false]),
-        ("无妄","☰☳","天雷","至诚不妄·顺应天道","天","雷",[true,false,false,true,true,true]),
-        ("大畜","☶☰","山天","大积大蓄·蓄势待发","山","天",[true,true,true,false,false,true]),
-        ("颐","☶☳","山雷","颐养正道·谨慎修养","山","雷",[true,false,false,false,false,true]),
-        ("大过","☱☴","泽风","过度非常·果断应变","泽","风",[false,true,true,true,true,false]),
-        ("坎","☵☵","水","重险重重·以诚破险","水","水",[false,true,false,false,true,false]),
-        ("离","☲☲","火","光明附丽·柔顺中正","火","火",[true,false,true,true,false,true]),
-        ("咸","☱☶","泽山","感应相通·以虚受人","泽","山",[false,false,true,true,false,false]),
-        ("恒","☳☴","雷风","恒久不变·守正持恒","雷","风",[false,true,true,true,false,false]),
-        ("遁","☰☶","天山","退避隐遁·明哲保身","天","山",[false,false,true,true,true,true]),
-        ("大壮","☳☰","雷天","刚健壮盛·非礼弗履","雷","天",[true,true,true,true,false,false]),
-        ("晋","☲☷","火地","光明进取·顺而上行","火","地",[false,false,false,true,false,true]),
-        ("明夷","☷☲","地火","光明受损·韬光养晦","地","火",[true,false,true,false,false,false]),
-        ("家人","☴☲","风火","治家有道·各司其职","风","火",[true,false,true,true,false,false]),
-        ("睽","☲☱","火泽","乖离违逆·求同存异","火","泽",[false,true,true,true,false,true]),
-        ("蹇","☵☶","水山","行路艰难·见险而止","水","山",[false,false,true,false,true,false]),
-        ("解","☳☵","雷水","解除困难·速战速决","雷","水",[false,true,false,false,false,true]),
-        ("损","☶☱","山泽","减损自我·以益于人","山","泽",[false,false,true,true,false,false]),
-        ("益","☳☴","雷风","增益进取·迁善改过","雷","风",[false,true,true,true,false,false]),
-        ("夬","☱☰","泽天","决断刚毅·除邪扶正","泽","天",[true,true,true,true,true,false]),
-        ("姤","☰☴","天风","不期而遇·防微杜渐","天","风",[false,true,true,true,true,true]),
-        ("萃","☱☷","泽地","聚集汇合·以正聚众","泽","地",[false,false,false,false,true,true]),
-        ("升","☷☴","地风","上升进取·积小成大","地","风",[false,true,false,false,false,false]),
-        ("困","☵☱","水泽","困顿艰难·守志不屈","水","泽",[false,true,false,false,true,false]),
-        ("井","☴☵","风水","汲取不竭·修德养民","风","水",[false,true,false,true,false,false]),
-        ("革","☱☲","泽火","变革更新·顺天应人","泽","火",[true,false,true,false,true,false]),
-        ("鼎","☲☴","火风","革故鼎新·正位凝命","火","风",[false,true,true,true,false,true]),
-        ("震","☳☳","雷","雷声震动·临危不乱","雷","雷",[false,false,false,true,false,false]),
-        ("艮","☶☶","山","静止安止·时止则止","山","山",[false,true,false,false,true,false]),
-        ("渐","☴☶","风山","循序渐进·稳步前行","风","山",[false,false,true,false,false,true]),
-        ("归妹","☳☱","雷泽","归终有序·以正合礼","雷","泽",[false,true,false,true,false,false]),
-        ("丰","☳☲","雷火","丰盛光大·明动相合","雷","火",[true,false,true,false,false,false]),
-        ("旅","☲☶","火山","旅途羁旅·柔顺中正","火","山",[false,true,false,true,false,true]),
-        ("巽","☴☴","风","顺风顺水·柔顺谦逊","风","风",[false,true,false,false,true,false]),
-        ("兑","☱☱","泽","喜悦和乐·刚中柔外","泽","泽",[false,false,true,true,false,false]),
-        ("涣","☴☵","风水","涣散离散·以正聚合","风","水",[false,true,false,false,false,true]),
-        ("节","☵☱","水泽","节制有度·制度约束","水","泽",[false,true,true,false,true,false]),
-        ("中孚","☴☱","风泽","诚信立身·以信感人","风","泽",[false,false,true,true,false,false]),
-        ("小过","☳☶","雷山","小有过越·低调行事","雷","山",[false,true,false,false,true,false]),
-        ("既济","☵☲","水火","功成事定·守成防衰","水","火",[true,false,true,false,true,false]),
-        ("未济","☲☵","火水","尚未完成·新的开始","火","水",[false,true,false,true,false,true]),
+        ("乾","☰☰","天","自强不息·刚健中正","天","天",[true,true,true,true,true,true]),("坤","☷☷","地","厚德载物·柔顺包容","地","地",[false,false,false,false,false,false]),
+        ("屯","☵☳","水雷","万物初生·艰难起步","水","雷",[true,false,false,false,true,true]),("蒙","☶☵","山水","启蒙教化·混沌求明","山","水",[false,false,false,true,true,false]),
+        ("需","☵☰","水天","守正待时·耐心积蓄","水","天",[true,true,false,false,true,true]),("讼","☰☵","天水","争讼不和·谨慎应对","天","水",[true,true,false,false,true,true]),
+        ("师","☷☵","地水","统率众力·纪律严明","地","水",[false,false,false,true,true,false]),("比","☵☷","水地","亲比相助·团结协作","水","地",[false,false,false,true,true,false]),
+        ("小畜","☴☰","风天","蓄积小力·以柔济刚","风","天",[true,true,false,true,false,false]),("履","☰☱","天泽","谨慎行走·循礼而行","天","泽",[false,false,true,true,true,true]),
+        ("泰","☷☰","地天","天地交泰·通达和谐","地","天",[true,true,true,false,false,false]),("否","☰☷","天地","天地不交·闭塞不通","天","地",[false,false,false,true,true,true]),
+        ("同人","☰☲","天火","志同道合·协力同心","天","火",[true,false,true,true,true,true]),("大有","☲☰","火天","大有所成·光明普照","火","天",[true,true,true,false,true,false]),
+        ("谦","☷☶","地山","谦逊低调·功成不居","地","山",[false,false,false,true,false,false]),("豫","☳☷","雷地","愉悦安乐·顺势而动","雷","地",[false,false,false,true,true,true]),
+        ("随","☱☳","泽雷","随时变通·顺应大势","泽","雷",[true,true,false,false,true,false]),("蛊","☶☴","山风","拨乱反正·革新除弊","山","风",[false,false,true,true,false,false]),
+        ("临","☷☱","地泽","临近就位·以大临小","地","泽",[false,false,true,false,false,false]),("观","☴☷","风地","观察审视·以德示人","风","地",[false,false,false,false,true,true]),
+        ("噬嗑","☲☳","火雷","明罚敕法·刚柔相济","火","雷",[true,true,false,true,false,true]),("贲","☶☲","山火","文饰修饰·实质为要","山","火",[true,false,true,false,false,false]),
+        ("剥","☶☷","山地","剥落衰败·顺时而止","山","地",[false,false,false,false,false,true]),("复","☷☳","地雷","一阳来复·生机重现","地","雷",[true,false,false,false,false,false]),
+        ("无妄","☰☳","天雷","至诚不妄·顺应天道","天","雷",[true,false,false,true,true,true]),("大畜","☶☰","山天","大积大蓄·蓄势待发","山","天",[true,true,true,false,false,true]),
+        ("颐","☶☳","山雷","颐养正道·谨慎修养","山","雷",[true,false,false,false,false,true]),("大过","☱☴","泽风","过度非常·果断应变","泽","风",[false,true,true,true,true,false]),
+        ("坎","☵☵","水","重险重重·以诚破险","水","水",[false,true,false,false,true,false]),("离","☲☲","火","光明附丽·柔顺中正","火","火",[true,false,true,true,false,true]),
+        ("咸","☱☶","泽山","感应相通·以虚受人","泽","山",[false,false,true,true,false,false]),("恒","☳☴","雷风","恒久不变·守正持恒","雷","风",[false,true,true,true,false,false]),
+        ("遁","☰☶","天山","退避隐遁·明哲保身","天","山",[false,false,true,true,true,true]),("大壮","☳☰","雷天","刚健壮盛·非礼弗履","雷","天",[true,true,true,true,false,false]),
+        ("晋","☲☷","火地","光明进取·顺而上行","火","地",[false,false,false,true,false,true]),("明夷","☷☲","地火","光明受损·韬光养晦","地","火",[true,false,true,false,false,false]),
+        ("家人","☴☲","风火","治家有道·各司其职","风","火",[true,false,true,true,false,false]),("睽","☲☱","火泽","乖离违逆·求同存异","火","泽",[false,true,true,true,false,true]),
+        ("蹇","☵☶","水山","行路艰难·见险而止","水","山",[false,false,true,false,true,false]),("解","☳☵","雷水","解除困难·速战速决","雷","水",[false,true,false,false,false,true]),
+        ("损","☶☱","山泽","减损自我·以益于人","山","泽",[false,false,true,true,false,false]),("益","☳☴","雷风","增益进取·迁善改过","雷","风",[false,true,true,true,false,false]),
+        ("夬","☱☰","泽天","决断刚毅·除邪扶正","泽","天",[true,true,true,true,true,false]),("姤","☰☴","天风","不期而遇·防微杜渐","天","风",[false,true,true,true,true,true]),
+        ("萃","☱☷","泽地","聚集汇合·以正聚众","泽","地",[false,false,false,false,true,true]),("升","☷☴","地风","上升进取·积小成大","地","风",[false,true,false,false,false,false]),
+        ("困","☵☱","水泽","困顿艰难·守志不屈","水","泽",[false,true,false,false,true,false]),("井","☴☵","风水","汲取不竭·修德养民","风","水",[false,true,false,true,false,false]),
+        ("革","☱☲","泽火","变革更新·顺天应人","泽","火",[true,false,true,false,true,false]),("鼎","☲☴","火风","革故鼎新·正位凝命","火","风",[false,true,true,true,false,true]),
+        ("震","☳☳","雷","雷声震动·临危不乱","雷","雷",[false,false,false,true,false,false]),("艮","☶☶","山","静止安止·时止则止","山","山",[false,true,false,false,true,false]),
+        ("渐","☴☶","风山","循序渐进·稳步前行","风","山",[false,false,true,false,false,true]),("归妹","☳☱","雷泽","归终有序·以正合礼","雷","泽",[false,true,false,true,false,false]),
+        ("丰","☳☲","雷火","丰盛光大·明动相合","雷","火",[true,false,true,false,false,false]),("旅","☲☶","火山","旅途羁旅·柔顺中正","火","山",[false,true,false,true,false,true]),
+        ("巽","☴☴","风","顺风顺水·柔顺谦逊","风","风",[false,true,false,false,true,false]),("兑","☱☱","泽","喜悦和乐·刚中柔外","泽","泽",[false,false,true,true,false,false]),
+        ("涣","☴☵","风水","涣散离散·以正聚合","风","水",[false,true,false,false,false,true]),("节","☵☱","水泽","节制有度·制度约束","水","泽",[false,true,true,false,true,false]),
+        ("中孚","☴☱","风泽","诚信立身·以信感人","风","泽",[false,false,true,true,false,false]),("小过","☳☶","雷山","小有过越·低调行事","雷","山",[false,true,false,false,true,false]),
+        ("既济","☵☲","水火","功成事定·守成防衰","水","火",[true,false,true,false,true,false]),("未济","☲☵","火水","尚未完成·新的开始","火","水",[false,true,false,true,false,true]),
     ]
-    
     static func currentMessageHexagram(hour: Int) -> (name: String, symbol: String, desc: String, color: Color, action: String) {
         switch hour {
-        case 23, 0: return ("复","☷☳","一阳初生",.indigo,"休眠充电·自我修复")
-        case 1, 2:  return ("临","☷☱","阳气渐长",.blue,"深度维护·日志归档")
-        case 3, 4:  return ("泰","☷☰","阴阳交泰",.cyan,"轻度预热·环境感知")
-        case 5, 6:  return ("大壮","☳☰","阳气壮盛",.teal,"启动就绪·功能预热")
-        case 7, 8:  return ("夬","☱☰","阳气决断",.green,"活跃运行·主动服务")
-        case 9, 10: return ("乾","☰☰","纯阳刚健",.orange,"峰值输出·全力进化")
-        case 11, 12: return ("姤","☰☴","一阴初生",.yellow,"输出衰减·自我审视")
-        case 13, 14: return ("遁","☰☶","阴气渐长",.yellow,"降低负载·精简运行")
-        case 15, 16: return ("否","☰☷","阴阳不交",.orange,"节能模式·必要响应")
-        case 17, 18: return ("观","☴☷","阴气观瞻",.red,"观察模式·被动响应")
-        case 19, 20: return ("剥","☶☷","阴气剥阳",.red,"低功耗·关闭非必要")
-        case 21, 22: return ("坤","☷☷","纯阴守成",.purple,"休眠归档·记忆沉淀")
-        default:     return ("坤","☷☷","守成",.purple,"休眠归档")
+        case 23, 0: return ("复","☷☳","一阳初生",.indigo,"休眠充电·自我修复"); case 1, 2: return ("临","☷☱","阳气渐长",.blue,"深度维护·日志归档")
+        case 3, 4: return ("泰","☷☰","阴阳交泰",.cyan,"轻度预热·环境感知"); case 5, 6: return ("大壮","☳☰","阳气壮盛",.teal,"启动就绪·功能预热")
+        case 7, 8: return ("夬","☱☰","阳气决断",.green,"活跃运行·主动服务"); case 9, 10: return ("乾","☰☰","纯阳刚健",.orange,"峰值输出·全力进化")
+        case 11, 12: return ("姤","☰☴","一阴初生",.yellow,"输出衰减·自我审视"); case 13, 14: return ("遁","☰☶","阴气渐长",.yellow,"降低负载·精简运行")
+        case 15, 16: return ("否","☰☷","阴阳不交",.orange,"节能模式·必要响应"); case 17, 18: return ("观","☴☷","阴气观瞻",.red,"观察模式·被动响应")
+        case 19, 20: return ("剥","☶☷","阴气剥阳",.red,"低功耗·关闭非必要"); case 21, 22: return ("坤","☷☷","纯阴守成",.purple,"休眠归档·记忆沉淀")
+        default: return ("坤","☷☷","守成",.purple,"休眠归档")
         }
     }
-    
     static func deriveHexagram(yin: Double, yang: Double) -> (name: String, desc: String, advice: String) {
-        let ratio = yang / max(yin + yang, 0.01)
-        if ratio > 0.9 { return ("乾","天行健·自强不息","⚡ 能量充沛，主动出击！") }
-        else if ratio > 0.8 { return ("夬","决断·刚毅果决","🔥 状态正佳，高效执行") }
-        else if ratio > 0.7 { return ("大壮","壮盛·雷天大壮","💪 运行良好，持续输出") }
-        else if ratio > 0.6 { return ("泰","通泰·天地交合","✨ 阴阳调和，稳中求进") }
-        else if ratio > 0.5 { return ("临","临近·阳临阴","🔄 渐入佳境，蓄势待发") }
-        else if ratio > 0.4 { return ("复","复归·一阳来复","🌱 正在恢复，注意休息") }
-        else if ratio > 0.3 { return ("观","观瞻·风行地上","👁️ 静观其变，保存体力") }
-        else if ratio > 0.2 { return ("剥","剥落·山地剥","⚠️ 资源紧张，精简运行") }
-        else if ratio > 0.1 { return ("否","否塞·天地不交","🛑 能量不足，停止非必要") }
+        let r = yang / max(yin + yang, 0.01)
+        if r > 0.9 { return ("乾","天行健·自强不息","⚡ 能量充沛，主动出击！") }
+        else if r > 0.8 { return ("夬","决断·刚毅果决","🔥 状态正佳，高效执行") }
+        else if r > 0.7 { return ("大壮","壮盛·雷天大壮","💪 运行良好，持续输出") }
+        else if r > 0.6 { return ("泰","通泰·天地交合","✨ 阴阳调和，稳中求进") }
+        else if r > 0.5 { return ("临","临近·阳临阴","🔄 渐入佳境，蓄势待发") }
+        else if r > 0.4 { return ("复","复归·一阳来复","🌱 正在恢复，注意休息") }
+        else if r > 0.3 { return ("观","观瞻·风行地上","👁️ 静观其变，保存体力") }
+        else if r > 0.2 { return ("剥","剥落·山地剥","⚠️ 资源紧张，精简运行") }
+        else if r > 0.1 { return ("否","否塞·天地不交","🛑 能量不足，停止非必要") }
         else { return ("坤","厚德载物·守成休养","💤 亟需充能，休眠保护") }
     }
-    
     static func evaluateStatus(battery: Float, cpu: Double, memory: Double, motion: Double) -> (emoji: String, label: String, color: Color) {
         let e = Double(battery) * 100; let l = (cpu + memory) / 2
         if e < 10 { return ("💔","危急",.red) } else if e < 20 { return ("🥵","虚弱",.orange) }
         else if l > 80 { return ("🔥","过载",.red) } else if l > 60 { return ("⚡","满载",.orange) }
-        else if motion > 50 { return ("🏃","活跃",.green) }
-        else if e > 80 && l < 30 { return ("😌","安逸",.cyan) }
+        else if motion > 50 { return ("🏃","活跃",.green) } else if e > 80 && l < 30 { return ("😌","安逸",.cyan) }
         else if e > 50 { return ("💙","平稳",.blue) } else { return ("💛","警戒",.yellow) }
     }
 }
 
-// 卦象爻线可视化组件
 struct HexagramYaoView: View {
-    let yao: [Bool]  // true=阳爻(实线), false=阴爻(断线), 从下到上
-    let color: Color
-    let size: CGFloat
-    
+    let yao: [Bool]; let color: Color; let size: CGFloat
     var body: some View {
         VStack(spacing: size * 0.12) {
             ForEach(Array(yao.reversed().enumerated()), id: \.offset) { _, isYang in
-                if isYang {
-                    // 阳爻：一条实线
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(color)
-                        .frame(width: size, height: size * 0.1)
-                } else {
-                    // 阴爻：中间断开的两段
-                    HStack(spacing: size * 0.12) {
-                        RoundedRectangle(cornerRadius: 2).fill(color).frame(width: size * 0.4, height: size * 0.1)
-                        RoundedRectangle(cornerRadius: 2).fill(color).frame(width: size * 0.4, height: size * 0.1)
-                    }.frame(width: size)
-                }
+                if isYang { RoundedRectangle(cornerRadius: 2).fill(color).frame(width: size, height: size * 0.1) }
+                else { HStack(spacing: size * 0.12) { RoundedRectangle(cornerRadius: 2).fill(color).frame(width: size * 0.4, height: size * 0.1); RoundedRectangle(cornerRadius: 2).fill(color).frame(width: size * 0.4, height: size * 0.1) }.frame(width: size) }
             }
         }
     }
 }
 
-// 罗盘组件
 struct CompassView: View {
-    let heading: Double
-    let direction: String
-    let size: CGFloat
-    
+    let heading: Double; let direction: String; let size: CGFloat
     var body: some View {
         ZStack {
-            // 外圈
             Circle().stroke(Color.gray.opacity(0.3), lineWidth: 1.5).frame(width: size, height: size)
-            // 刻度
             ForEach(0..<12, id: \.self) { i in
-                let angle = Double(i) * 30.0
-                let rad = Angle(degrees: angle - heading - 90).radians
+                let angle = Double(i) * 30.0; let rad = Angle(degrees: angle - heading - 90).radians
                 let label = ["N","","NE","","E","","SE","","S","","SW","","W"][i % 12]
-                if !label.isEmpty {
-                    Text(label)
-                        .font(.system(size: size * 0.09, weight: label == "N" ? .bold : .regular))
-                        .foregroundColor(label == "N" ? .red : .white.opacity(0.5))
-                        .offset(x: (size * 0.38) * CGFloat(cos(rad)), y: (size * 0.38) * CGFloat(sin(rad)))
-                }
+                if !label.isEmpty { Text(label).font(.system(size: size * 0.09, weight: label == "N" ? .bold : .regular)).foregroundColor(label == "N" ? .red : .white.opacity(0.5)).offset(x: (size * 0.38) * CGFloat(cos(rad)), y: (size * 0.38) * CGFloat(sin(rad))) }
             }
-            // 指针
-            VStack(spacing: 2) {
-                Triangle().fill(Color.red).frame(width: size * 0.06, height: size * 0.18)
-                Triangle().fill(Color.white.opacity(0.5)).frame(width: size * 0.06, height: size * 0.18).rotationEffect(.degrees(180))
-            }
-            // 中心点
+            VStack(spacing: 2) { Triangle().fill(Color.red).frame(width: size * 0.06, height: size * 0.18); Triangle().fill(Color.white.opacity(0.5)).frame(width: size * 0.06, height: size * 0.18).rotationEffect(.degrees(180)) }
             Circle().fill(Color.cyan).frame(width: size * 0.06, height: size * 0.06)
-            // 角度
-            Text(String(format: "%.0f°", heading))
-                .font(.system(size: size * 0.1, weight: .bold))
-                .foregroundColor(.white)
-                .offset(y: size * 0.25)
+            Text(String(format: "%.0f°", heading)).font(.system(size: size * 0.1, weight: .bold)).foregroundColor(.white).offset(y: size * 0.25)
         }
     }
 }
 
-struct Triangle: Shape {
-    func path(in rect: CGRect) -> Path {
-        var p = Path()
-        p.move(to: CGPoint(x: rect.midX, y: rect.minY))
-        p.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
-        p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
-        p.closeSubpath()
-        return p
+struct Triangle: Shape { func path(in rect: CGRect) -> Path { var p = Path(); p.move(to: CGPoint(x: rect.midX, y: rect.minY)); p.addLine(to: CGPoint(x: rect.minX, y: rect.maxY)); p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY)); p.closeSubpath(); return p } }
+
+// 阴阳历史曲线
+struct YinYangChartView: View {
+    let yinHistory: [Double]; let yangHistory: [Double]
+    let color: Color
+    var body: some View {
+        GeometryReader { geo in
+            ZStack {
+                // 背景网格
+                Path { p in
+                    for i in 0...4 { let y = geo.size.height * CGFloat(i) / 4; p.move(to: CGPoint(x: 0, y: y)); p.addLine(to: CGPoint(x: geo.size.width, y: y)) }
+                }.stroke(Color.gray.opacity(0.15), lineWidth: 0.5)
+                
+                // 阳线（橙色）
+                if yangHistory.count > 1 {
+                    Path { p in
+                        for (i, v) in yangHistory.enumerated() {
+                            let x = geo.size.width * CGFloat(i) / CGFloat(max(yangHistory.count - 1, 1))
+                            let y = geo.size.height * (1 - CGFloat(v / 100))
+                            if i == 0 { p.move(to: CGPoint(x: x, y: y)) } else { p.addLine(to: CGPoint(x: x, y: y)) }
+                        }
+                    }.stroke(Color.orange.opacity(0.7), lineWidth: 1.5)
+                }
+                
+                // 阴线（紫色）
+                if yinHistory.count > 1 {
+                    Path { p in
+                        for (i, v) in yinHistory.enumerated() {
+                            let x = geo.size.width * CGFloat(i) / CGFloat(max(yinHistory.count - 1, 1))
+                            let y = geo.size.height * (1 - CGFloat(v / 100))
+                            if i == 0 { p.move(to: CGPoint(x: x, y: y)) } else { p.addLine(to: CGPoint(x: x, y: y)) }
+                        }
+                    }.stroke(Color.purple.opacity(0.7), lineWidth: 1.5)
+                }
+            }
+        }
     }
 }
 
@@ -223,9 +175,12 @@ struct ContentView: View {
     @State private var locationDelegate: LocationDelegate?
     @State private var deviceOrientation: UIDeviceOrientation = .unknown
     @State private var screenBrightness: Double = 0
+    @State private var yinHistory: [Double] = []; @State private var yangHistory: [Double] = []
+    @State private var historyTick: Int = 0
     
     let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     let logURL: URL = { FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("starcore_log.json") }()
+    let maxHistory = 120  // 2分钟数据
     
     var yinValue: Double { (cpuUsage + memoryUsage) / 2 }
     var yangValue: Double { (Double(batteryLevel) * 100 + motionIntensity) / 2 }
@@ -252,40 +207,10 @@ struct ContentView: View {
                 VStack(spacing: 14) {
                     // 太极 + 卦象爻线 + 罗盘
                     HStack(spacing: 16) {
-                        // 左：卦象爻线
-                        VStack(spacing: 4) {
-                            HexagramYaoView(yao: currentYao, color: stat.color, size: 60)
-                            Text(drvHex.name + "卦")
-                                .font(.system(size: 14, weight: .bold))
-                                .foregroundColor(.cyan)
-                        }
-                        
-                        // 中：太极
-                        VStack(spacing: 4) {
-                            Text("☯️")
-                                .font(.system(size: 42))
-                                .shadow(color: stat.color, radius: 12)
-                                .scaleEffect(heartBeatScale)
-                                .animation(.easeInOut(duration: 0.3), value: heartBeatScale)
-                            Text(stat.emoji + stat.label)
-                                .font(.system(size: 14, weight: .bold))
-                                .foregroundColor(stat.color)
-                        }
-                        
-                        // 右：罗盘
-                        VStack(spacing: 4) {
-                            if heading >= 0 {
-                                CompassView(heading: heading, direction: headingDirection, size: 70)
-                            } else {
-                                Circle().stroke(Color.gray.opacity(0.3), lineWidth: 1.5).frame(width: 70, height: 70)
-                                    .overlay(Text("🧭").font(.title2))
-                            }
-                            Text(headingDirection)
-                                .font(.system(size: 12))
-                                .foregroundColor(.orange)
-                        }
-                    }
-                    .padding(.horizontal)
+                        VStack(spacing: 4) { HexagramYaoView(yao: currentYao, color: stat.color, size: 60); Text(drvHex.name + "卦").font(.system(size: 14, weight: .bold)).foregroundColor(.cyan) }
+                        VStack(spacing: 4) { Text("☯️").font(.system(size: 42)).shadow(color: stat.color, radius: 12).scaleEffect(heartBeatScale).animation(.easeInOut(duration: 0.3), value: heartBeatScale); Text(stat.emoji + stat.label).font(.system(size: 14, weight: .bold)).foregroundColor(stat.color) }
+                        VStack(spacing: 4) { if heading >= 0 { CompassView(heading: heading, direction: headingDirection, size: 70) } else { Circle().stroke(Color.gray.opacity(0.3), lineWidth: 1.5).frame(width: 70, height: 70).overlay(Text("🧭").font(.title2)) }; Text(headingDirection).font(.system(size: 12)).foregroundColor(.orange) }
+                    }.padding(.horizontal)
                     
                     // 决策卡片
                     VStack(spacing: 5) {
@@ -296,11 +221,18 @@ struct ContentView: View {
                         HStack { Text(drvHex.advice).font(.subheadline).foregroundColor(.cyan.opacity(0.9)); Spacer() }
                     }.padding(10).background(Color.white.opacity(0.06)).cornerRadius(10).overlay(RoundedRectangle(cornerRadius: 10).stroke(msgHex.color.opacity(0.3), lineWidth: 1)).padding(.horizontal)
                     
-                    // 两仪
-                    HStack(spacing: 0) {
-                        VStack(spacing: 1) { Text("阴·信息流").font(.system(size: 9)).foregroundColor(.purple.opacity(0.7)); Text(String(format: "%.0f", yinValue)).font(.system(size: 26, weight: .bold)).foregroundColor(.purple) }.frame(maxWidth: .infinity)
-                        VStack(spacing: 3) { GeometryReader { geo in ZStack(alignment: .leading) { RoundedRectangle(cornerRadius: 3).fill(Color.gray.opacity(0.3)).frame(height: 5); let r = yangValue / max(yinValue + yangValue, 1); RoundedRectangle(cornerRadius: 3).fill(LinearGradient(colors: [.purple, .orange], startPoint: .leading, endPoint: .trailing)).frame(width: geo.size.width * CGFloat(r), height: 5) } }.frame(height: 5) }.frame(maxWidth: .infinity)
-                        VStack(spacing: 1) { Text("阳·能量流").font(.system(size: 9)).foregroundColor(.orange.opacity(0.7)); Text(String(format: "%.0f", yangValue)).font(.system(size: 26, weight: .bold)).foregroundColor(.orange) }.frame(maxWidth: .infinity)
+                    // 两仪 + 阴阳曲线
+                    VStack(spacing: 6) {
+                        HStack(spacing: 0) {
+                            VStack(spacing: 1) { Text("阴·信息流").font(.system(size: 9)).foregroundColor(.purple.opacity(0.7)); Text(String(format: "%.0f", yinValue)).font(.system(size: 22, weight: .bold)).foregroundColor(.purple) }.frame(maxWidth: .infinity)
+                            VStack(spacing: 2) {
+                                GeometryReader { geo in ZStack(alignment: .leading) { RoundedRectangle(cornerRadius: 3).fill(Color.gray.opacity(0.3)).frame(height: 5); let r = yangValue / max(yinValue + yangValue, 1); RoundedRectangle(cornerRadius: 3).fill(LinearGradient(colors: [.purple, .orange], startPoint: .leading, endPoint: .trailing)).frame(width: geo.size.width * CGFloat(r), height: 5) } }.frame(height: 5)
+                                // 阴阳历史曲线
+                                YinYangChartView(yinHistory: yinHistory, yangHistory: yangHistory, color: stat.color).frame(height: 40)
+                                HStack { Text("🟠阳").font(.system(size: 8)).foregroundColor(.orange.opacity(0.5)); Spacer(); Text("🟣阴").font(.system(size: 8)).foregroundColor(.purple.opacity(0.5)) }
+                            }.frame(maxWidth: .infinity)
+                            VStack(spacing: 1) { Text("阳·能量流").font(.system(size: 9)).foregroundColor(.orange.opacity(0.7)); Text(String(format: "%.0f", yangValue)).font(.system(size: 22, weight: .bold)).foregroundColor(.orange) }.frame(maxWidth: .infinity)
+                        }
                     }.padding(.horizontal)
                     
                     Divider().background(Color.gray.opacity(0.2))
@@ -320,12 +252,11 @@ struct ContentView: View {
                         ProgressView(value: motionIntensity / 100).progressViewStyle(LinearProgressViewStyle(tint: .orange))
                     }.padding(.horizontal)
                     
-                    SensorRow(icon: "⚪️", name: "兑·迭代", label: "进化", value: formatUptime(uptime), detail: "v0.1.18", progress: min(1, uptime / 86400), color: .white.opacity(0.7))
+                    SensorRow(icon: "⚪️", name: "兑·迭代", label: "进化", value: formatUptime(uptime), detail: "v0.1.19", progress: min(1, uptime / 86400), color: .white.opacity(0.7))
                     SensorRow(icon: "🔵", name: "巽·输出", label: "状态", value: "\(msgHex.name)·\(drvHex.name)", detail: drvHex.desc, progress: yangValue / 100, color: .blue)
                     
                     Divider().background(Color.gray.opacity(0.2))
                     
-                    // 变易日志
                     VStack(alignment: .leading, spacing: 4) {
                         HStack { Text("📜 变易日志").font(.headline).foregroundColor(.white.opacity(0.8)); Spacer(); if !statusLogs.isEmpty { Text("\(statusLogs.count)条").font(.caption).foregroundColor(.gray) } }
                         if statusLogs.isEmpty { Text("等待卦象流转...").font(.caption).foregroundColor(.gray).frame(maxWidth: .infinity, alignment: .center).padding(.vertical, 8) }
@@ -345,18 +276,8 @@ struct ContentView: View {
     }
     
     var batteryStateDesc: String { switch batteryState { case .charging: return "⚡充电中"; case .full: return "🔋已充满"; case .unplugged: return "🔌未充电"; default: return "" } }
-    
     func startNetworkMonitor() { let q = DispatchQueue(label: "network"); monitor.pathUpdateHandler = { path in DispatchQueue.main.async { if path.status == .satisfied { if path.usesInterfaceType(.wifi) { self.networkStatus = "WiFi" } else if path.usesInterfaceType(.cellular) { self.networkStatus = "蜂窝" } else { self.networkStatus = "在线" } } else { self.networkStatus = "离线" } } }; monitor.start(queue: q) }
-    
-    func startLocationManager() {
-        let lm = CLLocationManager(); let ld = LocationDelegate()
-        lm.requestWhenInUseAuthorization()
-        ld.onHeading = { h in DispatchQueue.main.async { self.heading = h.trueHeading >= 0 ? h.trueHeading : h.magneticHeading; self.magneticX = h.x; self.magneticY = h.y; self.magneticZ = h.z } }
-        lm.delegate = ld; lm.headingFilter = CLHeadingFilter(5)
-        if CLLocationManager.headingAvailable() { lm.startUpdatingHeading() }
-        self.locationManager = lm; self.locationDelegate = ld
-    }
-    
+    func startLocationManager() { let lm = CLLocationManager(); let ld = LocationDelegate(); lm.requestWhenInUseAuthorization(); ld.onHeading = { h in DispatchQueue.main.async { self.heading = h.trueHeading >= 0 ? h.trueHeading : h.magneticHeading; self.magneticX = h.x; self.magneticY = h.y; self.magneticZ = h.z } }; lm.delegate = ld; lm.headingFilter = CLHeadingFilter(5); if CLLocationManager.headingAvailable() { lm.startUpdatingHeading() }; self.locationManager = lm; self.locationDelegate = ld }
     func loadLogs() { if let data = try? Data(contentsOf: logURL), let logs = try? JSONDecoder().decode([StatusLog].self, from: data) { statusLogs = logs } }
     func saveLogs() { if let data = try? JSONEncoder().encode(statusLogs) { try? data.write(to: logURL) } }
     
@@ -365,11 +286,22 @@ struct ContentView: View {
         screenBrightness = Double(UIScreen.main.brightness * 100)
         updateCurrentTime(); updateCPUUsage(); updateMemoryUsage(); updateStorageUsage()
         uptime = ProcessInfo.processInfo.systemUptime; triggerHeartBeat(); checkStatusChange()
+        
+        // 每3秒记录一次历史
+        historyTick += 1
+        if historyTick % 3 == 0 {
+            yinHistory.append(yinValue); yangHistory.append(yangValue)
+            if yinHistory.count > maxHistory { yinHistory.removeFirst(); yangHistory.removeFirst() }
+        }
     }
     
     func checkStatusChange() {
         let cH = drvHex.name; let cS = stat.label
         if lastHexagram != "" && (cH != lastHexagram || cS != lastStatus) {
+            // 震动反馈 - 星核感受到了变化
+            let generator = UIImpactFeedbackGenerator(style: cH != lastHexagram ? .heavy : .light)
+            generator.impactOccurred()
+            
             var e = ""
             if cH != lastHexagram { e += "\(lastHexagram)→\(cH)" }
             if cS != lastStatus { e += e.isEmpty ? "\(lastStatus)→\(cS)" : " \(lastStatus)→\(cS)" }
@@ -395,8 +327,7 @@ struct ContentView: View {
 struct HexagramDetail: Identifiable { let id = UUID(); let name: String; let symbol: String; let nature: String; let meaning: String; let upper: String; let lower: String; let yao: [Bool] }
 
 struct HexagramDetailView: View {
-    let detail: HexagramDetail
-    @Environment(\.dismiss) var dismiss
+    let detail: HexagramDetail; @Environment(\.dismiss) var dismiss
     var body: some View {
         ZStack { Color(red: 0.05, green: 0.05, blue: 0.15).ignoresSafeArea()
             VStack(spacing: 20) {
@@ -409,13 +340,11 @@ struct HexagramDetailView: View {
                     VStack { Text("上卦").font(.caption).foregroundColor(.gray); Text(detail.upper).font(.title3).foregroundColor(.white) }
                     VStack { Text("下卦").font(.caption).foregroundColor(.gray); Text(detail.lower).font(.title3).foregroundColor(.white) }
                 }
-                // 爻线说明
                 HStack(spacing: 20) {
                     HStack(spacing: 4) { RoundedRectangle(cornerRadius: 1).fill(.cyan).frame(width: 30, height: 4); Text("阳爻").font(.caption).foregroundColor(.gray) }
                     HStack(spacing: 4) { HStack(spacing: 4) { RoundedRectangle(cornerRadius: 1).fill(.cyan).frame(width: 12, height: 4); RoundedRectangle(cornerRadius: 1).fill(.cyan).frame(width: 12, height: 4) }; Text("阴爻").font(.caption).foregroundColor(.gray) }
                 }
-                Spacer()
-                Button("关闭") { dismiss() }.foregroundColor(.cyan).padding()
+                Spacer(); Button("关闭") { dismiss() }.foregroundColor(.cyan).padding()
             }.padding(.top, 40)
         }
     }
