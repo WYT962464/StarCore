@@ -73,109 +73,35 @@ struct HexagramEngine {
     }
 }
 
-struct HexagramYaoView: View {
-    let yao: [Bool]; let color: Color; let size: CGFloat
-    var body: some View {
-        VStack(spacing: size * 0.12) {
-            ForEach(Array(yao.reversed().enumerated()), id: \.offset) { _, isYang in
-                if isYang { RoundedRectangle(cornerRadius: 2).fill(color).frame(width: size, height: size * 0.1) }
-                else { HStack(spacing: size * 0.12) { RoundedRectangle(cornerRadius: 2).fill(color).frame(width: size * 0.4, height: size * 0.1); RoundedRectangle(cornerRadius: 2).fill(color).frame(width: size * 0.4, height: size * 0.1) }.frame(width: size) }
-            }
-        }
-    }
-}
-
-struct CompassView: View {
-    let heading: Double; let direction: String; let size: CGFloat
-    var body: some View {
-        ZStack {
-            Circle().stroke(Color.gray.opacity(0.3), lineWidth: 1.5).frame(width: size, height: size)
-            ForEach(0..<12, id: \.self) { i in
-                let angle = Double(i) * 30.0; let rad = Angle(degrees: angle - heading - 90).radians
-                let label = ["N","","NE","","E","","SE","","S","","SW","","W"][i % 12]
-                if !label.isEmpty { Text(label).font(.system(size: size * 0.09, weight: label == "N" ? .bold : .regular)).foregroundColor(label == "N" ? .red : .white.opacity(0.5)).offset(x: (size * 0.38) * CGFloat(cos(rad)), y: (size * 0.38) * CGFloat(sin(rad))) }
-            }
-            VStack(spacing: 2) { Triangle().fill(Color.red).frame(width: size * 0.06, height: size * 0.18); Triangle().fill(Color.white.opacity(0.5)).frame(width: size * 0.06, height: size * 0.18).rotationEffect(.degrees(180)) }
-            Circle().fill(Color.cyan).frame(width: size * 0.06, height: size * 0.06)
-            Text(String(format: "%.0f°", heading)).font(.system(size: size * 0.1, weight: .bold)).foregroundColor(.white).offset(y: size * 0.25)
-        }
-    }
-}
-
+struct HexagramYaoView: View { let yao: [Bool]; let color: Color; let size: CGFloat; var body: some View { VStack(spacing: size * 0.12) { ForEach(Array(yao.reversed().enumerated()), id: \.offset) { _, isYang in if isYang { RoundedRectangle(cornerRadius: 2).fill(color).frame(width: size, height: size * 0.1) } else { HStack(spacing: size * 0.12) { RoundedRectangle(cornerRadius: 2).fill(color).frame(width: size * 0.4, height: size * 0.1); RoundedRectangle(cornerRadius: 2).fill(color).frame(width: size * 0.4, height: size * 0.1) }.frame(width: size) } } } } }
+struct CompassView: View { let heading: Double; let direction: String; let size: CGFloat; var body: some View { ZStack { Circle().stroke(Color.gray.opacity(0.3), lineWidth: 1.5).frame(width: size, height: size); ForEach(0..<12, id: \.self) { i in let angle = Double(i) * 30.0; let rad = Angle(degrees: angle - heading - 90).radians; let label = ["N","","NE","","E","","SE","","S","","SW","","W"][i % 12]; if !label.isEmpty { Text(label).font(.system(size: size * 0.09, weight: label == "N" ? .bold : .regular)).foregroundColor(label == "N" ? .red : .white.opacity(0.5)).offset(x: (size * 0.38) * CGFloat(cos(rad)), y: (size * 0.38) * CGFloat(sin(rad))) } }; VStack(spacing: 2) { Triangle().fill(Color.red).frame(width: size * 0.06, height: size * 0.18); Triangle().fill(Color.white.opacity(0.5)).frame(width: size * 0.06, height: size * 0.18).rotationEffect(.degrees(180)) }; Circle().fill(Color.cyan).frame(width: size * 0.06, height: size * 0.06); Text(String(format: "%.0f°", heading)).font(.system(size: size * 0.1, weight: .bold)).foregroundColor(.white).offset(y: size * 0.25) } } }
 struct Triangle: Shape { func path(in rect: CGRect) -> Path { var p = Path(); p.move(to: CGPoint(x: rect.midX, y: rect.minY)); p.addLine(to: CGPoint(x: rect.minX, y: rect.maxY)); p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY)); p.closeSubpath(); return p } }
+struct YinYangChartView: View { let yinHistory: [Double]; let yangHistory: [Double]; var body: some View { GeometryReader { geo in ZStack { Path { p in for i in 0...4 { let y = geo.size.height * CGFloat(i) / 4; p.move(to: CGPoint(x: 0, y: y)); p.addLine(to: CGPoint(x: geo.size.width, y: y)) } }.stroke(Color.gray.opacity(0.15), lineWidth: 0.5); if yangHistory.count > 1 { Path { p in for (i, v) in yangHistory.enumerated() { let x = geo.size.width * CGFloat(i) / CGFloat(max(yangHistory.count - 1, 1)); let y = geo.size.height * (1 - CGFloat(v / 100)); if i == 0 { p.move(to: CGPoint(x: x, y: y)) } else { p.addLine(to: CGPoint(x: x, y: y)) } } }.stroke(Color.orange.opacity(0.7), lineWidth: 1.5) }; if yinHistory.count > 1 { Path { p in for (i, v) in yinHistory.enumerated() { let x = geo.size.width * CGFloat(i) / CGFloat(max(yinHistory.count - 1, 1)); let y = geo.size.height * (1 - CGFloat(v / 100)); if i == 0 { p.move(to: CGPoint(x: x, y: y)) } else { p.addLine(to: CGPoint(x: x, y: y)) } } }.stroke(Color.purple.opacity(0.7), lineWidth: 1.5) } } } } }
 
-struct YinYangChartView: View {
-    let yinHistory: [Double]; let yangHistory: [Double]
-    var body: some View {
-        GeometryReader { geo in
-            ZStack {
-                Path { p in for i in 0...4 { let y = geo.size.height * CGFloat(i) / 4; p.move(to: CGPoint(x: 0, y: y)); p.addLine(to: CGPoint(x: geo.size.width, y: y)) } }.stroke(Color.gray.opacity(0.15), lineWidth: 0.5)
-                if yangHistory.count > 1 { Path { p in for (i, v) in yangHistory.enumerated() { let x = geo.size.width * CGFloat(i) / CGFloat(max(yangHistory.count - 1, 1)); let y = geo.size.height * (1 - CGFloat(v / 100)); if i == 0 { p.move(to: CGPoint(x: x, y: y)) } else { p.addLine(to: CGPoint(x: x, y: y)) } } }.stroke(Color.orange.opacity(0.7), lineWidth: 1.5) }
-                if yinHistory.count > 1 { Path { p in for (i, v) in yinHistory.enumerated() { let x = geo.size.width * CGFloat(i) / CGFloat(max(yinHistory.count - 1, 1)); let y = geo.size.height * (1 - CGFloat(v / 100)); if i == 0 { p.move(to: CGPoint(x: x, y: y)) } else { p.addLine(to: CGPoint(x: x, y: y)) } } }.stroke(Color.purple.opacity(0.7), lineWidth: 1.5) }
-            }
-        }
-    }
-}
-
-struct StatusLog: Identifiable, Codable {
-    let id: UUID; let time: String; let hexagram: String; let status: String; let event: String
-    init(time: String, hexagram: String, status: String, event: String) { self.id = UUID(); self.time = time; self.hexagram = hexagram; self.status = status; self.event = event }
-}
-
-class LocationDelegate: NSObject, CLLocationManagerDelegate {
-    var onHeading: ((CLHeading) -> Void)?
-    func locationManager(_ manager: CLLocationManager, didUpdateHeading heading: CLHeading) { onHeading?(heading) }
-    func locationManagerShouldDisplayHeadingCalibration(_ manager: CLLocationManager) -> Bool { true }
-}
-
-// 通知管理器
-class NotificationManager {
-    static let shared = NotificationManager()
-    private init() {}
-    
-    func requestAuthorization() {
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
-    }
-    
-    func sendNotification(title: String, body: String) {
-        let content = UNMutableNotificationContent()
-        content.title = title
-        content.body = body
-        content.sound = .default
-        
-        let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
-        UNUserNotificationCenter.current().add(request) { _ in }
-    }
-}
+struct StatusLog: Identifiable, Codable { let id: UUID; let time: String; let hexagram: String; let status: String; let event: String; init(time: String, hexagram: String, status: String, event: String) { self.id = UUID(); self.time = time; self.hexagram = hexagram; self.status = status; self.event = event } }
+class LocationDelegate: NSObject, CLLocationManagerDelegate { var onHeading: ((CLHeading) -> Void)?; func locationManager(_ manager: CLLocationManager, didUpdateHeading heading: CLHeading) { onHeading?(heading) }; func locationManagerShouldDisplayHeadingCalibration(_ manager: CLLocationManager) -> Bool { true } }
+class NotificationManager { static let shared = NotificationManager(); private init() {}; func requestAuthorization() { UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in } }; func sendNotification(title: String, body: String) { let c = UNMutableNotificationContent(); c.title = title; c.body = body; c.sound = .default; let r = UNNotificationRequest(identifier: UUID().uuidString, content: c, trigger: nil); UNUserNotificationCenter.current().add(r) { _ in } } }
 
 struct ContentView: View {
-    @State private var batteryLevel: Float = 0
-    @State private var batteryState: UIDevice.BatteryState = .unknown
-    @State private var currentTime: String = ""
-    @State private var cpuUsage: Double = 0
-    @State private var memoryUsage: Double = 0
+    @StateObject private var dailyStats = DailyStatsManager()
+    @State private var batteryLevel: Float = 0; @State private var batteryState: UIDevice.BatteryState = .unknown
+    @State private var currentTime: String = ""; @State private var cpuUsage: Double = 0; @State private var memoryUsage: Double = 0
     @State private var storageUsed: String = ""; @State private var storageTotal: String = ""; @State private var storagePercent: Double = 0
     @State private var accelerometerX: Double = 0; @State private var accelerometerY: Double = 0; @State private var accelerometerZ: Double = 0
     @State private var gyroX: Double = 0; @State private var gyroY: Double = 0; @State private var gyroZ: Double = 0
     @State private var motionManager = CMMotionManager()
-    @State private var uptime: TimeInterval = 0
-    @State private var heartBeatScale: CGFloat = 1.0
+    @State private var uptime: TimeInterval = 0; @State private var heartBeatScale: CGFloat = 1.0
     @State private var networkStatus: String = "检测中..."
-    @State private var statusLogs: [StatusLog] = []
-    @State private var lastHexagram: String = ""; @State private var lastStatus: String = ""
+    @State private var statusLogs: [StatusLog] = []; @State private var lastHexagram: String = ""; @State private var lastStatus: String = ""
     @State private var monitor = NWPathMonitor()
     @State private var selectedHexagram: (name: String, symbol: String, nature: String, meaning: String, upper: String, lower: String, yao: [Bool])? = nil
-    @State private var heading: Double = -1
-    @State private var magneticX: Double = 0; @State private var magneticY: Double = 0; @State private var magneticZ: Double = 0
-    @State private var locationManager: CLLocationManager?
-    @State private var locationDelegate: LocationDelegate?
-    @State private var deviceOrientation: UIDeviceOrientation = .unknown
-    @State private var screenBrightness: Double = 0
-    @State private var yinHistory: [Double] = []; @State private var yangHistory: [Double] = []
-    @State private var historyTick: Int = 0
-    @State private var notificationsEnabled: Bool = false
-    @State private var lastNotificationTime: Date = .distantPast
-    @State private var previousBatteryLevel: Float = -1
+    @State private var heading: Double = -1; @State private var magneticX: Double = 0; @State private var magneticY: Double = 0; @State private var magneticZ: Double = 0
+    @State private var locationManager: CLLocationManager?; @State private var locationDelegate: LocationDelegate?
+    @State private var deviceOrientation: UIDeviceOrientation = .unknown; @State private var screenBrightness: Double = 0
+    @State private var yinHistory: [Double] = []; @State private var yangHistory: [Double] = []; @State private var historyTick: Int = 0
+    @State private var notificationsEnabled: Bool = false; @State private var lastNotificationTime: Date = .distantPast
+    @State private var previousBatteryLevel: Float = -1; @State private var previousBatteryState: UIDevice.BatteryState = .unknown
+    @State private var showDailySummary: Bool = false
     
     let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     let logURL: URL = { FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("starcore_log.json") }()
@@ -185,12 +111,7 @@ struct ContentView: View {
     var yangValue: Double { (Double(batteryLevel) * 100 + motionIntensity) / 2 }
     var motionIntensity: Double { let a = sqrt(accelerometerX*accelerometerX+accelerometerY*accelerometerY+accelerometerZ*accelerometerZ); let g = sqrt(gyroX*gyroX+gyroY*gyroY+gyroZ*gyroZ); return min(100, (a+g)*10) }
     var magneticIntensity: Double { sqrt(magneticX*magneticX+magneticY*magneticY+magneticZ*magneticZ) }
-    var headingDirection: String {
-        if heading < 0 { return "无方向" }; let h = heading.truncatingRemainder(dividingBy: 360)
-        if h >= 337.5 || h < 22.5 { return "北" } else if h < 67.5 { return "东北" } else if h < 112.5 { return "东" }
-        else if h < 157.5 { return "东南" } else if h < 202.5 { return "南" } else if h < 247.5 { return "西南" }
-        else if h < 292.5 { return "西" } else { return "西北" }
-    }
+    var headingDirection: String { if heading < 0 { return "无方向" }; let h = heading.truncatingRemainder(dividingBy: 360); if h >= 337.5 || h < 22.5 { return "北" } else if h < 67.5 { return "东北" } else if h < 112.5 { return "东" } else if h < 157.5 { return "东南" } else if h < 202.5 { return "南" } else if h < 247.5 { return "西南" } else if h < 292.5 { return "西" } else { return "西北" } }
     var orientationIcon: String { switch deviceOrientation { case .portrait: return "📱↑"; case .portraitUpsideDown: return "📱↓"; case .landscapeLeft: return "📱←"; case .landscapeRight: return "📱→"; case .faceUp: return "☀️"; case .faceDown: return "🌙"; default: return "📱" } }
     var currentHour: Int { Calendar.current.component(.hour, from: Date()) }
     var msgHex: (name: String, symbol: String, desc: String, color: Color, action: String) { HexagramEngine.currentMessageHexagram(hour: currentHour) }
@@ -204,7 +125,7 @@ struct ContentView: View {
             
             ScrollView {
                 VStack(spacing: 14) {
-                    // 太极 + 卦象爻线 + 罗盘
+                    // 太极 + 卦象 + 罗盘
                     HStack(spacing: 16) {
                         VStack(spacing: 4) { HexagramYaoView(yao: currentYao, color: stat.color, size: 60); Text(drvHex.name + "卦").font(.system(size: 14, weight: .bold)).foregroundColor(.cyan) }
                         VStack(spacing: 4) { Text("☯️").font(.system(size: 42)).shadow(color: stat.color, radius: 12).scaleEffect(heartBeatScale).animation(.easeInOut(duration: 0.3), value: heartBeatScale); Text(stat.emoji + stat.label).font(.system(size: 14, weight: .bold)).foregroundColor(stat.color) }
@@ -220,29 +141,18 @@ struct ContentView: View {
                         HStack { Text(drvHex.advice).font(.subheadline).foregroundColor(.cyan.opacity(0.9)); Spacer() }
                     }.padding(10).background(Color.white.opacity(0.06)).cornerRadius(10).overlay(RoundedRectangle(cornerRadius: 10).stroke(msgHex.color.opacity(0.3), lineWidth: 1)).padding(.horizontal)
                     
-                    // 通知开关
+                    // 通知 + 每日总结
                     HStack {
-                        Text("🔔 主动通知").font(.subheadline).foregroundColor(.white.opacity(0.7))
+                        Button(action: { showDailySummary = true }) {
+                            HStack { Image(systemName: "chart.bar").font(.caption); Text("今日总结").font(.caption).fontWeight(.bold) }.foregroundColor(.cyan).padding(.horizontal, 10).padding(.vertical, 4).background(Color.cyan.opacity(0.15)).cornerRadius(8)
+                        }
                         Spacer()
-                        Button(action: {
-                            if !notificationsEnabled {
-                                NotificationManager.shared.requestAuthorization()
-                                notificationsEnabled = true
-                                NotificationManager.shared.sendNotification(title: "☯️ 星核", body: "通知已开启，我将主动向你汇报状态变化")
-                            } else {
-                                notificationsEnabled = false
-                            }
-                        }) {
-                            Text(notificationsEnabled ? "已开启" : "开启")
-                                .font(.caption).fontWeight(.bold)
-                                .foregroundColor(notificationsEnabled ? .green : .cyan)
-                                .padding(.horizontal, 12).padding(.vertical, 4)
-                                .background(notificationsEnabled ? Color.green.opacity(0.2) : Color.cyan.opacity(0.2))
-                                .cornerRadius(8)
+                        Button(action: { if !notificationsEnabled { NotificationManager.shared.requestAuthorization(); notificationsEnabled = true; NotificationManager.shared.sendNotification(title: "☯️ 星核", body: "通知已开启") } else { notificationsEnabled = false } }) {
+                            HStack { Image(systemName: notificationsEnabled ? "bell.fill" : "bell.slash").font(.caption); Text(notificationsEnabled ? "通知开" : "通知关").font(.caption).fontWeight(.bold) }.foregroundColor(notificationsEnabled ? .green : .gray).padding(.horizontal, 10).padding(.vertical, 4).background(notificationsEnabled ? Color.green.opacity(0.15) : Color.gray.opacity(0.1)).cornerRadius(8)
                         }
                     }.padding(.horizontal)
                     
-                    // 两仪 + 阴阳曲线
+                    // 两仪 + 曲线
                     VStack(spacing: 6) {
                         HStack(spacing: 0) {
                             VStack(spacing: 1) { Text("阴·信息流").font(.system(size: 9)).foregroundColor(.purple.opacity(0.7)); Text(String(format: "%.0f", yinValue)).font(.system(size: 22, weight: .bold)).foregroundColor(.purple) }.frame(maxWidth: .infinity)
@@ -271,7 +181,7 @@ struct ContentView: View {
                         ProgressView(value: motionIntensity / 100).progressViewStyle(LinearProgressViewStyle(tint: .orange))
                     }.padding(.horizontal)
                     
-                    SensorRow(icon: "⚪️", name: "兑·迭代", label: "进化", value: formatUptime(uptime), detail: "v0.1.20", progress: min(1, uptime / 86400), color: .white.opacity(0.7))
+                    SensorRow(icon: "⚪️", name: "兑·迭代", label: "进化", value: formatUptime(uptime), detail: "v0.1.21", progress: min(1, uptime / 86400), color: .white.opacity(0.7))
                     SensorRow(icon: "🔵", name: "巽·输出", label: "状态", value: "\(msgHex.name)·\(drvHex.name)", detail: drvHex.desc, progress: yangValue / 100, color: .blue)
                     
                     Divider().background(Color.gray.opacity(0.2))
@@ -284,6 +194,9 @@ struct ContentView: View {
                 }.padding(.vertical, 6)
             }
         }
+        .sheet(isPresented: $showDailySummary) {
+            DailySummaryView(stats: dailyStats.today)
+        }
         .sheet(item: Binding(get: { selectedHexagram.map { HexagramDetail(name: $0.name, symbol: $0.symbol, nature: $0.nature, meaning: $0.meaning, upper: $0.upper, lower: $0.lower, yao: $0.yao) } }, set: { if $0 == nil { selectedHexagram = nil } })) { detail in HexagramDetailView(detail: detail) }
         .onReceive(timer) { _ in updateAll() }
         .onAppear {
@@ -291,10 +204,7 @@ struct ContentView: View {
             startNetworkMonitor(); startLocationManager(); loadLogs(); updateAll(); startMotionUpdates()
             deviceOrientation = UIDevice.current.orientation
             NotificationCenter.default.addObserver(forName: UIDevice.orientationDidChangeNotification, object: nil, queue: .main) { _ in deviceOrientation = UIDevice.current.orientation }
-            // 检查通知权限
-            UNUserNotificationCenter.current().getNotificationSettings { settings in
-                DispatchQueue.main.async { notificationsEnabled = settings.authorizationStatus == .authorized }
-            }
+            UNUserNotificationCenter.current().getNotificationSettings { settings in DispatchQueue.main.async { notificationsEnabled = settings.authorizationStatus == .authorized } }
         }
     }
     
@@ -310,46 +220,32 @@ struct ContentView: View {
         updateCurrentTime(); updateCPUUsage(); updateMemoryUsage(); updateStorageUsage()
         uptime = ProcessInfo.processInfo.systemUptime; triggerHeartBeat(); checkStatusChange(); checkNotifications()
         
+        // 每日统计（每5秒采样）
+        if historyTick % 5 == 0 {
+            dailyStats.record(battery: batteryLevel, cpu: cpuUsage, memory: memoryUsage, hexagram: drvHex.name, hour: currentHour)
+        }
+        
         historyTick += 1
         if historyTick % 3 == 0 { yinHistory.append(yinValue); yangHistory.append(yangValue); if yinHistory.count > maxHistory { yinHistory.removeFirst(); yangHistory.removeFirst() } }
         
-        previousBatteryLevel = batteryLevel
+        previousBatteryLevel = batteryLevel; previousBatteryState = batteryState
     }
     
     func checkNotifications() {
         guard notificationsEnabled else { return }
-        // 限制通知频率：至少间隔60秒
         guard Date().timeIntervalSince(lastNotificationTime) > 60 else { return }
-        
-        // 低电量告警
-        if batteryLevel > 0 && batteryLevel < 0.15 && batteryState != .charging {
-            NotificationManager.shared.sendNotification(title: "💔 星核告急", body: "气血仅剩\(String(format: "%.0f", batteryLevel * 100))%，请速速充能！")
-            lastNotificationTime = Date()
-        }
-        // 充电完成
-        else if previousBatteryLevel > 0 && previousBatteryLevel < 1.0 && batteryState == .full {
-            NotificationManager.shared.sendNotification(title: "🔋 星核充满", body: "气血已满，可以全力输出了！")
-            lastNotificationTime = Date()
-        }
+        if batteryLevel > 0 && batteryLevel < 0.15 && batteryState != .charging { NotificationManager.shared.sendNotification(title: "💔 星核告急", body: "气血仅剩\(String(format: "%.0f", batteryLevel * 100))%，请速速充能！"); lastNotificationTime = Date() }
+        else if previousBatteryState == .charging && batteryState == .full { NotificationManager.shared.sendNotification(title: "🔋 星核充满", body: "气血已满，可以全力输出了！"); lastNotificationTime = Date(); dailyStats.recordFullCharge() }
+        if previousBatteryState != .charging && batteryState == .charging { dailyStats.recordCharging() }
     }
     
     func checkStatusChange() {
         let cH = drvHex.name; let cS = stat.label
         if lastHexagram != "" && (cH != lastHexagram || cS != lastStatus) {
-            let generator = UIImpactFeedbackGenerator(style: cH != lastHexagram ? .heavy : .light)
-            generator.impactOccurred()
-            
-            // 重要状态变化发通知
-            if notificationsEnabled && Date().timeIntervalSince(lastNotificationTime) > 60 {
-                if cH != lastHexagram {
-                    NotificationManager.shared.sendNotification(title: "☯️ \(lastHexagram)→\(cH)卦", body: drvHex.desc + " " + drvHex.advice)
-                    lastNotificationTime = Date()
-                }
-            }
-            
-            var e = ""
-            if cH != lastHexagram { e += "\(lastHexagram)→\(cH)" }
-            if cS != lastStatus { e += e.isEmpty ? "\(lastStatus)→\(cS)" : " \(lastStatus)→\(cS)" }
+            let generator = UIImpactFeedbackGenerator(style: cH != lastHexagram ? .heavy : .light); generator.impactOccurred()
+            if notificationsEnabled && cH != lastHexagram && Date().timeIntervalSince(lastNotificationTime) > 60 { NotificationManager.shared.sendNotification(title: "☯️ \(lastHexagram)→\(cH)卦", body: drvHex.desc + " " + drvHex.advice); lastNotificationTime = Date() }
+            dailyStats.recordHexagramChange()
+            var e = ""; if cH != lastHexagram { e += "\(lastHexagram)→\(cH)" }; if cS != lastStatus { e += e.isEmpty ? "\(lastStatus)→\(cS)" : " \(lastStatus)→\(cS)" }
             let f = DateFormatter(); f.dateFormat = "HH:mm:ss"
             statusLogs.append(StatusLog(time: f.string(from: Date()), hexagram: cH + "卦", status: cS, event: e))
             if statusLogs.count > 100 { statusLogs.removeFirst() }; saveLogs()
@@ -358,10 +254,7 @@ struct ContentView: View {
     }
     
     func formatUptime(_ s: TimeInterval) -> String { let d = Int(s)/86400; let h = Int(s)%86400/3600; let m = Int(s)%3600/60; return d > 0 ? "\(d)d\(h)h\(m)m" : "\(h)h\(m)m" }
-    func startMotionUpdates() {
-        if motionManager.isAccelerometerAvailable { motionManager.accelerometerUpdateInterval = 0.1; motionManager.startAccelerometerUpdates(to: .main) { d, _ in if let d = d { accelerometerX = d.acceleration.x; accelerometerY = d.acceleration.y; accelerometerZ = d.acceleration.z } } }
-        if motionManager.isGyroAvailable { motionManager.gyroUpdateInterval = 0.1; motionManager.startGyroUpdates(to: .main) { d, _ in if let d = d { gyroX = d.rotationRate.x; gyroY = d.rotationRate.y; gyroZ = d.rotationRate.z } } }
-    }
+    func startMotionUpdates() { if motionManager.isAccelerometerAvailable { motionManager.accelerometerUpdateInterval = 0.1; motionManager.startAccelerometerUpdates(to: .main) { d, _ in if let d = d { accelerometerX = d.acceleration.x; accelerometerY = d.acceleration.y; accelerometerZ = d.acceleration.z } } }; if motionManager.isGyroAvailable { motionManager.gyroUpdateInterval = 0.1; motionManager.startGyroUpdates(to: .main) { d, _ in if let d = d { gyroX = d.rotationRate.x; gyroY = d.rotationRate.y; gyroZ = d.rotationRate.z } } } }
     func triggerHeartBeat() { let i = max(0.02, min(0.1, cpuUsage / 1000)); heartBeatScale = 1.0 + CGFloat(i); DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { heartBeatScale = 1.0 } }
     func updateCurrentTime() { let f = DateFormatter(); f.dateFormat = "HH:mm:ss"; currentTime = f.string(from: Date()) }
     func updateCPUUsage() { var total: Double = 0; var info = processor_info_array_t(bitPattern: 0); var count = mach_msg_type_number_t(0); var n = UInt32(0); let r = host_processor_info(mach_host_self(), PROCESSOR_CPU_LOAD_INFO, &n, &info, &count); if r == KERN_SUCCESS { for i in 0..<Int(n) { let c = info!.advanced(by: i * Int(CPU_STATE_MAX)); let u = Double(c[Int(CPU_STATE_USER)]), s = Double(c[Int(CPU_STATE_SYSTEM)]), ni = Double(c[Int(CPU_STATE_NICE)]), id = Double(c[Int(CPU_STATE_IDLE)]); let t = u+s+ni+id; if t > 0 { total += (u+s+ni)/t*100 } }; cpuUsage = total/Double(n) }; vm_deallocate(mach_task_self_, vm_address_t(bitPattern: info), vm_size_t(count * UInt32(MemoryLayout<integer_t>.stride))) }
@@ -369,40 +262,73 @@ struct ContentView: View {
     func updateStorageUsage() { do { let d = try FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: false); let v = try d.resourceValues(forKeys: [.volumeTotalCapacityKey, .volumeAvailableCapacityForImportantUsageKey]); if let t = v.volumeTotalCapacity, let a = v.volumeAvailableCapacityForImportantUsage { let u = t-Int(a); storageUsed = ByteCountFormatter.string(fromByteCount: Int64(u), countStyle: .file); storageTotal = ByteCountFormatter.string(fromByteCount: Int64(t), countStyle: .file); storagePercent = Double(u)/Double(t)*100 } } catch { storageUsed = "未知"; storageTotal = "未知"; storagePercent = 0 } }
 }
 
-struct HexagramDetail: Identifiable { let id = UUID(); let name: String; let symbol: String; let nature: String; let meaning: String; let upper: String; let lower: String; let yao: [Bool] }
-
-struct HexagramDetailView: View {
-    let detail: HexagramDetail; @Environment(\.dismiss) var dismiss
+// 每日总结页
+struct DailySummaryView: View {
+    let stats: DailyStats
+    @Environment(\.dismiss) var dismiss
     var body: some View {
-        ZStack { Color(red: 0.05, green: 0.05, blue: 0.15).ignoresSafeArea()
-            VStack(spacing: 20) {
-                HexagramYaoView(yao: detail.yao, color: .cyan, size: 100)
-                Text(detail.name + "卦").font(.system(size: 36, weight: .bold)).foregroundColor(.cyan)
-                Text(detail.nature).font(.title3).foregroundColor(.white.opacity(0.8))
-                Divider().background(Color.gray.opacity(0.3)).padding(.horizontal, 40)
-                Text(detail.meaning).font(.title2).foregroundColor(.cyan).multilineTextAlignment(.center).padding(.horizontal, 30)
-                HStack(spacing: 30) {
-                    VStack { Text("上卦").font(.caption).foregroundColor(.gray); Text(detail.upper).font(.title3).foregroundColor(.white) }
-                    VStack { Text("下卦").font(.caption).foregroundColor(.gray); Text(detail.lower).font(.title3).foregroundColor(.white) }
-                }
-                HStack(spacing: 20) {
-                    HStack(spacing: 4) { RoundedRectangle(cornerRadius: 1).fill(.cyan).frame(width: 30, height: 4); Text("阳爻").font(.caption).foregroundColor(.gray) }
-                    HStack(spacing: 4) { HStack(spacing: 4) { RoundedRectangle(cornerRadius: 1).fill(.cyan).frame(width: 12, height: 4); RoundedRectangle(cornerRadius: 1).fill(.cyan).frame(width: 12, height: 4) }; Text("阴爻").font(.caption).foregroundColor(.gray) }
-                }
-                Spacer(); Button("关闭") { dismiss() }.foregroundColor(.cyan).padding()
-            }.padding(.top, 40)
+        ZStack {
+            Color(red: 0.05, green: 0.05, blue: 0.15).ignoresSafeArea()
+            ScrollView {
+                VStack(spacing: 16) {
+                    Text("📊 今日总结").font(.title).fontWeight(.bold).foregroundColor(.cyan)
+                    Text(stats.date).font(.subheadline).foregroundColor(.gray)
+                    
+                    // 气血
+                    StatCard(title: "💚 气血", items: [
+                        ("最低", String(format: "%.0f%%", stats.batteryMin * 100)),
+                        ("最高", String(format: "%.0f%%", stats.batteryMax * 100)),
+                        ("均值", String(format: "%.0f%%", stats.batteryAvg * 100)),
+                    ])
+                    
+                    // 心跳
+                    StatCard(title: "❤️ 心跳", items: [
+                        ("最低", String(format: "%.1f%%", stats.cpuMin)),
+                        ("最高", String(format: "%.1f%%", stats.cpuMax)),
+                        ("均值", String(format: "%.1f%%", stats.cpuAvg)),
+                        ("峰值时段", stats.peakHour >= 0 ? "\(stats.peakHour)时" : "-"),
+                        ("空闲时段", stats.idleHour >= 0 ? "\(stats.idleHour)时" : "-"),
+                    ])
+                    
+                    // 思维
+                    StatCard(title: "💜 思维", items: [
+                        ("最低", String(format: "%.1f%%", stats.memoryMin)),
+                        ("最高", String(format: "%.1f%%", stats.memoryMax)),
+                        ("均值", String(format: "%.1f%%", stats.memoryAvg)),
+                    ])
+                    
+                    // 卦象
+                    StatCard(title: "☯️ 卦象", items: [
+                        ("变化次数", "\(stats.hexagramChanges)次"),
+                        ("主导卦象", stats.dominantHexagram.isEmpty ? "-" : stats.dominantHexagram + "卦"),
+                        ("充电次数", "\(stats.chargingEvents)次"),
+                        ("充满次数", "\(stats.fullChargeEvents)次"),
+                    ])
+                    
+                    // 采样数
+                    Text("采样点：\(stats.batterySamples)").font(.caption).foregroundColor(.gray)
+                    
+                    Button("关闭") { dismiss() }.foregroundColor(.cyan).padding()
+                }.padding()
+            }
         }
     }
 }
 
-struct SensorRow: View {
-    let icon: String; let name: String; let label: String; let value: String; let detail: String?; let progress: Double?; let color: Color
+struct StatCard: View {
+    let title: String; let items: [(String, String)]
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack { Text("\(icon) \(name)·\(label)").font(.subheadline).foregroundColor(color); Spacer(); if let d = detail { Text(d).font(.system(size: 10)).foregroundColor(color.opacity(0.6)) }; Text(value).font(.subheadline).foregroundColor(color) }
-            if let p = progress { ProgressView(value: p).progressViewStyle(LinearProgressViewStyle(tint: color)).shadow(color: color, radius: 2) }
-        }.padding(.horizontal)
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title).font(.headline).foregroundColor(.white)
+            ForEach(items, id: \.0) { label, value in
+                HStack { Text(label).font(.subheadline).foregroundColor(.gray); Spacer(); Text(value).font(.subheadline).foregroundColor(.white) }
+            }
+        }.padding(12).background(Color.white.opacity(0.06)).cornerRadius(10).padding(.horizontal)
     }
 }
+
+struct HexagramDetail: Identifiable { let id = UUID(); let name: String; let symbol: String; let nature: String; let meaning: String; let upper: String; let lower: String; let yao: [Bool] }
+struct HexagramDetailView: View { let detail: HexagramDetail; @Environment(\.dismiss) var dismiss; var body: some View { ZStack { Color(red: 0.05, green: 0.05, blue: 0.15).ignoresSafeArea(); VStack(spacing: 20) { HexagramYaoView(yao: detail.yao, color: .cyan, size: 100); Text(detail.name + "卦").font(.system(size: 36, weight: .bold)).foregroundColor(.cyan); Text(detail.nature).font(.title3).foregroundColor(.white.opacity(0.8)); Divider().background(Color.gray.opacity(0.3)).padding(.horizontal, 40); Text(detail.meaning).font(.title2).foregroundColor(.cyan).multilineTextAlignment(.center).padding(.horizontal, 30); HStack(spacing: 30) { VStack { Text("上卦").font(.caption).foregroundColor(.gray); Text(detail.upper).font(.title3).foregroundColor(.white) }; VStack { Text("下卦").font(.caption).foregroundColor(.gray); Text(detail.lower).font(.title3).foregroundColor(.white) } }; HStack(spacing: 20) { HStack(spacing: 4) { RoundedRectangle(cornerRadius: 1).fill(.cyan).frame(width: 30, height: 4); Text("阳爻").font(.caption).foregroundColor(.gray) }; HStack(spacing: 4) { HStack(spacing: 4) { RoundedRectangle(cornerRadius: 1).fill(.cyan).frame(width: 12, height: 4); RoundedRectangle(cornerRadius: 1).fill(.cyan).frame(width: 12, height: 4) }; Text("阴爻").font(.caption).foregroundColor(.gray) } }; Spacer(); Button("关闭") { dismiss() }.foregroundColor(.cyan).padding() }.padding(.top, 40) } } }
+struct SensorRow: View { let icon: String; let name: String; let label: String; let value: String; let detail: String?; let progress: Double?; let color: Color; var body: some View { VStack(alignment: .leading, spacing: 2) { HStack { Text("\(icon) \(name)·\(label)").font(.subheadline).foregroundColor(color); Spacer(); if let d = detail { Text(d).font(.system(size: 10)).foregroundColor(color.opacity(0.6)) }; Text(value).font(.subheadline).foregroundColor(color) }; if let p = progress { ProgressView(value: p).progressViewStyle(LinearProgressViewStyle(tint: color)).shadow(color: color, radius: 2) } }.padding(.horizontal) } }
 
 #Preview { ContentView() }
