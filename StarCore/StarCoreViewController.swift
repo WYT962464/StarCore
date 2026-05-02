@@ -6,6 +6,7 @@ class StarCoreViewController: UIViewController {
     let batteryLabel = UILabel()
     let timeLabel = UILabel()
     let cpuLabel = UILabel()
+    let memoryLabel = UILabel()
     var timer: Timer?
     
     override func viewDidLoad() {
@@ -43,6 +44,13 @@ class StarCoreViewController: UIViewController {
         cpuLabel.font = UIFont.systemFont(ofSize: 24, weight: .medium)
         view.addSubview(cpuLabel)
         
+        // 内存使用
+        memoryLabel.frame = CGRect(x: 0, y: 430, width: view.frame.width, height: 50)
+        memoryLabel.textColor = UIColor(red: 0.8, green: 0.5, blue: 1.0, alpha: 1.0)
+        memoryLabel.textAlignment = .center
+        memoryLabel.font = UIFont.systemFont(ofSize: 24, weight: .medium)
+        view.addSubview(memoryLabel)
+        
         // 开启电池监控
         UIDevice.current.isBatteryMonitoringEnabled = true
         
@@ -57,6 +65,7 @@ class StarCoreViewController: UIViewController {
         updateBattery()
         updateTime()
         updateCPU()
+        updateMemory()
     }
     
     func updateBattery() {
@@ -100,6 +109,25 @@ class StarCoreViewController: UIViewController {
             cpuLabel.text = "❤️ 心跳: \(String(format: "%.2f", load1min)) · 强度 \(percent)%"
         } else {
             cpuLabel.text = "❤️ 心跳: 检测中..."
+        }
+    }
+    
+    func updateMemory() {
+        // 获取总内存
+        let totalMemory = ProcessInfo.processInfo.physicalMemory
+        let totalGB = Double(totalMemory) / 1024.0 / 1024.0 / 1024.0
+        
+        // 通过sysctl获取可用内存
+        var size: Int = 0
+        var usermem: Int64 = 0
+        size = MemoryLayout<Int64>.size
+        
+        if sysctlbyname("hw.usermem", &usermem, &size, nil, 0) == 0 {
+            let freeGB = Double(usermem) / 1024.0 / 1024.0 / 1024.0
+            let usedPercent = Int((1 - freeGB / totalGB) * 100)
+            memoryLabel.text = "🧠 思维: \(String(format: "%.1f", totalGB))GB · 负荷 \(usedPercent)%"
+        } else {
+            memoryLabel.text = "🧠 思维: \(String(format: "%.1f", totalGB))GB"
         }
     }
     
