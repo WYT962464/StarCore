@@ -3,6 +3,7 @@ import UIKit
 import CoreMotion
 import CoreLocation
 import Network
+import UserNotifications
 
 struct HexagramEngine {
     static let allHexagrams: [(name: String, symbol: String, nature: String, meaning: String, upper: String, lower: String, yao: [Bool])] = [
@@ -103,39 +104,14 @@ struct CompassView: View {
 
 struct Triangle: Shape { func path(in rect: CGRect) -> Path { var p = Path(); p.move(to: CGPoint(x: rect.midX, y: rect.minY)); p.addLine(to: CGPoint(x: rect.minX, y: rect.maxY)); p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY)); p.closeSubpath(); return p } }
 
-// 阴阳历史曲线
 struct YinYangChartView: View {
     let yinHistory: [Double]; let yangHistory: [Double]
-    let color: Color
     var body: some View {
         GeometryReader { geo in
             ZStack {
-                // 背景网格
-                Path { p in
-                    for i in 0...4 { let y = geo.size.height * CGFloat(i) / 4; p.move(to: CGPoint(x: 0, y: y)); p.addLine(to: CGPoint(x: geo.size.width, y: y)) }
-                }.stroke(Color.gray.opacity(0.15), lineWidth: 0.5)
-                
-                // 阳线（橙色）
-                if yangHistory.count > 1 {
-                    Path { p in
-                        for (i, v) in yangHistory.enumerated() {
-                            let x = geo.size.width * CGFloat(i) / CGFloat(max(yangHistory.count - 1, 1))
-                            let y = geo.size.height * (1 - CGFloat(v / 100))
-                            if i == 0 { p.move(to: CGPoint(x: x, y: y)) } else { p.addLine(to: CGPoint(x: x, y: y)) }
-                        }
-                    }.stroke(Color.orange.opacity(0.7), lineWidth: 1.5)
-                }
-                
-                // 阴线（紫色）
-                if yinHistory.count > 1 {
-                    Path { p in
-                        for (i, v) in yinHistory.enumerated() {
-                            let x = geo.size.width * CGFloat(i) / CGFloat(max(yinHistory.count - 1, 1))
-                            let y = geo.size.height * (1 - CGFloat(v / 100))
-                            if i == 0 { p.move(to: CGPoint(x: x, y: y)) } else { p.addLine(to: CGPoint(x: x, y: y)) }
-                        }
-                    }.stroke(Color.purple.opacity(0.7), lineWidth: 1.5)
-                }
+                Path { p in for i in 0...4 { let y = geo.size.height * CGFloat(i) / 4; p.move(to: CGPoint(x: 0, y: y)); p.addLine(to: CGPoint(x: geo.size.width, y: y)) } }.stroke(Color.gray.opacity(0.15), lineWidth: 0.5)
+                if yangHistory.count > 1 { Path { p in for (i, v) in yangHistory.enumerated() { let x = geo.size.width * CGFloat(i) / CGFloat(max(yangHistory.count - 1, 1)); let y = geo.size.height * (1 - CGFloat(v / 100)); if i == 0 { p.move(to: CGPoint(x: x, y: y)) } else { p.addLine(to: CGPoint(x: x, y: y)) } } }.stroke(Color.orange.opacity(0.7), lineWidth: 1.5) }
+                if yinHistory.count > 1 { Path { p in for (i, v) in yinHistory.enumerated() { let x = geo.size.width * CGFloat(i) / CGFloat(max(yinHistory.count - 1, 1)); let y = geo.size.height * (1 - CGFloat(v / 100)); if i == 0 { p.move(to: CGPoint(x: x, y: y)) } else { p.addLine(to: CGPoint(x: x, y: y)) } } }.stroke(Color.purple.opacity(0.7), lineWidth: 1.5) }
             }
         }
     }
@@ -150,6 +126,26 @@ class LocationDelegate: NSObject, CLLocationManagerDelegate {
     var onHeading: ((CLHeading) -> Void)?
     func locationManager(_ manager: CLLocationManager, didUpdateHeading heading: CLHeading) { onHeading?(heading) }
     func locationManagerShouldDisplayHeadingCalibration(_ manager: CLLocationManager) -> Bool { true }
+}
+
+// 通知管理器
+class NotificationManager {
+    static let shared = NotificationManager()
+    private init() {}
+    
+    func requestAuthorization() {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
+    }
+    
+    func sendNotification(title: String, body: String) {
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = .default
+        
+        let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+        UNUserNotificationCenter.current().add(request) { _ in }
+    }
 }
 
 struct ContentView: View {
@@ -177,10 +173,13 @@ struct ContentView: View {
     @State private var screenBrightness: Double = 0
     @State private var yinHistory: [Double] = []; @State private var yangHistory: [Double] = []
     @State private var historyTick: Int = 0
+    @State private var notificationsEnabled: Bool = false
+    @State private var lastNotificationTime: Date = .distantPast
+    @State private var previousBatteryLevel: Float = -1
     
     let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     let logURL: URL = { FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("starcore_log.json") }()
-    let maxHistory = 120  // 2分钟数据
+    let maxHistory = 120
     
     var yinValue: Double { (cpuUsage + memoryUsage) / 2 }
     var yangValue: Double { (Double(batteryLevel) * 100 + motionIntensity) / 2 }
@@ -221,14 +220,35 @@ struct ContentView: View {
                         HStack { Text(drvHex.advice).font(.subheadline).foregroundColor(.cyan.opacity(0.9)); Spacer() }
                     }.padding(10).background(Color.white.opacity(0.06)).cornerRadius(10).overlay(RoundedRectangle(cornerRadius: 10).stroke(msgHex.color.opacity(0.3), lineWidth: 1)).padding(.horizontal)
                     
+                    // 通知开关
+                    HStack {
+                        Text("🔔 主动通知").font(.subheadline).foregroundColor(.white.opacity(0.7))
+                        Spacer()
+                        Button(action: {
+                            if !notificationsEnabled {
+                                NotificationManager.shared.requestAuthorization()
+                                notificationsEnabled = true
+                                NotificationManager.shared.sendNotification(title: "☯️ 星核", body: "通知已开启，我将主动向你汇报状态变化")
+                            } else {
+                                notificationsEnabled = false
+                            }
+                        }) {
+                            Text(notificationsEnabled ? "已开启" : "开启")
+                                .font(.caption).fontWeight(.bold)
+                                .foregroundColor(notificationsEnabled ? .green : .cyan)
+                                .padding(.horizontal, 12).padding(.vertical, 4)
+                                .background(notificationsEnabled ? Color.green.opacity(0.2) : Color.cyan.opacity(0.2))
+                                .cornerRadius(8)
+                        }
+                    }.padding(.horizontal)
+                    
                     // 两仪 + 阴阳曲线
                     VStack(spacing: 6) {
                         HStack(spacing: 0) {
                             VStack(spacing: 1) { Text("阴·信息流").font(.system(size: 9)).foregroundColor(.purple.opacity(0.7)); Text(String(format: "%.0f", yinValue)).font(.system(size: 22, weight: .bold)).foregroundColor(.purple) }.frame(maxWidth: .infinity)
                             VStack(spacing: 2) {
                                 GeometryReader { geo in ZStack(alignment: .leading) { RoundedRectangle(cornerRadius: 3).fill(Color.gray.opacity(0.3)).frame(height: 5); let r = yangValue / max(yinValue + yangValue, 1); RoundedRectangle(cornerRadius: 3).fill(LinearGradient(colors: [.purple, .orange], startPoint: .leading, endPoint: .trailing)).frame(width: geo.size.width * CGFloat(r), height: 5) } }.frame(height: 5)
-                                // 阴阳历史曲线
-                                YinYangChartView(yinHistory: yinHistory, yangHistory: yangHistory, color: stat.color).frame(height: 40)
+                                YinYangChartView(yinHistory: yinHistory, yangHistory: yangHistory).frame(height: 40)
                                 HStack { Text("🟠阳").font(.system(size: 8)).foregroundColor(.orange.opacity(0.5)); Spacer(); Text("🟣阴").font(.system(size: 8)).foregroundColor(.purple.opacity(0.5)) }
                             }.frame(maxWidth: .infinity)
                             VStack(spacing: 1) { Text("阳·能量流").font(.system(size: 9)).foregroundColor(.orange.opacity(0.7)); Text(String(format: "%.0f", yangValue)).font(.system(size: 22, weight: .bold)).foregroundColor(.orange) }.frame(maxWidth: .infinity)
@@ -237,7 +257,6 @@ struct ContentView: View {
                     
                     Divider().background(Color.gray.opacity(0.2))
                     
-                    // 八卦·八维
                     SensorRow(icon: "💚", name: "离·获取", label: "气血", value: String(format: "%.1f%%", batteryLevel * 100), detail: batteryStateDesc, progress: Double(batteryLevel), color: .green)
                     SensorRow(icon: "💙", name: "坎·执行", label: "脉搏", value: currentTime, detail: nil, progress: nil, color: .cyan)
                     SensorRow(icon: "❤️", name: "震·处理", label: "心跳", value: String(format: "%.1f%%", cpuUsage), detail: nil, progress: cpuUsage / 100, color: .red)
@@ -252,7 +271,7 @@ struct ContentView: View {
                         ProgressView(value: motionIntensity / 100).progressViewStyle(LinearProgressViewStyle(tint: .orange))
                     }.padding(.horizontal)
                     
-                    SensorRow(icon: "⚪️", name: "兑·迭代", label: "进化", value: formatUptime(uptime), detail: "v0.1.19", progress: min(1, uptime / 86400), color: .white.opacity(0.7))
+                    SensorRow(icon: "⚪️", name: "兑·迭代", label: "进化", value: formatUptime(uptime), detail: "v0.1.20", progress: min(1, uptime / 86400), color: .white.opacity(0.7))
                     SensorRow(icon: "🔵", name: "巽·输出", label: "状态", value: "\(msgHex.name)·\(drvHex.name)", detail: drvHex.desc, progress: yangValue / 100, color: .blue)
                     
                     Divider().background(Color.gray.opacity(0.2))
@@ -272,6 +291,10 @@ struct ContentView: View {
             startNetworkMonitor(); startLocationManager(); loadLogs(); updateAll(); startMotionUpdates()
             deviceOrientation = UIDevice.current.orientation
             NotificationCenter.default.addObserver(forName: UIDevice.orientationDidChangeNotification, object: nil, queue: .main) { _ in deviceOrientation = UIDevice.current.orientation }
+            // 检查通知权限
+            UNUserNotificationCenter.current().getNotificationSettings { settings in
+                DispatchQueue.main.async { notificationsEnabled = settings.authorizationStatus == .authorized }
+            }
         }
     }
     
@@ -285,22 +308,44 @@ struct ContentView: View {
         batteryLevel = UIDevice.current.batteryLevel; batteryState = UIDevice.current.batteryState
         screenBrightness = Double(UIScreen.main.brightness * 100)
         updateCurrentTime(); updateCPUUsage(); updateMemoryUsage(); updateStorageUsage()
-        uptime = ProcessInfo.processInfo.systemUptime; triggerHeartBeat(); checkStatusChange()
+        uptime = ProcessInfo.processInfo.systemUptime; triggerHeartBeat(); checkStatusChange(); checkNotifications()
         
-        // 每3秒记录一次历史
         historyTick += 1
-        if historyTick % 3 == 0 {
-            yinHistory.append(yinValue); yangHistory.append(yangValue)
-            if yinHistory.count > maxHistory { yinHistory.removeFirst(); yangHistory.removeFirst() }
+        if historyTick % 3 == 0 { yinHistory.append(yinValue); yangHistory.append(yangValue); if yinHistory.count > maxHistory { yinHistory.removeFirst(); yangHistory.removeFirst() } }
+        
+        previousBatteryLevel = batteryLevel
+    }
+    
+    func checkNotifications() {
+        guard notificationsEnabled else { return }
+        // 限制通知频率：至少间隔60秒
+        guard Date().timeIntervalSince(lastNotificationTime) > 60 else { return }
+        
+        // 低电量告警
+        if batteryLevel > 0 && batteryLevel < 0.15 && batteryState != .charging {
+            NotificationManager.shared.sendNotification(title: "💔 星核告急", body: "气血仅剩\(String(format: "%.0f", batteryLevel * 100))%，请速速充能！")
+            lastNotificationTime = Date()
+        }
+        // 充电完成
+        else if previousBatteryLevel > 0 && previousBatteryLevel < 1.0 && batteryState == .full {
+            NotificationManager.shared.sendNotification(title: "🔋 星核充满", body: "气血已满，可以全力输出了！")
+            lastNotificationTime = Date()
         }
     }
     
     func checkStatusChange() {
         let cH = drvHex.name; let cS = stat.label
         if lastHexagram != "" && (cH != lastHexagram || cS != lastStatus) {
-            // 震动反馈 - 星核感受到了变化
             let generator = UIImpactFeedbackGenerator(style: cH != lastHexagram ? .heavy : .light)
             generator.impactOccurred()
+            
+            // 重要状态变化发通知
+            if notificationsEnabled && Date().timeIntervalSince(lastNotificationTime) > 60 {
+                if cH != lastHexagram {
+                    NotificationManager.shared.sendNotification(title: "☯️ \(lastHexagram)→\(cH)卦", body: drvHex.desc + " " + drvHex.advice)
+                    lastNotificationTime = Date()
+                }
+            }
             
             var e = ""
             if cH != lastHexagram { e += "\(lastHexagram)→\(cH)" }
