@@ -8,6 +8,7 @@ struct ContentView: View {
     @State private var memoryUsage: Double = 0
     @State private var storageUsed: String = ""
     @State private var storageTotal: String = ""
+    @State private var storagePercent: Double = 0
     @State private var heartBeatScale: CGFloat = 1.0
     
     let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
@@ -28,75 +29,125 @@ struct ContentView: View {
     }
     
     var body: some View {
-        VStack(spacing: 20) {
-            // 标题带心跳动画
-            Text("✨ 星核启动！✨")
-                .font(.largeTitle)
-                .fontWeight(.bold)
-                .scaleEffect(heartBeatScale)
-                .animation(.easeInOut(duration: 0.3), value: heartBeatScale)
+        ZStack {
+            // 深色科技背景
+            LinearGradient(
+                gradient: Gradient(colors: [
+                    Color(red: 0.05, green: 0.05, blue: 0.15),
+                    Color(red: 0.1, green: 0.1, blue: 0.25),
+                    Color(red: 0.05, green: 0.15, blue: 0.2)
+                ]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
             
-            // 整体状态
-            HStack {
-                Text("状态：")
-                    .font(.title2)
-                Text(overallStatus.0)
-                    .font(.title2)
-                    .fontWeight(.bold)
-                    .foregroundColor(overallStatus.1)
+            VStack(spacing: 25) {
+                // 标题带心跳动画
+                Text("✨ 星核 ✨")
+                    .font(.system(size: 48, weight: .bold))
+                    .foregroundColor(.white)
+                    .shadow(color: .cyan, radius: 10)
+                    .scaleEffect(heartBeatScale)
+                    .animation(.easeInOut(duration: 0.3), value: heartBeatScale)
+                
+                // 整体状态
+                HStack {
+                    Text("状态：")
+                        .font(.title2)
+                        .foregroundColor(.white.opacity(0.8))
+                    Text(overallStatus.0)
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .foregroundColor(overallStatus.1)
+                        .shadow(color: overallStatus.1, radius: 5)
+                }
+                
+                // 气血 - 电池电量
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack {
+                        Text("💚 气血")
+                            .font(.headline)
+                            .foregroundColor(.green)
+                        Spacer()
+                        Text(String(format: "%.1f%%", batteryLevel * 100))
+                            .font(.headline)
+                            .foregroundColor(.green)
+                    }
+                    ProgressView(value: Double(batteryLevel))
+                        .progressViewStyle(LinearProgressViewStyle(tint: .green))
+                        .shadow(color: .green, radius: 3)
+                }
+                .padding(.horizontal)
+                
+                // 脉搏 - 系统时间
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack {
+                        Text("💙 脉搏")
+                            .font(.headline)
+                            .foregroundColor(.cyan)
+                        Spacer()
+                        Text(currentTime)
+                            .font(.headline)
+                            .foregroundColor(.cyan)
+                            .monospacedDigit()
+                    }
+                }
+                .padding(.horizontal)
+                
+                // 心跳 - CPU负载
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack {
+                        Text("❤️ 心跳")
+                            .font(.headline)
+                            .foregroundColor(.red)
+                        Spacer()
+                        Text(String(format: "%.1f%%", cpuUsage))
+                            .font(.headline)
+                            .foregroundColor(.red)
+                    }
+                    ProgressView(value: cpuUsage / 100)
+                        .progressViewStyle(LinearProgressViewStyle(tint: .red))
+                        .shadow(color: .red, radius: 3)
+                }
+                .padding(.horizontal)
+                
+                // 思维 - 内存使用
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack {
+                        Text("💜 思维")
+                            .font(.headline)
+                            .foregroundColor(.purple)
+                        Spacer()
+                        Text(String(format: "%.1f%%", memoryUsage))
+                            .font(.headline)
+                            .foregroundColor(.purple)
+                    }
+                    ProgressView(value: memoryUsage / 100)
+                        .progressViewStyle(LinearProgressViewStyle(tint: .purple))
+                        .shadow(color: .purple, radius: 3)
+                }
+                .padding(.horizontal)
+                
+                // 储备 - 存储使用
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack {
+                        Text("💛 储备")
+                            .font(.headline)
+                            .foregroundColor(.yellow)
+                        Spacer()
+                        Text("\(storageUsed) / \(storageTotal)")
+                            .font(.headline)
+                            .foregroundColor(.yellow)
+                    }
+                    ProgressView(value: storagePercent / 100)
+                        .progressViewStyle(LinearProgressViewStyle(tint: .yellow))
+                        .shadow(color: .yellow, radius: 3)
+                }
+                .padding(.horizontal)
             }
-            
-            // 气血 - 电池电量
-            HStack {
-                Text("💚 气血：")
-                    .font(.title2)
-                    .foregroundColor(.green)
-                Text(String(format: "%.1f%%", batteryLevel * 100))
-                    .font(.title2)
-                    .foregroundColor(.green)
-            }
-            
-            // 脉搏 - 系统时间
-            HStack {
-                Text("💙 脉搏：")
-                    .font(.title2)
-                    .foregroundColor(.blue)
-                Text(currentTime)
-                    .font(.title2)
-                    .foregroundColor(.blue)
-            }
-            
-            // 心跳 - CPU负载
-            HStack {
-                Text("❤️ 心跳：")
-                    .font(.title2)
-                    .foregroundColor(.red)
-                Text(String(format: "%.1f%%", cpuUsage))
-                    .font(.title2)
-                    .foregroundColor(.red)
-            }
-            
-            // 思维 - 内存使用
-            HStack {
-                Text("💜 思维：")
-                    .font(.title2)
-                    .foregroundColor(.purple)
-                Text(String(format: "%.1f%%", memoryUsage))
-                    .font(.title2)
-                    .foregroundColor(.purple)
-            }
-            
-            // 储备 - 存储使用
-            HStack {
-                Text("💛 储备：")
-                    .font(.title2)
-                    .foregroundColor(.yellow)
-                Text("\(storageUsed) / \(storageTotal)")
-                    .font(.title2)
-                    .foregroundColor(.yellow)
-            }
+            .padding()
         }
-        .padding()
         .onReceive(timer) { _ in
             updateBatteryLevel()
             updateCurrentTime()
@@ -190,10 +241,12 @@ struct ContentView: View {
                 let used = total - Int(available)
                 storageUsed = ByteCountFormatter.string(fromByteCount: Int64(used), countStyle: .file)
                 storageTotal = ByteCountFormatter.string(fromByteCount: Int64(total), countStyle: .file)
+                storagePercent = Double(used) / Double(total) * 100
             }
         } catch {
             storageUsed = "未知"
             storageTotal = "未知"
+            storagePercent = 0
         }
     }
 }
