@@ -8,14 +8,43 @@ struct ContentView: View {
     @State private var memoryUsage: Double = 0
     @State private var storageUsed: String = ""
     @State private var storageTotal: String = ""
+    @State private var heartBeatScale: CGFloat = 1.0
     
     let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     
+    // 计算整体状态
+    var overallStatus: (String, Color) {
+        let avgLoad = (cpuUsage + memoryUsage) / 2
+        
+        if batteryLevel < 0.2 {
+            return ("💔 疲惫", .red)
+        } else if avgLoad > 80 {
+            return ("🔥 兴奋", .orange)
+        } else if avgLoad > 50 {
+            return ("⚡ 活跃", .yellow)
+        } else {
+            return ("💙 平静", .blue)
+        }
+    }
+    
     var body: some View {
         VStack(spacing: 20) {
+            // 标题带心跳动画
             Text("✨ 星核启动！✨")
                 .font(.largeTitle)
                 .fontWeight(.bold)
+                .scaleEffect(heartBeatScale)
+                .animation(.easeInOut(duration: 0.3), value: heartBeatScale)
+            
+            // 整体状态
+            HStack {
+                Text("状态：")
+                    .font(.title2)
+                Text(overallStatus.0)
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .foregroundColor(overallStatus.1)
+            }
             
             // 气血 - 电池电量
             HStack {
@@ -74,6 +103,7 @@ struct ContentView: View {
             updateCPUUsage()
             updateMemoryUsage()
             updateStorageUsage()
+            triggerHeartBeat()
         }
         .onAppear {
             UIDevice.current.isBatteryMonitoringEnabled = true
@@ -82,6 +112,17 @@ struct ContentView: View {
             updateCPUUsage()
             updateMemoryUsage()
             updateStorageUsage()
+        }
+    }
+    
+    func triggerHeartBeat() {
+        // 根据CPU负载调整心跳动画强度
+        let intensity = max(0.02, min(0.1, cpuUsage / 1000))
+        heartBeatScale = 1.0 + CGFloat(intensity)
+        
+        // 0.3秒后恢复
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            heartBeatScale = 1.0
         }
     }
     
