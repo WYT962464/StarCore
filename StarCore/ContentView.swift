@@ -102,6 +102,7 @@ struct ContentView: View {
     @State private var notificationsEnabled: Bool = false; @State private var lastNotificationTime: Date = .distantPast
     @State private var previousBatteryLevel: Float = -1; @State private var previousBatteryState: UIDevice.BatteryState = .unknown
     @State private var showDailySummary: Bool = false
+    @State private var showHistory: Bool = false
     
     let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     let logURL: URL = { FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("starcore_log.json") }()
@@ -146,6 +147,7 @@ struct ContentView: View {
                         Button(action: { showDailySummary = true }) {
                             HStack { Image(systemName: "chart.bar").font(.caption); Text("今日总结").font(.caption).fontWeight(.bold) }.foregroundColor(.cyan).padding(.horizontal, 10).padding(.vertical, 4).background(Color.cyan.opacity(0.15)).cornerRadius(8)
                         }
+                        Button(action: { showHistory = true }) { HStack { Image(systemName: "clock.arrow.circlepath").font(.caption); Text("成长轨迹").font(.caption).fontWeight(.bold) }.foregroundColor(.purple).padding(.horizontal, 10).padding(.vertical, 4).background(Color.purple.opacity(0.15)).cornerRadius(8) }
                         Spacer()
                         Button(action: { if !notificationsEnabled { NotificationManager.shared.requestAuthorization(); notificationsEnabled = true; NotificationManager.shared.sendNotification(title: "☯️ 星核", body: "通知已开启") } else { notificationsEnabled = false } }) {
                             HStack { Image(systemName: notificationsEnabled ? "bell.fill" : "bell.slash").font(.caption); Text(notificationsEnabled ? "通知开" : "通知关").font(.caption).fontWeight(.bold) }.foregroundColor(notificationsEnabled ? .green : .gray).padding(.horizontal, 10).padding(.vertical, 4).background(notificationsEnabled ? Color.green.opacity(0.15) : Color.gray.opacity(0.1)).cornerRadius(8)
@@ -194,6 +196,7 @@ struct ContentView: View {
                 }.padding(.vertical, 6)
             }
         }
+        .sheet(isPresented: $showHistory) { HistoryView(history: dailyStats.loadHistory()) }
         .sheet(isPresented: $showDailySummary) {
             DailySummaryView(stats: dailyStats.today)
         }
