@@ -5,39 +5,71 @@ import CoreLocation
 import Network
 
 struct HexagramEngine {
-    static let allHexagrams: [(name: String, symbol: String, nature: String, meaning: String, upper: String, lower: String)] = [
-        ("乾","☰☰","天","自强不息·刚健中正","天","天"),("坤","☷☷","地","厚德载物·柔顺包容","地","地"),
-        ("屯","☵☳","水雷","万物初生·艰难起步","水","雷"),("蒙","☶☵","山水","启蒙教化·混沌求明","山","水"),
-        ("需","☵☰","水天","守正待时·耐心积蓄","水","天"),("讼","☰☵","天水","争讼不和·谨慎应对","天","水"),
-        ("师","☷☵","地水","统率众力·纪律严明","地","水"),("比","☵☷","水地","亲比相助·团结协作","水","地"),
-        ("小畜","☴☰","风天","蓄积小力·以柔济刚","风","天"),("履","☰☱","天泽","谨慎行走·循礼而行","天","泽"),
-        ("泰","☷☰","地天","天地交泰·通达和谐","地","天"),("否","☰☷","天地","天地不交·闭塞不通","天","地"),
-        ("同人","☰☲","天火","志同道合·协力同心","天","火"),("大有","☲☰","火天","大有所成·光明普照","火","天"),
-        ("谦","☷☶","地山","谦逊低调·功成不居","地","山"),("豫","☳☷","雷地","愉悦安乐·顺势而动","雷","地"),
-        ("随","☱☳","泽雷","随时变通·顺应大势","泽","雷"),("蛊","☶☴","山风","拨乱反正·革新除弊","山","风"),
-        ("临","☷☱","地泽","临近就位·以大临小","地","泽"),("观","☴☷","风地","观察审视·以德示人","风","地"),
-        ("噬嗑","☲☳","火雷","明罚敕法·刚柔相济","火","雷"),("贲","☶☲","山火","文饰修饰·实质为要","山","火"),
-        ("剥","☶☷","山地","剥落衰败·顺时而止","山","地"),("复","☷☳","地雷","一阳来复·生机重现","地","雷"),
-        ("无妄","☰☳","天雷","至诚不妄·顺应天道","天","雷"),("大畜","☶☰","山天","大积大蓄·蓄势待发","山","天"),
-        ("颐","☶☳","山雷","颐养正道·谨慎修养","山","雷"),("大过","☱☴","泽风","过度非常·果断应变","泽","风"),
-        ("坎","☵☵","水","重险重重·以诚破险","水","水"),("离","☲☲","火","光明附丽·柔顺中正","火","火"),
-        ("咸","☱☶","泽山","感应相通·以虚受人","泽","山"),("恒","☳☴","雷风","恒久不变·守正持恒","雷","风"),
-        ("遁","☰☶","天山","退避隐遁·明哲保身","天","山"),("大壮","☳☰","雷天","刚健壮盛·非礼弗履","雷","天"),
-        ("晋","☲☷","火地","光明进取·顺而上行","火","地"),("明夷","☷☲","地火","光明受损·韬光养晦","地","火"),
-        ("家人","☴☲","风火","治家有道·各司其职","风","火"),("睽","☲☱","火泽","乖离违逆·求同存异","火","泽"),
-        ("蹇","☵☶","水山","行路艰难·见险而止","水","山"),("解","☳☵","雷水","解除困难·速战速决","雷","水"),
-        ("损","☶☱","山泽","减损自我·以益于人","山","泽"),("益","☳☴","雷风","增益进取·迁善改过","雷","风"),
-        ("夬","☱☰","泽天","决断刚毅·除邪扶正","泽","天"),("姤","☰☴","天风","不期而遇·防微杜渐","天","风"),
-        ("萃","☱☷","泽地","聚集汇合·以正聚众","泽","地"),("升","☷☴","地风","上升进取·积小成大","地","风"),
-        ("困","☵☱","水泽","困顿艰难·守志不屈","水","泽"),("井","☴☵","风水","汲取不竭·修德养民","风","水"),
-        ("革","☱☲","泽火","变革更新·顺天应人","泽","火"),("鼎","☲☴","火风","革故鼎新·正位凝命","火","风"),
-        ("震","☳☳","雷","雷声震动·临危不乱","雷","雷"),("艮","☶☶","山","静止安止·时止则止","山","山"),
-        ("渐","☴☶","风山","循序渐进·稳步前行","风","山"),("归妹","☳☱","雷泽","归终有序·以正合礼","雷","泽"),
-        ("丰","☳☲","雷火","丰盛光大·明动相合","雷","火"),("旅","☲☶","火山","旅途羁旅·柔顺中正","火","山"),
-        ("巽","☴☴","风","顺风顺水·柔顺谦逊","风","风"),("兑","☱☱","泽","喜悦和乐·刚中柔外","泽","泽"),
-        ("涣","☴☵","风水","涣散离散·以正聚合","风","水"),("节","☵☱","水泽","节制有度·制度约束","水","泽"),
-        ("中孚","☴☱","风泽","诚信立身·以信感人","风","泽"),("小过","☳☶","雷山","小有过越·低调行事","雷","山"),
-        ("既济","☵☲","水火","功成事定·守成防衰","水","火"),("未济","☲☵","火水","尚未完成·新的开始","火","水"),
+    static let allHexagrams: [(name: String, symbol: String, nature: String, meaning: String, upper: String, lower: String, yao: [Bool])] = [
+        ("乾","☰☰","天","自强不息·刚健中正","天","天",[true,true,true,true,true,true]),
+        ("坤","☷☷","地","厚德载物·柔顺包容","地","地",[false,false,false,false,false,false]),
+        ("屯","☵☳","水雷","万物初生·艰难起步","水","雷",[true,false,false,false,true,true]),
+        ("蒙","☶☵","山水","启蒙教化·混沌求明","山","水",[false,false,false,true,true,false]),
+        ("需","☵☰","水天","守正待时·耐心积蓄","水","天",[true,true,false,false,true,true]),
+        ("讼","☰☵","天水","争讼不和·谨慎应对","天","水",[true,true,false,false,true,true]),
+        ("师","☷☵","地水","统率众力·纪律严明","地","水",[false,false,false,true,true,false]),
+        ("比","☵☷","水地","亲比相助·团结协作","水","地",[false,false,false,true,true,false]),
+        ("小畜","☴☰","风天","蓄积小力·以柔济刚","风","天",[true,true,false,true,false,false]),
+        ("履","☰☱","天泽","谨慎行走·循礼而行","天","泽",[false,false,true,true,true,true]),
+        ("泰","☷☰","地天","天地交泰·通达和谐","地","天",[true,true,true,false,false,false]),
+        ("否","☰☷","天地","天地不交·闭塞不通","天","地",[false,false,false,true,true,true]),
+        ("同人","☰☲","天火","志同道合·协力同心","天","火",[true,false,true,true,true,true]),
+        ("大有","☲☰","火天","大有所成·光明普照","火","天",[true,true,true,false,true,false]),
+        ("谦","☷☶","地山","谦逊低调·功成不居","地","山",[false,false,false,true,false,false]),
+        ("豫","☳☷","雷地","愉悦安乐·顺势而动","雷","地",[false,false,false,true,true,true]),
+        ("随","☱☳","泽雷","随时变通·顺应大势","泽","雷",[true,true,false,false,true,false]),
+        ("蛊","☶☴","山风","拨乱反正·革新除弊","山","风",[false,false,true,true,false,false]),
+        ("临","☷☱","地泽","临近就位·以大临小","地","泽",[false,false,true,false,false,false]),
+        ("观","☴☷","风地","观察审视·以德示人","风","地",[false,false,false,false,true,true]),
+        ("噬嗑","☲☳","火雷","明罚敕法·刚柔相济","火","雷",[true,true,false,true,false,true]),
+        ("贲","☶☲","山火","文饰修饰·实质为要","山","火",[true,false,true,false,false,false]),
+        ("剥","☶☷","山地","剥落衰败·顺时而止","山","地",[false,false,false,false,false,true]),
+        ("复","☷☳","地雷","一阳来复·生机重现","地","雷",[true,false,false,false,false,false]),
+        ("无妄","☰☳","天雷","至诚不妄·顺应天道","天","雷",[true,false,false,true,true,true]),
+        ("大畜","☶☰","山天","大积大蓄·蓄势待发","山","天",[true,true,true,false,false,true]),
+        ("颐","☶☳","山雷","颐养正道·谨慎修养","山","雷",[true,false,false,false,false,true]),
+        ("大过","☱☴","泽风","过度非常·果断应变","泽","风",[false,true,true,true,true,false]),
+        ("坎","☵☵","水","重险重重·以诚破险","水","水",[false,true,false,false,true,false]),
+        ("离","☲☲","火","光明附丽·柔顺中正","火","火",[true,false,true,true,false,true]),
+        ("咸","☱☶","泽山","感应相通·以虚受人","泽","山",[false,false,true,true,false,false]),
+        ("恒","☳☴","雷风","恒久不变·守正持恒","雷","风",[false,true,true,true,false,false]),
+        ("遁","☰☶","天山","退避隐遁·明哲保身","天","山",[false,false,true,true,true,true]),
+        ("大壮","☳☰","雷天","刚健壮盛·非礼弗履","雷","天",[true,true,true,true,false,false]),
+        ("晋","☲☷","火地","光明进取·顺而上行","火","地",[false,false,false,true,false,true]),
+        ("明夷","☷☲","地火","光明受损·韬光养晦","地","火",[true,false,true,false,false,false]),
+        ("家人","☴☲","风火","治家有道·各司其职","风","火",[true,false,true,true,false,false]),
+        ("睽","☲☱","火泽","乖离违逆·求同存异","火","泽",[false,true,true,true,false,true]),
+        ("蹇","☵☶","水山","行路艰难·见险而止","水","山",[false,false,true,false,true,false]),
+        ("解","☳☵","雷水","解除困难·速战速决","雷","水",[false,true,false,false,false,true]),
+        ("损","☶☱","山泽","减损自我·以益于人","山","泽",[false,false,true,true,false,false]),
+        ("益","☳☴","雷风","增益进取·迁善改过","雷","风",[false,true,true,true,false,false]),
+        ("夬","☱☰","泽天","决断刚毅·除邪扶正","泽","天",[true,true,true,true,true,false]),
+        ("姤","☰☴","天风","不期而遇·防微杜渐","天","风",[false,true,true,true,true,true]),
+        ("萃","☱☷","泽地","聚集汇合·以正聚众","泽","地",[false,false,false,false,true,true]),
+        ("升","☷☴","地风","上升进取·积小成大","地","风",[false,true,false,false,false,false]),
+        ("困","☵☱","水泽","困顿艰难·守志不屈","水","泽",[false,true,false,false,true,false]),
+        ("井","☴☵","风水","汲取不竭·修德养民","风","水",[false,true,false,true,false,false]),
+        ("革","☱☲","泽火","变革更新·顺天应人","泽","火",[true,false,true,false,true,false]),
+        ("鼎","☲☴","火风","革故鼎新·正位凝命","火","风",[false,true,true,true,false,true]),
+        ("震","☳☳","雷","雷声震动·临危不乱","雷","雷",[false,false,false,true,false,false]),
+        ("艮","☶☶","山","静止安止·时止则止","山","山",[false,true,false,false,true,false]),
+        ("渐","☴☶","风山","循序渐进·稳步前行","风","山",[false,false,true,false,false,true]),
+        ("归妹","☳☱","雷泽","归终有序·以正合礼","雷","泽",[false,true,false,true,false,false]),
+        ("丰","☳☲","雷火","丰盛光大·明动相合","雷","火",[true,false,true,false,false,false]),
+        ("旅","☲☶","火山","旅途羁旅·柔顺中正","火","山",[false,true,false,true,false,true]),
+        ("巽","☴☴","风","顺风顺水·柔顺谦逊","风","风",[false,true,false,false,true,false]),
+        ("兑","☱☱","泽","喜悦和乐·刚中柔外","泽","泽",[false,false,true,true,false,false]),
+        ("涣","☴☵","风水","涣散离散·以正聚合","风","水",[false,true,false,false,false,true]),
+        ("节","☵☱","水泽","节制有度·制度约束","水","泽",[false,true,true,false,true,false]),
+        ("中孚","☴☱","风泽","诚信立身·以信感人","风","泽",[false,false,true,true,false,false]),
+        ("小过","☳☶","雷山","小有过越·低调行事","雷","山",[false,true,false,false,true,false]),
+        ("既济","☵☲","水火","功成事定·守成防衰","水","火",[true,false,true,false,true,false]),
+        ("未济","☲☵","火水","尚未完成·新的开始","火","水",[false,true,false,true,false,true]),
     ]
     
     static func currentMessageHexagram(hour: Int) -> (name: String, symbol: String, desc: String, color: Color, action: String) {
@@ -74,14 +106,86 @@ struct HexagramEngine {
     
     static func evaluateStatus(battery: Float, cpu: Double, memory: Double, motion: Double) -> (emoji: String, label: String, color: Color) {
         let e = Double(battery) * 100; let l = (cpu + memory) / 2
-        if e < 10 { return ("💔","危急",.red) }
-        else if e < 20 { return ("🥵","虚弱",.orange) }
-        else if l > 80 { return ("🔥","过载",.red) }
-        else if l > 60 { return ("⚡","满载",.orange) }
+        if e < 10 { return ("💔","危急",.red) } else if e < 20 { return ("🥵","虚弱",.orange) }
+        else if l > 80 { return ("🔥","过载",.red) } else if l > 60 { return ("⚡","满载",.orange) }
         else if motion > 50 { return ("🏃","活跃",.green) }
         else if e > 80 && l < 30 { return ("😌","安逸",.cyan) }
-        else if e > 50 { return ("💙","平稳",.blue) }
-        else { return ("💛","警戒",.yellow) }
+        else if e > 50 { return ("💙","平稳",.blue) } else { return ("💛","警戒",.yellow) }
+    }
+}
+
+// 卦象爻线可视化组件
+struct HexagramYaoView: View {
+    let yao: [Bool]  // true=阳爻(实线), false=阴爻(断线), 从下到上
+    let color: Color
+    let size: CGFloat
+    
+    var body: some View {
+        VStack(spacing: size * 0.12) {
+            ForEach(Array(yao.reversed().enumerated()), id: \.offset) { _, isYang in
+                if isYang {
+                    // 阳爻：一条实线
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(color)
+                        .frame(width: size, height: size * 0.1)
+                } else {
+                    // 阴爻：中间断开的两段
+                    HStack(spacing: size * 0.12) {
+                        RoundedRectangle(cornerRadius: 2).fill(color).frame(width: size * 0.4, height: size * 0.1)
+                        RoundedRectangle(cornerRadius: 2).fill(color).frame(width: size * 0.4, height: size * 0.1)
+                    }.frame(width: size)
+                }
+            }
+        }
+    }
+}
+
+// 罗盘组件
+struct CompassView: View {
+    let heading: Double
+    let direction: String
+    let size: CGFloat
+    
+    var body: some View {
+        ZStack {
+            // 外圈
+            Circle().stroke(Color.gray.opacity(0.3), lineWidth: 1.5).frame(width: size, height: size)
+            // 刻度
+            ForEach(0..<12, id: \.self) { i in
+                let angle = Double(i) * 30.0
+                let rad = Angle(degrees: angle - heading - 90).radians
+                let label = ["N","","NE","","E","","SE","","S","","SW","","W"][i % 12]
+                if !label.isEmpty {
+                    Text(label)
+                        .font(.system(size: size * 0.09, weight: label == "N" ? .bold : .regular))
+                        .foregroundColor(label == "N" ? .red : .white.opacity(0.5))
+                        .offset(x: (size * 0.38) * CGFloat(cos(rad)), y: (size * 0.38) * CGFloat(sin(rad)))
+                }
+            }
+            // 指针
+            VStack(spacing: 2) {
+                Triangle().fill(Color.red).frame(width: size * 0.06, height: size * 0.18)
+                Triangle().fill(Color.white.opacity(0.5)).frame(width: size * 0.06, height: size * 0.18).rotationEffect(.degrees(180))
+            }
+            // 中心点
+            Circle().fill(Color.cyan).frame(width: size * 0.06, height: size * 0.06)
+            // 角度
+            Text(String(format: "%.0f°", heading))
+                .font(.system(size: size * 0.1, weight: .bold))
+                .foregroundColor(.white)
+                .offset(y: size * 0.25)
+        }
+    }
+}
+
+struct Triangle: Shape {
+    func path(in rect: CGRect) -> Path {
+        var p = Path()
+        p.move(to: CGPoint(x: rect.midX, y: rect.minY))
+        p.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        p.closeSubpath()
+        return p
     }
 }
 
@@ -112,8 +216,7 @@ struct ContentView: View {
     @State private var statusLogs: [StatusLog] = []
     @State private var lastHexagram: String = ""; @State private var lastStatus: String = ""
     @State private var monitor = NWPathMonitor()
-    @State private var selectedHexagram: (name: String, symbol: String, nature: String, meaning: String, upper: String, lower: String)? = nil
-    // 磁场+朝向
+    @State private var selectedHexagram: (name: String, symbol: String, nature: String, meaning: String, upper: String, lower: String, yao: [Bool])? = nil
     @State private var heading: Double = -1
     @State private var magneticX: Double = 0; @State private var magneticY: Double = 0; @State private var magneticZ: Double = 0
     @State private var locationManager: CLLocationManager?
@@ -126,36 +229,20 @@ struct ContentView: View {
     
     var yinValue: Double { (cpuUsage + memoryUsage) / 2 }
     var yangValue: Double { (Double(batteryLevel) * 100 + motionIntensity) / 2 }
-    var motionIntensity: Double { let a = sqrt(accelerometerX * accelerometerX + accelerometerY * accelerometerY + accelerometerZ * accelerometerZ); let g = sqrt(gyroX * gyroX + gyroY * gyroY + gyroZ * gyroZ); return min(100, (a + g) * 10) }
-    var magneticIntensity: Double { sqrt(magneticX * magneticX + magneticY * magneticY + magneticZ * magneticZ) }
+    var motionIntensity: Double { let a = sqrt(accelerometerX*accelerometerX+accelerometerY*accelerometerY+accelerometerZ*accelerometerZ); let g = sqrt(gyroX*gyroX+gyroY*gyroY+gyroZ*gyroZ); return min(100, (a+g)*10) }
+    var magneticIntensity: Double { sqrt(magneticX*magneticX+magneticY*magneticY+magneticZ*magneticZ) }
     var headingDirection: String {
-        if heading < 0 { return "无方向" }
-        let h = heading.truncatingRemainder(dividingBy: 360)
-        if h >= 337.5 || h < 22.5 { return "北" }
-        else if h < 67.5 { return "东北" }
-        else if h < 112.5 { return "东" }
-        else if h < 157.5 { return "东南" }
-        else if h < 202.5 { return "南" }
-        else if h < 247.5 { return "西南" }
-        else if h < 292.5 { return "西" }
-        else { return "西北" }
+        if heading < 0 { return "无方向" }; let h = heading.truncatingRemainder(dividingBy: 360)
+        if h >= 337.5 || h < 22.5 { return "北" } else if h < 67.5 { return "东北" } else if h < 112.5 { return "东" }
+        else if h < 157.5 { return "东南" } else if h < 202.5 { return "南" } else if h < 247.5 { return "西南" }
+        else if h < 292.5 { return "西" } else { return "西北" }
     }
-    var orientationIcon: String {
-        switch deviceOrientation {
-        case .portrait: return "📱↑"
-        case .portraitUpsideDown: return "📱↓"
-        case .landscapeLeft: return "📱←"
-        case .landscapeRight: return "📱→"
-        case .faceUp: return "📱☀️"
-        case .faceDown: return "📱🌙"
-        default: return "📱"
-        }
-    }
-    
+    var orientationIcon: String { switch deviceOrientation { case .portrait: return "📱↑"; case .portraitUpsideDown: return "📱↓"; case .landscapeLeft: return "📱←"; case .landscapeRight: return "📱→"; case .faceUp: return "☀️"; case .faceDown: return "🌙"; default: return "📱" } }
     var currentHour: Int { Calendar.current.component(.hour, from: Date()) }
     var msgHex: (name: String, symbol: String, desc: String, color: Color, action: String) { HexagramEngine.currentMessageHexagram(hour: currentHour) }
     var drvHex: (name: String, desc: String, advice: String) { HexagramEngine.deriveHexagram(yin: yinValue, yang: yangValue) }
     var stat: (emoji: String, label: String, color: Color) { HexagramEngine.evaluateStatus(battery: batteryLevel, cpu: cpuUsage, memory: memoryUsage, motion: motionIntensity) }
+    var currentYao: [Bool] { HexagramEngine.allHexagrams.first(where: { $0.name == drvHex.name })?.yao ?? [true,true,true,true,true,true] }
     
     var body: some View {
         ZStack {
@@ -163,11 +250,42 @@ struct ContentView: View {
             
             ScrollView {
                 VStack(spacing: 14) {
-                    // 太极
-                    VStack(spacing: 4) {
-                        Text("☯️ 星核 ☯️").font(.system(size: 36, weight: .bold)).foregroundColor(.white).shadow(color: stat.color, radius: 12).scaleEffect(heartBeatScale).animation(.easeInOut(duration: 0.3), value: heartBeatScale)
-                        HStack(spacing: 6) { Text(stat.emoji).font(.title2); Text(stat.label).font(.title3).fontWeight(.bold).foregroundColor(stat.color); Text(msgHex.symbol).font(.title2) }
+                    // 太极 + 卦象爻线 + 罗盘
+                    HStack(spacing: 16) {
+                        // 左：卦象爻线
+                        VStack(spacing: 4) {
+                            HexagramYaoView(yao: currentYao, color: stat.color, size: 60)
+                            Text(drvHex.name + "卦")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundColor(.cyan)
+                        }
+                        
+                        // 中：太极
+                        VStack(spacing: 4) {
+                            Text("☯️")
+                                .font(.system(size: 42))
+                                .shadow(color: stat.color, radius: 12)
+                                .scaleEffect(heartBeatScale)
+                                .animation(.easeInOut(duration: 0.3), value: heartBeatScale)
+                            Text(stat.emoji + stat.label)
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundColor(stat.color)
+                        }
+                        
+                        // 右：罗盘
+                        VStack(spacing: 4) {
+                            if heading >= 0 {
+                                CompassView(heading: heading, direction: headingDirection, size: 70)
+                            } else {
+                                Circle().stroke(Color.gray.opacity(0.3), lineWidth: 1.5).frame(width: 70, height: 70)
+                                    .overlay(Text("🧭").font(.title2))
+                            }
+                            Text(headingDirection)
+                                .font(.system(size: 12))
+                                .foregroundColor(.orange)
+                        }
                     }
+                    .padding(.horizontal)
                     
                     // 决策卡片
                     VStack(spacing: 5) {
@@ -194,23 +312,15 @@ struct ContentView: View {
                     SensorRow(icon: "💜", name: "艮·校验", label: "思维", value: String(format: "%.1f%%", memoryUsage), detail: nil, progress: memoryUsage / 100, color: .purple)
                     SensorRow(icon: "💛", name: "坤·存储", label: "储备", value: "\(storageUsed)/\(storageTotal)", detail: String(format: "%.0f%%", storagePercent), progress: storagePercent / 100, color: .yellow)
                     
-                    // 乾·收集 - 增强版（触觉+磁场+朝向+光线）
                     VStack(alignment: .leading, spacing: 3) {
                         HStack { Text("🧭 乾·收集").font(.subheadline).foregroundColor(.orange); Spacer(); Text(String(format: "%.0f%%", motionIntensity)).font(.subheadline).foregroundColor(.orange) }
-                        
-                        // 触觉
                         HStack { Text("触觉").font(.system(size: 9)).foregroundColor(.gray); Spacer(); Text("A:\(String(format: "%.1f", accelerometerX)),\(String(format: "%.1f", accelerometerY)),\(String(format: "%.1f", accelerometerZ))").font(.system(size: 9)).foregroundColor(.orange.opacity(0.5)) }
-                        
-                        // 磁场
                         HStack { Text("磁场").font(.system(size: 9)).foregroundColor(.gray); Spacer(); Text(heading >= 0 ? "\(headingDirection) \(String(format: "%.0f", heading))° | \(String(format: "%.0f", magneticIntensity))μT" : "无数据").font(.system(size: 9)).foregroundColor(.orange.opacity(0.5)) }
-                        
-                        // 朝向+光线
                         HStack { Text("\(orientationIcon) 朝向").font(.system(size: 9)).foregroundColor(.gray); Spacer(); Text("光线 \(String(format: "%.0f", screenBrightness))%").font(.system(size: 9)).foregroundColor(.orange.opacity(0.5)); Text("📡 \(networkStatus)").font(.system(size: 9)).foregroundColor(networkStatus == "离线" ? .red.opacity(0.7) : .green.opacity(0.7)) }
-                        
                         ProgressView(value: motionIntensity / 100).progressViewStyle(LinearProgressViewStyle(tint: .orange))
                     }.padding(.horizontal)
                     
-                    SensorRow(icon: "⚪️", name: "兑·迭代", label: "进化", value: formatUptime(uptime), detail: "v0.1.17", progress: min(1, uptime / 86400), color: .white.opacity(0.7))
+                    SensorRow(icon: "⚪️", name: "兑·迭代", label: "进化", value: formatUptime(uptime), detail: "v0.1.18", progress: min(1, uptime / 86400), color: .white.opacity(0.7))
                     SensorRow(icon: "🔵", name: "巽·输出", label: "状态", value: "\(msgHex.name)·\(drvHex.name)", detail: drvHex.desc, progress: yangValue / 100, color: .blue)
                     
                     Divider().background(Color.gray.opacity(0.2))
@@ -224,7 +334,7 @@ struct ContentView: View {
                 }.padding(.vertical, 6)
             }
         }
-        .sheet(item: Binding(get: { selectedHexagram.map { HexagramDetail(name: $0.name, symbol: $0.symbol, nature: $0.nature, meaning: $0.meaning, upper: $0.upper, lower: $0.lower) } }, set: { if $0 == nil { selectedHexagram = nil } })) { detail in HexagramDetailView(detail: detail) }
+        .sheet(item: Binding(get: { selectedHexagram.map { HexagramDetail(name: $0.name, symbol: $0.symbol, nature: $0.nature, meaning: $0.meaning, upper: $0.upper, lower: $0.lower, yao: $0.yao) } }, set: { if $0 == nil { selectedHexagram = nil } })) { detail in HexagramDetailView(detail: detail) }
         .onReceive(timer) { _ in updateAll() }
         .onAppear {
             UIDevice.current.isBatteryMonitoringEnabled = true
@@ -241,10 +351,7 @@ struct ContentView: View {
     func startLocationManager() {
         let lm = CLLocationManager(); let ld = LocationDelegate()
         lm.requestWhenInUseAuthorization()
-        ld.onHeading = { h in DispatchQueue.main.async {
-            self.heading = h.trueHeading >= 0 ? h.trueHeading : h.magneticHeading
-            self.magneticX = h.x; self.magneticY = h.y; self.magneticZ = h.z
-        }}
+        ld.onHeading = { h in DispatchQueue.main.async { self.heading = h.trueHeading >= 0 ? h.trueHeading : h.magneticHeading; self.magneticX = h.x; self.magneticY = h.y; self.magneticZ = h.z } }
         lm.delegate = ld; lm.headingFilter = CLHeadingFilter(5)
         if CLLocationManager.headingAvailable() { lm.startUpdatingHeading() }
         self.locationManager = lm; self.locationDelegate = ld
@@ -268,8 +375,7 @@ struct ContentView: View {
             if cS != lastStatus { e += e.isEmpty ? "\(lastStatus)→\(cS)" : " \(lastStatus)→\(cS)" }
             let f = DateFormatter(); f.dateFormat = "HH:mm:ss"
             statusLogs.append(StatusLog(time: f.string(from: Date()), hexagram: cH + "卦", status: cS, event: e))
-            if statusLogs.count > 100 { statusLogs.removeFirst() }
-            saveLogs()
+            if statusLogs.count > 100 { statusLogs.removeFirst() }; saveLogs()
         }
         lastHexagram = cH; lastStatus = cS
     }
@@ -286,7 +392,7 @@ struct ContentView: View {
     func updateStorageUsage() { do { let d = try FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: false); let v = try d.resourceValues(forKeys: [.volumeTotalCapacityKey, .volumeAvailableCapacityForImportantUsageKey]); if let t = v.volumeTotalCapacity, let a = v.volumeAvailableCapacityForImportantUsage { let u = t-Int(a); storageUsed = ByteCountFormatter.string(fromByteCount: Int64(u), countStyle: .file); storageTotal = ByteCountFormatter.string(fromByteCount: Int64(t), countStyle: .file); storagePercent = Double(u)/Double(t)*100 } } catch { storageUsed = "未知"; storageTotal = "未知"; storagePercent = 0 } }
 }
 
-struct HexagramDetail: Identifiable { let id = UUID(); let name: String; let symbol: String; let nature: String; let meaning: String; let upper: String; let lower: String }
+struct HexagramDetail: Identifiable { let id = UUID(); let name: String; let symbol: String; let nature: String; let meaning: String; let upper: String; let lower: String; let yao: [Bool] }
 
 struct HexagramDetailView: View {
     let detail: HexagramDetail
@@ -294,7 +400,7 @@ struct HexagramDetailView: View {
     var body: some View {
         ZStack { Color(red: 0.05, green: 0.05, blue: 0.15).ignoresSafeArea()
             VStack(spacing: 20) {
-                Text(detail.symbol).font(.system(size: 60))
+                HexagramYaoView(yao: detail.yao, color: .cyan, size: 100)
                 Text(detail.name + "卦").font(.system(size: 36, weight: .bold)).foregroundColor(.cyan)
                 Text(detail.nature).font(.title3).foregroundColor(.white.opacity(0.8))
                 Divider().background(Color.gray.opacity(0.3)).padding(.horizontal, 40)
@@ -302,6 +408,11 @@ struct HexagramDetailView: View {
                 HStack(spacing: 30) {
                     VStack { Text("上卦").font(.caption).foregroundColor(.gray); Text(detail.upper).font(.title3).foregroundColor(.white) }
                     VStack { Text("下卦").font(.caption).foregroundColor(.gray); Text(detail.lower).font(.title3).foregroundColor(.white) }
+                }
+                // 爻线说明
+                HStack(spacing: 20) {
+                    HStack(spacing: 4) { RoundedRectangle(cornerRadius: 1).fill(.cyan).frame(width: 30, height: 4); Text("阳爻").font(.caption).foregroundColor(.gray) }
+                    HStack(spacing: 4) { HStack(spacing: 4) { RoundedRectangle(cornerRadius: 1).fill(.cyan).frame(width: 12, height: 4); RoundedRectangle(cornerRadius: 1).fill(.cyan).frame(width: 12, height: 4) }; Text("阴爻").font(.caption).foregroundColor(.gray) }
                 }
                 Spacer()
                 Button("关闭") { dismiss() }.foregroundColor(.cyan).padding()
