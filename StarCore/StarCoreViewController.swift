@@ -4,6 +4,7 @@ class StarCoreViewController: UIViewController {
     
     let titleLabel = UILabel()
     let batteryLabel = UILabel()
+    let timeLabel = UILabel()
     var timer: Timer?
     
     override func viewDidLoad() {
@@ -27,14 +28,26 @@ class StarCoreViewController: UIViewController {
         batteryLabel.font = UIFont.systemFont(ofSize: 24, weight: .medium)
         view.addSubview(batteryLabel)
         
+        // 系统时间
+        timeLabel.frame = CGRect(x: 0, y: 310, width: view.frame.width, height: 50)
+        timeLabel.textColor = UIColor(red: 0.5, green: 0.8, blue: 1.0, alpha: 1.0)
+        timeLabel.textAlignment = .center
+        timeLabel.font = UIFont.systemFont(ofSize: 24, weight: .medium)
+        view.addSubview(timeLabel)
+        
         // 开启电池监控
         UIDevice.current.isBatteryMonitoringEnabled = true
         
         // 每秒更新一次
         timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            self?.updateBattery()
+            self?.updateAll()
         }
         timer?.fire()
+    }
+    
+    func updateAll() {
+        updateBattery()
+        updateTime()
     }
     
     func updateBattery() {
@@ -60,6 +73,13 @@ class StarCoreViewController: UIViewController {
         } else {
             batteryLabel.text = "气血: 检测中..."
         }
+    }
+    
+    func updateTime() {
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "HH:mm:ss"
+        let timeString = dateFormatter.string(from: Date())
+        timeLabel.text = "🕐 脉搏: \(timeString)"
     }
     
     override func viewDidDisappear(_ animated: Bool) {
