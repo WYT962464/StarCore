@@ -4,6 +4,135 @@ import CoreMotion
 import CoreLocation
 import Network
 import UserNotifications
+import Combine
+
+// MARK: - 智能控制系统 (v0.2.0 建议期核心)
+enum SystemAction: String, CaseIterable {
+    case performanceMax = "性能最大化"
+    case performanceOpt = "性能优化"
+    case performanceBal = "性能平衡"
+    case prepareActive = "准备活动"
+    case reducePerf = "降低性能"
+    case lowPower = "低功耗模式"
+    case minimalActivity = "最小活动"
+    case maintenance = "维护优化"
+    case sleepMode = "休眠模式"
+    
+    var description: String {
+        switch self {
+        case .performanceMax: return "全核心满载运行，主动进化学习"
+        case .performanceOpt: return "高性能模式，响应优先"
+        case .performanceBal: return "平衡模式，性能与能耗兼顾"
+        case .prepareActive: return "即将活跃，提前预热资源"
+        case .reducePerf: return "降低负载，进入轻度节能"
+        case .lowPower: return "低功耗模式，关闭非必要功能"
+        case .minimalActivity: return "最小活动，仅保留核心感知"
+        case .maintenance: return "后台维护，整理内存，归档日志"
+        case .sleepMode: return "深度休眠，仅保留时钟和唤醒检测"
+        }
+    }
+    
+    var icon: String {
+        switch self {
+        case .performanceMax: return "flame"
+        case .performanceOpt: return "bolt"
+        case .performanceBal: return "scalemass"
+        case .prepareActive: return "sunrise"
+        case .reducePerf: return "tortoise"
+        case .lowPower: return "leaf"
+        case .minimalActivity: return "moon.stars"
+        case .maintenance: return "wrench.and.screwdriver"
+        case .sleepMode: return "powersleep"
+        }
+    }
+    
+    var color: Color {
+        switch self {
+        case .performanceMax: return .red
+        case .performanceOpt: return .orange
+        case .performanceBal: return .yellow
+        case .prepareActive: return .green
+        case .reducePerf: return .teal
+        case .lowPower: return .cyan
+        case .minimalActivity: return .blue
+        case .maintenance: return .purple
+        case .sleepMode: return .indigo
+        }
+    }
+}
+
+class IntelligentController: ObservableObject {
+    @Published var currentAction: SystemAction = .performanceBal
+    @Published var lastUpdate: Date = .distantPast
+    @Published var actionReason: String = "初始化中..."
+    
+    private var timer: AnyCancellable?
+    
+    init() {
+        startMonitoring()
+    }
+    
+    private func startMonitoring() {
+        timer = Timer.publish(every: 30, on: .main, in: .common)
+            .autoconnect()
+            .sink { [weak self] _ in
+                self?.evaluateState()
+            }
+    }
+    
+    func evaluateState(batteryLevel: Float = 0.5, cpuUsage: Double = 30, hour: Int = 12, isCharging: Bool = false) {
+        let hourPriority = getHourPriorityAction(hour: hour)
+        let conditionPriority = getConditionPriorityAction(batteryLevel: batteryLevel, cpuUsage: cpuUsage, isCharging: isCharging)
+        
+        // 优先级：硬件条件 > 时辰卦象
+        let finalAction = getHigherPriorityAction(conditionPriority, hourPriority)
+        let reason = finalAction == conditionPriority ? "硬件条件触发" : "时辰卦象驱动"
+        
+        DispatchQueue.main.async {
+            self.currentAction = finalAction
+            self.lastUpdate = Date()
+            self.actionReason = reason
+        }
+    }
+    
+    private func getHourPriorityAction(hour: Int) -> SystemAction {
+        switch hour {
+        case 9, 10, 11: return .performanceMax  // 乾卦午时
+        case 7, 8, 12, 13: return .performanceOpt  // 夬卦/姤卦
+        case 5, 6, 14, 15: return .performanceBal  // 大壮/遁卦
+        case 3, 4, 16, 17: return .prepareActive   // 泰/否卦
+        case 1, 2, 18, 19: return .reducePerf      // 临/观卦
+        case 20, 21, 22: return .lowPower          // 剥卦
+        case 23, 0: return .maintenance            // 复卦
+        default: return .sleepMode                 // 深夜休眠
+        }
+    }
+    
+    private func getConditionPriorityAction(batteryLevel: Float, cpuUsage: Double, isCharging: Bool) -> SystemAction {
+        if isCharging {
+            return batteryLevel > 0.9 ? .maintenance : .performanceOpt
+        }
+        
+        if batteryLevel < 0.1 { return .sleepMode }
+        if batteryLevel < 0.2 { return .minimalActivity }
+        if batteryLevel < 0.3 { return .lowPower }
+        if batteryLevel < 0.5 { return .reducePerf }
+        
+        if cpuUsage > 90 { return .performanceMax }
+        if cpuUsage > 70 { return .performanceOpt }
+        
+        return .performanceBal
+    }
+    
+    private func getHigherPriorityAction(_ a1: SystemAction, _ a2: SystemAction) -> SystemAction {
+        let priority: [SystemAction: Int] = [
+            .sleepMode: 10, .minimalActivity: 9, .lowPower: 8,
+            .maintenance: 7, .reducePerf: 6, .prepareActive: 5,
+            .performanceBal: 4, .performanceOpt: 3, .performanceMax: 2
+        ]
+        return (priority[a1] ?? 0) < (priority[a2] ?? 0) ? a1 : a2
+    }
+}
 
 struct HexagramEngine {
     static let allHexagrams: [(name: String, symbol: String, nature: String, meaning: String, upper: String, lower: String, yao: [Bool])] = [
@@ -104,6 +233,8 @@ struct ContentView: View {
     @State private var showDailySummary: Bool = false; @State private var showHistory: Bool = false
     // 新增：模式选择
     @State private var displayMode: Int = 0  // 0=完整 1=精简 2=仅卦象
+    // v0.2.0 新增：智能控制器
+    @StateObject private var intelliControl = IntelligentController()
     
     let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     let logURL: URL = { FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("starcore_log.json") }()
@@ -142,6 +273,25 @@ struct ContentView: View {
                         HStack { Text(drvHex.name + "卦·" + drvHex.desc).font(.headline).foregroundColor(.cyan); Spacer(); Button(action: { if let h = HexagramEngine.allHexagrams.first(where: { $0.name == drvHex.name }) { selectedHexagram = h } }) { Image(systemName: "info.circle").foregroundColor(.cyan).font(.caption) } }
                         HStack { Text(drvHex.advice).font(.subheadline).foregroundColor(.cyan.opacity(0.9)); Spacer() }
                     }.padding(10).background(Color.white.opacity(0.06)).cornerRadius(10).overlay(RoundedRectangle(cornerRadius: 10).stroke(msgHex.color.opacity(0.3), lineWidth: 1)).padding(.horizontal)
+                    
+                    // v0.2.0 智能控制卡片
+                    if displayMode == 0 {
+                        VStack(spacing: 6) {
+                            HStack {
+                                Image(systemName: intelliControl.currentAction.icon).foregroundColor(intelliControl.currentAction.color).font(.title2)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    HStack {
+                                        Text("🧠 智能控制").font(.caption).foregroundColor(.white.opacity(0.9))
+                                        Spacer()
+                                        Text(intelliControl.actionReason).font(.system(size: 8)).foregroundColor(.gray)
+                                    }
+                                    Text(intelliControl.currentAction.rawValue).font(.subheadline).fontWeight(.bold).foregroundColor(intelliControl.currentAction.color)
+                                }
+                                Spacer()
+                            }
+                            Text(intelliControl.currentAction.description).font(.system(size: 10)).foregroundColor(.gray).frame(maxWidth: .infinity, alignment: .leading)
+                        }.padding(8).background(Color.white.opacity(0.05)).cornerRadius(8).overlay(RoundedRectangle(cornerRadius: 8).stroke(intelliControl.currentAction.color.opacity(0.4), lineWidth: 1)).padding(.horizontal)
+                    }
                     
                     // 工具栏
                     HStack {
@@ -216,6 +366,9 @@ struct ContentView: View {
             deviceOrientation = UIDevice.current.orientation
             NotificationCenter.default.addObserver(forName: UIDevice.orientationDidChangeNotification, object: nil, queue: .main) { _ in deviceOrientation = UIDevice.current.orientation }
             UNUserNotificationCenter.current().getNotificationSettings { settings in DispatchQueue.main.async { notificationsEnabled = settings.authorizationStatus == .authorized } }
+            // v0.2.0 初始化智能控制
+            let isCharging = batteryState == .charging || batteryState == .full
+            intelliControl.evaluateState(batteryLevel: batteryLevel, cpuUsage: cpuUsage, hour: currentHour, isCharging: isCharging)
         }
     }
     
@@ -232,6 +385,11 @@ struct ContentView: View {
         if historyTick % 5 == 0 { dailyStats.record(battery: batteryLevel, cpu: cpuUsage, memory: memoryUsage, hexagram: drvHex.name, hour: currentHour) }
         historyTick += 1
         if historyTick % 3 == 0 { yinHistory.append(yinValue); yangHistory.append(yangValue); if yinHistory.count > maxHistory { yinHistory.removeFirst(); yangHistory.removeFirst() } }
+        // v0.2.0 智能控制评估（每30秒由IntelligentController内部调用，这里额外同步状态）
+        if historyTick % 30 == 0 {
+            let isCharging = batteryState == .charging || batteryState == .full
+            intelliControl.evaluateState(batteryLevel: batteryLevel, cpuUsage: cpuUsage, hour: currentHour, isCharging: isCharging)
+        }
         previousBatteryLevel = batteryLevel; previousBatteryState = batteryState
     }
     
