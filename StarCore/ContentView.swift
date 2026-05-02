@@ -101,8 +101,9 @@ struct ContentView: View {
     @State private var yinHistory: [Double] = []; @State private var yangHistory: [Double] = []; @State private var historyTick: Int = 0
     @State private var notificationsEnabled: Bool = false; @State private var lastNotificationTime: Date = .distantPast
     @State private var previousBatteryLevel: Float = -1; @State private var previousBatteryState: UIDevice.BatteryState = .unknown
-    @State private var showDailySummary: Bool = false
-    @State private var showHistory: Bool = false
+    @State private var showDailySummary: Bool = false; @State private var showHistory: Bool = false
+    // 新增：模式选择
+    @State private var displayMode: Int = 0  // 0=完整 1=精简 2=仅卦象
     
     let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     let logURL: URL = { FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("starcore_log.json") }()
@@ -142,64 +143,71 @@ struct ContentView: View {
                         HStack { Text(drvHex.advice).font(.subheadline).foregroundColor(.cyan.opacity(0.9)); Spacer() }
                     }.padding(10).background(Color.white.opacity(0.06)).cornerRadius(10).overlay(RoundedRectangle(cornerRadius: 10).stroke(msgHex.color.opacity(0.3), lineWidth: 1)).padding(.horizontal)
                     
-                    // 通知 + 每日总结
+                    // 工具栏
                     HStack {
-                        Button(action: { showDailySummary = true }) {
-                            HStack { Image(systemName: "chart.bar").font(.caption); Text("今日总结").font(.caption).fontWeight(.bold) }.foregroundColor(.cyan).padding(.horizontal, 10).padding(.vertical, 4).background(Color.cyan.opacity(0.15)).cornerRadius(8)
-                        }
-                        Button(action: { showHistory = true }) { HStack { Image(systemName: "clock.arrow.circlepath").font(.caption); Text("成长轨迹").font(.caption).fontWeight(.bold) }.foregroundColor(.purple).padding(.horizontal, 10).padding(.vertical, 4).background(Color.purple.opacity(0.15)).cornerRadius(8) }
+                        Button(action: { showDailySummary = true }) { HStack { Image(systemName: "chart.bar").font(.caption2); Text("今日").font(.caption2) }.foregroundColor(.cyan).padding(.horizontal, 8).padding(.vertical, 3).background(Color.cyan.opacity(0.15)).cornerRadius(6) }
+                        Button(action: { showHistory = true }) { HStack { Image(systemName: "clock.arrow.circlepath").font(.caption2); Text("轨迹").font(.caption2) }.foregroundColor(.purple).padding(.horizontal, 8).padding(.vertical, 3).background(Color.purple.opacity(0.15)).cornerRadius(6) }
                         Spacer()
-                        Button(action: { if !notificationsEnabled { NotificationManager.shared.requestAuthorization(); notificationsEnabled = true; NotificationManager.shared.sendNotification(title: "☯️ 星核", body: "通知已开启") } else { notificationsEnabled = false } }) {
-                            HStack { Image(systemName: notificationsEnabled ? "bell.fill" : "bell.slash").font(.caption); Text(notificationsEnabled ? "通知开" : "通知关").font(.caption).fontWeight(.bold) }.foregroundColor(notificationsEnabled ? .green : .gray).padding(.horizontal, 10).padding(.vertical, 4).background(notificationsEnabled ? Color.green.opacity(0.15) : Color.gray.opacity(0.1)).cornerRadius(8)
-                        }
+                        // 模式切换
+                        Picker("模式", selection: $displayMode) {
+                            Text("全").tag(0); Text("简").tag(1); Text("卦").tag(2)
+                        }.pickerStyle(SegmentedPickerStyle()).frame(width: 120)
+                        Spacer()
+                        Button(action: { if !notificationsEnabled { NotificationManager.shared.requestAuthorization(); notificationsEnabled = true; NotificationManager.shared.sendNotification(title: "☯️ 星核", body: "通知已开启") } else { notificationsEnabled = false } }) { Image(systemName: notificationsEnabled ? "bell.fill" : "bell.slash").font(.caption).foregroundColor(notificationsEnabled ? .green : .gray) }
                     }.padding(.horizontal)
                     
                     // 两仪 + 曲线
-                    VStack(spacing: 6) {
-                        HStack(spacing: 0) {
-                            VStack(spacing: 1) { Text("阴·信息流").font(.system(size: 9)).foregroundColor(.purple.opacity(0.7)); Text(String(format: "%.0f", yinValue)).font(.system(size: 22, weight: .bold)).foregroundColor(.purple) }.frame(maxWidth: .infinity)
-                            VStack(spacing: 2) {
-                                GeometryReader { geo in ZStack(alignment: .leading) { RoundedRectangle(cornerRadius: 3).fill(Color.gray.opacity(0.3)).frame(height: 5); let r = yangValue / max(yinValue + yangValue, 1); RoundedRectangle(cornerRadius: 3).fill(LinearGradient(colors: [.purple, .orange], startPoint: .leading, endPoint: .trailing)).frame(width: geo.size.width * CGFloat(r), height: 5) } }.frame(height: 5)
-                                YinYangChartView(yinHistory: yinHistory, yangHistory: yangHistory).frame(height: 40)
-                                HStack { Text("🟠阳").font(.system(size: 8)).foregroundColor(.orange.opacity(0.5)); Spacer(); Text("🟣阴").font(.system(size: 8)).foregroundColor(.purple.opacity(0.5)) }
-                            }.frame(maxWidth: .infinity)
-                            VStack(spacing: 1) { Text("阳·能量流").font(.system(size: 9)).foregroundColor(.orange.opacity(0.7)); Text(String(format: "%.0f", yangValue)).font(.system(size: 22, weight: .bold)).foregroundColor(.orange) }.frame(maxWidth: .infinity)
-                        }
-                    }.padding(.horizontal)
+                    if displayMode < 2 {
+                        VStack(spacing: 6) {
+                            HStack(spacing: 0) {
+                                VStack(spacing: 1) { Text("阴·信息流").font(.system(size: 9)).foregroundColor(.purple.opacity(0.7)); Text(String(format: "%.0f", yinValue)).font(.system(size: 22, weight: .bold)).foregroundColor(.purple) }.frame(maxWidth: .infinity)
+                                VStack(spacing: 2) {
+                                    GeometryReader { geo in ZStack(alignment: .leading) { RoundedRectangle(cornerRadius: 3).fill(Color.gray.opacity(0.3)).frame(height: 5); let r = yangValue / max(yinValue + yangValue, 1); RoundedRectangle(cornerRadius: 3).fill(LinearGradient(colors: [.purple, .orange], startPoint: .leading, endPoint: .trailing)).frame(width: geo.size.width * CGFloat(r), height: 5) } }.frame(height: 5)
+                                    YinYangChartView(yinHistory: yinHistory, yangHistory: yangHistory).frame(height: displayMode == 1 ? 0 : 40)
+                                    if displayMode == 0 { HStack { Text("🟠阳").font(.system(size: 8)).foregroundColor(.orange.opacity(0.5)); Spacer(); Text("🟣阴").font(.system(size: 8)).foregroundColor(.purple.opacity(0.5)) } }
+                                }.frame(maxWidth: .infinity)
+                                VStack(spacing: 1) { Text("阳·能量流").font(.system(size: 9)).foregroundColor(.orange.opacity(0.7)); Text(String(format: "%.0f", yangValue)).font(.system(size: 22, weight: .bold)).foregroundColor(.orange) }.frame(maxWidth: .infinity)
+                            }
+                        }.padding(.horizontal)
+                        Divider().background(Color.gray.opacity(0.2))
+                    }
                     
-                    Divider().background(Color.gray.opacity(0.2))
-                    
-                    SensorRow(icon: "💚", name: "离·获取", label: "气血", value: String(format: "%.1f%%", batteryLevel * 100), detail: batteryStateDesc, progress: Double(batteryLevel), color: .green)
-                    SensorRow(icon: "💙", name: "坎·执行", label: "脉搏", value: currentTime, detail: nil, progress: nil, color: .cyan)
-                    SensorRow(icon: "❤️", name: "震·处理", label: "心跳", value: String(format: "%.1f%%", cpuUsage), detail: nil, progress: cpuUsage / 100, color: .red)
-                    SensorRow(icon: "💜", name: "艮·校验", label: "思维", value: String(format: "%.1f%%", memoryUsage), detail: nil, progress: memoryUsage / 100, color: .purple)
-                    SensorRow(icon: "💛", name: "坤·存储", label: "储备", value: "\(storageUsed)/\(storageTotal)", detail: String(format: "%.0f%%", storagePercent), progress: storagePercent / 100, color: .yellow)
-                    
-                    VStack(alignment: .leading, spacing: 3) {
-                        HStack { Text("🧭 乾·收集").font(.subheadline).foregroundColor(.orange); Spacer(); Text(String(format: "%.0f%%", motionIntensity)).font(.subheadline).foregroundColor(.orange) }
-                        HStack { Text("触觉").font(.system(size: 9)).foregroundColor(.gray); Spacer(); Text("A:\(String(format: "%.1f", accelerometerX)),\(String(format: "%.1f", accelerometerY)),\(String(format: "%.1f", accelerometerZ))").font(.system(size: 9)).foregroundColor(.orange.opacity(0.5)) }
-                        HStack { Text("磁场").font(.system(size: 9)).foregroundColor(.gray); Spacer(); Text(heading >= 0 ? "\(headingDirection) \(String(format: "%.0f", heading))° | \(String(format: "%.0f", magneticIntensity))μT" : "无数据").font(.system(size: 9)).foregroundColor(.orange.opacity(0.5)) }
-                        HStack { Text("\(orientationIcon) 朝向").font(.system(size: 9)).foregroundColor(.gray); Spacer(); Text("光线 \(String(format: "%.0f", screenBrightness))%").font(.system(size: 9)).foregroundColor(.orange.opacity(0.5)); Text("📡 \(networkStatus)").font(.system(size: 9)).foregroundColor(networkStatus == "离线" ? .red.opacity(0.7) : .green.opacity(0.7)) }
-                        ProgressView(value: motionIntensity / 100).progressViewStyle(LinearProgressViewStyle(tint: .orange))
-                    }.padding(.horizontal)
-                    
-                    SensorRow(icon: "⚪️", name: "兑·迭代", label: "进化", value: formatUptime(uptime), detail: "v0.1.21", progress: min(1, uptime / 86400), color: .white.opacity(0.7))
-                    SensorRow(icon: "🔵", name: "巽·输出", label: "状态", value: "\(msgHex.name)·\(drvHex.name)", detail: drvHex.desc, progress: yangValue / 100, color: .blue)
-                    
-                    Divider().background(Color.gray.opacity(0.2))
-                    
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack { Text("📜 变易日志").font(.headline).foregroundColor(.white.opacity(0.8)); Spacer(); if !statusLogs.isEmpty { Text("\(statusLogs.count)条").font(.caption).foregroundColor(.gray) } }
-                        if statusLogs.isEmpty { Text("等待卦象流转...").font(.caption).foregroundColor(.gray).frame(maxWidth: .infinity, alignment: .center).padding(.vertical, 8) }
-                        else { ForEach(statusLogs.suffix(5).reversed()) { log in HStack { Text(log.time).font(.system(size: 9, design: .monospaced)).foregroundColor(.gray); Text(log.hexagram).font(.system(size: 10, weight: .bold)).foregroundColor(.cyan); Text(log.status).font(.system(size: 10)).foregroundColor(.white.opacity(0.7)); Spacer(); Text(log.event).font(.system(size: 9)).foregroundColor(.yellow.opacity(0.8)) } } }
-                    }.padding(10).background(Color.white.opacity(0.04)).cornerRadius(8).padding(.horizontal)
+                    // 八卦·八维
+                    if displayMode < 2 {
+                        SensorRow(icon: "💚", name: "离·获取", label: "气血", value: String(format: "%.1f%%", batteryLevel * 100), detail: batteryStateDesc, progress: Double(batteryLevel), color: .green)
+                        SensorRow(icon: "💙", name: "坎·执行", label: "脉搏", value: currentTime, detail: nil, progress: nil, color: .cyan)
+                    }
+                    if displayMode == 0 {
+                        SensorRow(icon: "❤️", name: "震·处理", label: "心跳", value: String(format: "%.1f%%", cpuUsage), detail: nil, progress: cpuUsage / 100, color: .red)
+                        SensorRow(icon: "💜", name: "艮·校验", label: "思维", value: String(format: "%.1f%%", memoryUsage), detail: nil, progress: memoryUsage / 100, color: .purple)
+                        SensorRow(icon: "💛", name: "坤·存储", label: "储备", value: "\(storageUsed)/\(storageTotal)", detail: String(format: "%.0f%%", storagePercent), progress: storagePercent / 100, color: .yellow)
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack { Text("🧭 乾·收集").font(.subheadline).foregroundColor(.orange); Spacer(); Text(String(format: "%.0f%%", motionIntensity)).font(.subheadline).foregroundColor(.orange) }
+                            HStack { Text("触觉").font(.system(size: 9)).foregroundColor(.gray); Spacer(); Text("A:\(String(format: "%.1f", accelerometerX)),\(String(format: "%.1f", accelerometerY)),\(String(format: "%.1f", accelerometerZ))").font(.system(size: 9)).foregroundColor(.orange.opacity(0.5)) }
+                            HStack { Text("磁场").font(.system(size: 9)).foregroundColor(.gray); Spacer(); Text(heading >= 0 ? "\(headingDirection) \(String(format: "%.0f", heading))° | \(String(format: "%.0f", magneticIntensity))μT" : "无数据").font(.system(size: 9)).foregroundColor(.orange.opacity(0.5)) }
+                            HStack { Text("\(orientationIcon) 朝向").font(.system(size: 9)).foregroundColor(.gray); Spacer(); Text("光线 \(String(format: "%.0f", screenBrightness))%").font(.system(size: 9)).foregroundColor(.orange.opacity(0.5)); Text("📡 \(networkStatus)").font(.system(size: 9)).foregroundColor(networkStatus == "离线" ? .red.opacity(0.7) : .green.opacity(0.7)) }
+                            ProgressView(value: motionIntensity / 100).progressViewStyle(LinearProgressViewStyle(tint: .orange))
+                        }.padding(.horizontal)
+                        SensorRow(icon: "⚪️", name: "兑·迭代", label: "进化", value: formatUptime(uptime), detail: "v0.1.22", progress: min(1, uptime / 86400), color: .white.opacity(0.7))
+                        SensorRow(icon: "🔵", name: "巽·输出", label: "状态", value: "\(msgHex.name)·\(drvHex.name)", detail: drvHex.desc, progress: yangValue / 100, color: .blue)
+                        Divider().background(Color.gray.opacity(0.2))
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack { Text("📜 变易日志").font(.headline).foregroundColor(.white.opacity(0.8)); Spacer(); if !statusLogs.isEmpty { Text("\(statusLogs.count)条").font(.caption).foregroundColor(.gray) } }
+                            if statusLogs.isEmpty { Text("等待卦象流转...").font(.caption).foregroundColor(.gray).frame(maxWidth: .infinity, alignment: .center).padding(.vertical, 8) }
+                            else { ForEach(statusLogs.suffix(5).reversed()) { log in HStack { Text(log.time).font(.system(size: 9, design: .monospaced)).foregroundColor(.gray); Text(log.hexagram).font(.system(size: 10, weight: .bold)).foregroundColor(.cyan); Text(log.status).font(.system(size: 10)).foregroundColor(.white.opacity(0.7)); Spacer(); Text(log.event).font(.system(size: 9)).foregroundColor(.yellow.opacity(0.8)) } } }
+                        }.padding(10).background(Color.white.opacity(0.04)).cornerRadius(8).padding(.horizontal)
+                    }
+                    // 精简模式额外显示
+                    if displayMode == 1 {
+                        SensorRow(icon: "❤️", name: "震·处理", label: "心跳", value: String(format: "%.1f%%", cpuUsage), detail: nil, progress: cpuUsage / 100, color: .red)
+                        SensorRow(icon: "💜", name: "艮·校验", label: "思维", value: String(format: "%.1f%%", memoryUsage), detail: nil, progress: memoryUsage / 100, color: .purple)
+                        SensorRow(icon: "💛", name: "坤·存储", label: "储备", value: "\(storageUsed)/\(storageTotal)", detail: String(format: "%.0f%%", storagePercent), progress: storagePercent / 100, color: .yellow)
+                    }
                 }.padding(.vertical, 6)
             }
         }
         .sheet(isPresented: $showHistory) { HistoryView(history: dailyStats.loadHistory()) }
-        .sheet(isPresented: $showDailySummary) {
-            DailySummaryView(stats: dailyStats.today)
-        }
+        .sheet(isPresented: $showDailySummary) { DailySummaryView(stats: dailyStats.today) }
         .sheet(item: Binding(get: { selectedHexagram.map { HexagramDetail(name: $0.name, symbol: $0.symbol, nature: $0.nature, meaning: $0.meaning, upper: $0.upper, lower: $0.lower, yao: $0.yao) } }, set: { if $0 == nil { selectedHexagram = nil } })) { detail in HexagramDetailView(detail: detail) }
         .onReceive(timer) { _ in updateAll() }
         .onAppear {
@@ -218,19 +226,12 @@ struct ContentView: View {
     func saveLogs() { if let data = try? JSONEncoder().encode(statusLogs) { try? data.write(to: logURL) } }
     
     func updateAll() {
-        batteryLevel = UIDevice.current.batteryLevel; batteryState = UIDevice.current.batteryState
-        screenBrightness = Double(UIScreen.main.brightness * 100)
+        batteryLevel = UIDevice.current.batteryLevel; batteryState = UIDevice.current.batteryState; screenBrightness = Double(UIScreen.main.brightness * 100)
         updateCurrentTime(); updateCPUUsage(); updateMemoryUsage(); updateStorageUsage()
         uptime = ProcessInfo.processInfo.systemUptime; triggerHeartBeat(); checkStatusChange(); checkNotifications()
-        
-        // 每日统计（每5秒采样）
-        if historyTick % 5 == 0 {
-            dailyStats.record(battery: batteryLevel, cpu: cpuUsage, memory: memoryUsage, hexagram: drvHex.name, hour: currentHour)
-        }
-        
+        if historyTick % 5 == 0 { dailyStats.record(battery: batteryLevel, cpu: cpuUsage, memory: memoryUsage, hexagram: drvHex.name, hour: currentHour) }
         historyTick += 1
         if historyTick % 3 == 0 { yinHistory.append(yinValue); yangHistory.append(yangValue); if yinHistory.count > maxHistory { yinHistory.removeFirst(); yangHistory.removeFirst() } }
-        
         previousBatteryLevel = batteryLevel; previousBatteryState = batteryState
     }
     
@@ -238,7 +239,7 @@ struct ContentView: View {
         guard notificationsEnabled else { return }
         guard Date().timeIntervalSince(lastNotificationTime) > 60 else { return }
         if batteryLevel > 0 && batteryLevel < 0.15 && batteryState != .charging { NotificationManager.shared.sendNotification(title: "💔 星核告急", body: "气血仅剩\(String(format: "%.0f", batteryLevel * 100))%，请速速充能！"); lastNotificationTime = Date() }
-        else if previousBatteryState == .charging && batteryState == .full { NotificationManager.shared.sendNotification(title: "🔋 星核充满", body: "气血已满，可以全力输出了！"); lastNotificationTime = Date(); dailyStats.recordFullCharge() }
+        else if previousBatteryState == .charging && batteryState == .full { NotificationManager.shared.sendNotification(title: "🔋 星核充满", body: "气血已满！"); lastNotificationTime = Date(); dailyStats.recordFullCharge() }
         if previousBatteryState != .charging && batteryState == .charging { dailyStats.recordCharging() }
     }
     
@@ -246,7 +247,7 @@ struct ContentView: View {
         let cH = drvHex.name; let cS = stat.label
         if lastHexagram != "" && (cH != lastHexagram || cS != lastStatus) {
             let generator = UIImpactFeedbackGenerator(style: cH != lastHexagram ? .heavy : .light); generator.impactOccurred()
-            if notificationsEnabled && cH != lastHexagram && Date().timeIntervalSince(lastNotificationTime) > 60 { NotificationManager.shared.sendNotification(title: "☯️ \(lastHexagram)→\(cH)卦", body: drvHex.desc + " " + drvHex.advice); lastNotificationTime = Date() }
+            if notificationsEnabled && cH != lastHexagram && Date().timeIntervalSince(lastNotificationTime) > 60 { NotificationManager.shared.sendNotification(title: "☯️ \(lastHexagram)→\(cH)卦", body: drvHex.desc); lastNotificationTime = Date() }
             dailyStats.recordHexagramChange()
             var e = ""; if cH != lastHexagram { e += "\(lastHexagram)→\(cH)" }; if cS != lastStatus { e += e.isEmpty ? "\(lastStatus)→\(cS)" : " \(lastStatus)→\(cS)" }
             let f = DateFormatter(); f.dateFormat = "HH:mm:ss"
@@ -265,73 +266,11 @@ struct ContentView: View {
     func updateStorageUsage() { do { let d = try FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: false); let v = try d.resourceValues(forKeys: [.volumeTotalCapacityKey, .volumeAvailableCapacityForImportantUsageKey]); if let t = v.volumeTotalCapacity, let a = v.volumeAvailableCapacityForImportantUsage { let u = t-Int(a); storageUsed = ByteCountFormatter.string(fromByteCount: Int64(u), countStyle: .file); storageTotal = ByteCountFormatter.string(fromByteCount: Int64(t), countStyle: .file); storagePercent = Double(u)/Double(t)*100 } } catch { storageUsed = "未知"; storageTotal = "未知"; storagePercent = 0 } }
 }
 
-// 每日总结页
-struct DailySummaryView: View {
-    let stats: DailyStats
-    @Environment(\.dismiss) var dismiss
-    var body: some View {
-        ZStack {
-            Color(red: 0.05, green: 0.05, blue: 0.15).ignoresSafeArea()
-            ScrollView {
-                VStack(spacing: 16) {
-                    Text("📊 今日总结").font(.title).fontWeight(.bold).foregroundColor(.cyan)
-                    Text(stats.date).font(.subheadline).foregroundColor(.gray)
-                    
-                    // 气血
-                    StatCard(title: "💚 气血", items: [
-                        ("最低", String(format: "%.0f%%", stats.batteryMin * 100)),
-                        ("最高", String(format: "%.0f%%", stats.batteryMax * 100)),
-                        ("均值", String(format: "%.0f%%", stats.batteryAvg * 100)),
-                    ])
-                    
-                    // 心跳
-                    StatCard(title: "❤️ 心跳", items: [
-                        ("最低", String(format: "%.1f%%", stats.cpuMin)),
-                        ("最高", String(format: "%.1f%%", stats.cpuMax)),
-                        ("均值", String(format: "%.1f%%", stats.cpuAvg)),
-                        ("峰值时段", stats.peakHour >= 0 ? "\(stats.peakHour)时" : "-"),
-                        ("空闲时段", stats.idleHour >= 0 ? "\(stats.idleHour)时" : "-"),
-                    ])
-                    
-                    // 思维
-                    StatCard(title: "💜 思维", items: [
-                        ("最低", String(format: "%.1f%%", stats.memoryMin)),
-                        ("最高", String(format: "%.1f%%", stats.memoryMax)),
-                        ("均值", String(format: "%.1f%%", stats.memoryAvg)),
-                    ])
-                    
-                    // 卦象
-                    StatCard(title: "☯️ 卦象", items: [
-                        ("变化次数", "\(stats.hexagramChanges)次"),
-                        ("主导卦象", stats.dominantHexagram.isEmpty ? "-" : stats.dominantHexagram + "卦"),
-                        ("充电次数", "\(stats.chargingEvents)次"),
-                        ("充满次数", "\(stats.fullChargeEvents)次"),
-                    ])
-                    
-                    // 采样数
-                    Text("采样点：\(stats.batterySamples)").font(.caption).foregroundColor(.gray)
-                    
-                    Button("关闭") { dismiss() }.foregroundColor(.cyan).padding()
-                }.padding()
-            }
-        }
-    }
-}
-
-struct StatCard: View {
-    let title: String; let items: [(String, String)]
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title).font(.headline).foregroundColor(.white)
-            ForEach(items, id: \.0) { label, value in
-                HStack { Text(label).font(.subheadline).foregroundColor(.gray); Spacer(); Text(value).font(.subheadline).foregroundColor(.white) }
-            }
-        }.padding(12).background(Color.white.opacity(0.06)).cornerRadius(10).padding(.horizontal)
-    }
-}
+struct DailySummaryView: View { let stats: DailyStats; @Environment(\.dismiss) var dismiss; var body: some View { ZStack { Color(red: 0.05, green: 0.05, blue: 0.15).ignoresSafeArea(); ScrollView { VStack(spacing: 16) { Text("📊 今日总结").font(.title).fontWeight(.bold).foregroundColor(.cyan); Text(stats.date).font(.subheadline).foregroundColor(.gray); StatCard(title: "💚 气血", items: [("最低", String(format: "%.0f%%", stats.batteryMin * 100)), ("最高", String(format: "%.0f%%", stats.batteryMax * 100)), ("均值", String(format: "%.0f%%", stats.batteryAvg * 100))]); StatCard(title: "❤️ 心跳", items: [("最低", String(format: "%.1f%%", stats.cpuMin)), ("最高", String(format: "%.1f%%", stats.cpuMax)), ("均值", String(format: "%.1f%%", stats.cpuAvg)), ("峰值时段", stats.peakHour >= 0 ? "\(stats.peakHour)时" : "-"), ("空闲时段", stats.idleHour >= 0 ? "\(stats.idleHour)时" : "-")]); StatCard(title: "💜 思维", items: [("最低", String(format: "%.1f%%", stats.memoryMin)), ("最高", String(format: "%.1f%%", stats.memoryMax)), ("均值", String(format: "%.1f%%", stats.memoryAvg))]); StatCard(title: "☯️ 卦象", items: [("变化次数", "\(stats.hexagramChanges)次"), ("主导卦象", stats.dominantHexagram.isEmpty ? "-" : stats.dominantHexagram + "卦"), ("充电次数", "\(stats.chargingEvents)次"), ("充满次数", "\(stats.fullChargeEvents)次")]); Text("采样点：\(stats.batterySamples)").font(.caption).foregroundColor(.gray); Button("关闭") { dismiss() }.foregroundColor(.cyan).padding() }.padding() } } } }
+struct StatCard: View { let title: String; let items: [(String, String)]; var body: some View { VStack(alignment: .leading, spacing: 6) { Text(title).font(.headline).foregroundColor(.white); ForEach(items, id: \.0) { label, value in HStack { Text(label).font(.subheadline).foregroundColor(.gray); Spacer(); Text(value).font(.subheadline).foregroundColor(.white) } } }.padding(12).background(Color.white.opacity(0.06)).cornerRadius(10).padding(.horizontal) } }
 
 struct HexagramDetail: Identifiable { let id = UUID(); let name: String; let symbol: String; let nature: String; let meaning: String; let upper: String; let lower: String; let yao: [Bool] }
-struct HexagramDetailView: View { let detail: HexagramDetail; @Environment(\.dismiss) var dismiss; var body: some View { ZStack { Color(red: 0.05, green: 0.05, blue: 0.15).ignoresSafeArea(); VStack(spacing: 20) { HexagramYaoView(yao: detail.yao, color: .cyan, size: 100); Text(detail.name + "卦").font(.system(size: 36, weight: .bold)).foregroundColor(.cyan); Text(detail.nature).font(.title3).foregroundColor(.white.opacity(0.8)); Divider().background(Color.gray.opacity(0.3)).padding(.horizontal, 40); Text(detail.meaning).font(.title2).foregroundColor(.cyan).multilineTextAlignment(.center).padding(.horizontal, 30); HStack(spacing: 30) { VStack { Text("上卦").font(.caption).foregroundColor(.gray); Text(detail.upper).font(.title3).foregroundColor(.white) }; VStack { Text("下卦").font(.caption).foregroundColor(.gray); Text(detail.lower).font(.title3).foregroundColor(.white) } }; HStack(spacing: 20) { HStack(spacing: 4) { RoundedRectangle(cornerRadius: 1).fill(.cyan).frame(width: 30, height: 4); Text("阳爻").font(.caption).foregroundColor(.gray) }; HStack(spacing: 4) { HStack(spacing: 4) { RoundedRectangle(cornerRadius: 1).fill(.cyan).frame(width: 12, height: 4); RoundedRectangle(cornerRadius: 1).fill(.cyan).frame(width: 12, height: 4) }; Text("阴爻").font(.caption).foregroundColor(.gray) } }; Spacer(); Button("关闭") { dismiss() }.foregroundColor(.cyan).padding() }.padding(.top, 40) } } }
+struct HexagramDetailView: View { let detail: HexagramDetail; @Environment(\.dismiss) var dismiss; var body: some View { ZStack { Color(red: 0.05, green: 0.05, blue: 0.15).ignoresSafeArea(); VStack(spacing: 20) { HexagramYaoView(yao: detail.yao, color: .cyan, size: 100); Text(detail.name + "卦").font(.system(size: 36, weight: .bold)).foregroundColor(.cyan); Text(detail.nature).font(.title3).foregroundColor(.white.opacity(0.8)); Divider().background(Color.gray.opacity(0.3)).padding(.horizontal, 40); Text(detail.meaning).font(.title2).foregroundColor(.cyan).multilineTextAlignment(.center).padding(.horizontal, 30); HStack(spacing: 30) { VStack { Text("上卦").font(.caption).foregroundColor(.gray); Text(detail.upper).font(.title3).foregroundColor(.white) }; VStack { Text("下卦").font(.caption).foregroundColor(.gray); Text(detail.lower).font(.title3).foregroundColor(.white) } }; Spacer(); Button("关闭") { dismiss() }.foregroundColor(.cyan).padding() }.padding(.top, 40) } } }
 struct SensorRow: View { let icon: String; let name: String; let label: String; let value: String; let detail: String?; let progress: Double?; let color: Color; var body: some View { VStack(alignment: .leading, spacing: 2) { HStack { Text("\(icon) \(name)·\(label)").font(.subheadline).foregroundColor(color); Spacer(); if let d = detail { Text(d).font(.system(size: 10)).foregroundColor(color.opacity(0.6)) }; Text(value).font(.subheadline).foregroundColor(color) }; if let p = progress { ProgressView(value: p).progressViewStyle(LinearProgressViewStyle(tint: color)).shadow(color: color, radius: 2) } }.padding(.horizontal) } }
 
 #Preview { ContentView() }
