@@ -2,20 +2,68 @@ import UIKit
 
 class StarCoreViewController: UIViewController {
     
-    let helloLabel = UILabel()
+    let titleLabel = UILabel()
+    let batteryLabel = UILabel()
+    var timer: Timer?
     
     override func viewDidLoad() {
         super.viewDidLoad()
         
-        // 最最简单的黑底
+        // 黑底
         view.backgroundColor = .black
         
-        // 只显示一个文本，确保能跑起来
-        helloLabel.frame = CGRect(x: 0, y: 200, width: view.frame.width, height: 100)
-        helloLabel.text = "✨ 星核启动！✨"
-        helloLabel.textColor = .white
-        helloLabel.textAlignment = .center
-        helloLabel.font = UIFont.systemFont(ofSize: 32, weight: .bold)
-        view.addSubview(helloLabel)
+        // 标题
+        titleLabel.frame = CGRect(x: 0, y: 150, width: view.frame.width, height: 60)
+        titleLabel.text = "✨ 星核启动 ✨"
+        titleLabel.textColor = .white
+        titleLabel.textAlignment = .center
+        titleLabel.font = UIFont.systemFont(ofSize: 32, weight: .bold)
+        view.addSubview(titleLabel)
+        
+        // 电池电量
+        batteryLabel.frame = CGRect(x: 0, y: 250, width: view.frame.width, height: 50)
+        batteryLabel.textColor = UIColor(red: 0.3, green: 0.9, blue: 0.5, alpha: 1.0)
+        batteryLabel.textAlignment = .center
+        batteryLabel.font = UIFont.systemFont(ofSize: 24, weight: .medium)
+        view.addSubview(batteryLabel)
+        
+        // 开启电池监控
+        UIDevice.current.isBatteryMonitoringEnabled = true
+        
+        // 每秒更新一次
+        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            self?.updateBattery()
+        }
+        timer?.fire()
+    }
+    
+    func updateBattery() {
+        let level = UIDevice.current.batteryLevel
+        let state = UIDevice.current.batteryState
+        
+        var stateText = ""
+        switch state {
+        case .charging:
+            stateText = "⚡️ 充电中"
+        case .full:
+            stateText = "✅ 满电"
+        case .unplugged:
+            stateText = "🔋 使用中"
+        case .unknown:
+            stateText = "❓ 未知"
+        @unknown default:
+            stateText = ""
+        }
+        
+        if level >= 0 {
+            batteryLabel.text = "气血: \(Int(level * 100))% · \(stateText)"
+        } else {
+            batteryLabel.text = "气血: 检测中..."
+        }
+    }
+    
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        timer?.invalidate()
     }
 }
