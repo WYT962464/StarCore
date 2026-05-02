@@ -5,6 +5,7 @@ class StarCoreViewController: UIViewController {
     let titleLabel = UILabel()
     let batteryLabel = UILabel()
     let timeLabel = UILabel()
+    let cpuLabel = UILabel()
     var timer: Timer?
     
     override func viewDidLoad() {
@@ -35,6 +36,13 @@ class StarCoreViewController: UIViewController {
         timeLabel.font = UIFont.systemFont(ofSize: 24, weight: .medium)
         view.addSubview(timeLabel)
         
+        // CPU负载
+        cpuLabel.frame = CGRect(x: 0, y: 370, width: view.frame.width, height: 50)
+        cpuLabel.textColor = UIColor(red: 1.0, green: 0.4, blue: 0.4, alpha: 1.0)
+        cpuLabel.textAlignment = .center
+        cpuLabel.font = UIFont.systemFont(ofSize: 24, weight: .medium)
+        view.addSubview(cpuLabel)
+        
         // 开启电池监控
         UIDevice.current.isBatteryMonitoringEnabled = true
         
@@ -48,6 +56,7 @@ class StarCoreViewController: UIViewController {
     func updateAll() {
         updateBattery()
         updateTime()
+        updateCPU()
     }
     
     func updateBattery() {
@@ -80,6 +89,18 @@ class StarCoreViewController: UIViewController {
         dateFormatter.dateFormat = "HH:mm:ss"
         let timeString = dateFormatter.string(from: Date())
         timeLabel.text = "🕐 脉搏: \(timeString)"
+    }
+    
+    func updateCPU() {
+        var loads: [Double] = [0, 0, 0]
+        if getloadavg(&loads, 3) >= 0 {
+            let load1min = loads[0]
+            let intensity = min(load1min / 6.0, 1.0) // 6核CPU，最大负载6.0
+            let percent = Int(intensity * 100)
+            cpuLabel.text = "❤️ 心跳: \(String(format: "%.2f", load1min)) · 强度 \(percent)%"
+        } else {
+            cpuLabel.text = "❤️ 心跳: 检测中..."
+        }
     }
     
     override func viewDidDisappear(_ animated: Bool) {
