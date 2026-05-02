@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import CoreMotion
 
 struct ContentView: View {
     @State private var batteryLevel: Float = 0
@@ -10,6 +11,15 @@ struct ContentView: View {
     @State private var storageTotal: String = ""
     @State private var storagePercent: Double = 0
     @State private var heartBeatScale: CGFloat = 1.0
+    
+    // 运动感知
+    @State private var accelerometerX: Double = 0
+    @State private var accelerometerY: Double = 0
+    @State private var accelerometerZ: Double = 0
+    @State private var gyroX: Double = 0
+    @State private var gyroY: Double = 0
+    @State private var gyroZ: Double = 0
+    @State private var motionManager = CMMotionManager()
     
     let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     
@@ -28,6 +38,13 @@ struct ContentView: View {
         }
     }
     
+    // 计算运动强度
+    var motionIntensity: Double {
+        let accel = sqrt(accelerometerX * accelerometerX + accelerometerY * accelerometerY + accelerometerZ * accelerometerZ)
+        let gyro = sqrt(gyroX * gyroX + gyroY * gyroY + gyroZ * gyroZ)
+        return min(100, (accel + gyro) * 10)
+    }
+    
     var body: some View {
         ZStack {
             // 深色科技背景
@@ -42,111 +59,157 @@ struct ContentView: View {
             )
             .ignoresSafeArea()
             
-            VStack(spacing: 25) {
-                // 标题带心跳动画
-                Text("✨ 星核 ✨")
-                    .font(.system(size: 48, weight: .bold))
-                    .foregroundColor(.white)
-                    .shadow(color: .cyan, radius: 10)
-                    .scaleEffect(heartBeatScale)
-                    .animation(.easeInOut(duration: 0.3), value: heartBeatScale)
-                
-                // 整体状态
-                HStack {
-                    Text("状态：")
-                        .font(.title2)
-                        .foregroundColor(.white.opacity(0.8))
-                    Text(overallStatus.0)
-                        .font(.title2)
-                        .fontWeight(.bold)
-                        .foregroundColor(overallStatus.1)
-                        .shadow(color: overallStatus.1, radius: 5)
-                }
-                
-                // 气血 - 电池电量
-                VStack(alignment: .leading, spacing: 5) {
+            ScrollView {
+                VStack(spacing: 25) {
+                    // 标题带心跳动画
+                    Text("✨ 星核 ✨")
+                        .font(.system(size: 48, weight: .bold))
+                        .foregroundColor(.white)
+                        .shadow(color: .cyan, radius: 10)
+                        .scaleEffect(heartBeatScale)
+                        .animation(.easeInOut(duration: 0.3), value: heartBeatScale)
+                    
+                    // 整体状态
                     HStack {
-                        Text("💚 气血")
-                            .font(.headline)
-                            .foregroundColor(.green)
-                        Spacer()
-                        Text(String(format: "%.1f%%", batteryLevel * 100))
-                            .font(.headline)
-                            .foregroundColor(.green)
+                        Text("状态：")
+                            .font(.title2)
+                            .foregroundColor(.white.opacity(0.8))
+                        Text(overallStatus.0)
+                            .font(.title2)
+                            .fontWeight(.bold)
+                            .foregroundColor(overallStatus.1)
+                            .shadow(color: overallStatus.1, radius: 5)
                     }
-                    ProgressView(value: Double(batteryLevel))
-                        .progressViewStyle(LinearProgressViewStyle(tint: .green))
-                        .shadow(color: .green, radius: 3)
-                }
-                .padding(.horizontal)
-                
-                // 脉搏 - 系统时间
-                VStack(alignment: .leading, spacing: 5) {
-                    HStack {
-                        Text("💙 脉搏")
-                            .font(.headline)
-                            .foregroundColor(.cyan)
-                        Spacer()
-                        Text(currentTime)
-                            .font(.headline)
-                            .foregroundColor(.cyan)
-                            .monospacedDigit()
+                    
+                    // 气血 - 电池电量
+                    VStack(alignment: .leading, spacing: 5) {
+                        HStack {
+                            Text("💚 气血")
+                                .font(.headline)
+                                .foregroundColor(.green)
+                            Spacer()
+                            Text(String(format: "%.1f%%", batteryLevel * 100))
+                                .font(.headline)
+                                .foregroundColor(.green)
+                        }
+                        ProgressView(value: Double(batteryLevel))
+                            .progressViewStyle(LinearProgressViewStyle(tint: .green))
+                            .shadow(color: .green, radius: 3)
                     }
-                }
-                .padding(.horizontal)
-                
-                // 心跳 - CPU负载
-                VStack(alignment: .leading, spacing: 5) {
-                    HStack {
-                        Text("❤️ 心跳")
-                            .font(.headline)
-                            .foregroundColor(.red)
-                        Spacer()
-                        Text(String(format: "%.1f%%", cpuUsage))
-                            .font(.headline)
-                            .foregroundColor(.red)
+                    .padding(.horizontal)
+                    
+                    // 脉搏 - 系统时间
+                    VStack(alignment: .leading, spacing: 5) {
+                        HStack {
+                            Text("💙 脉搏")
+                                .font(.headline)
+                                .foregroundColor(.cyan)
+                            Spacer()
+                            Text(currentTime)
+                                .font(.headline)
+                                .foregroundColor(.cyan)
+                                .monospacedDigit()
+                        }
                     }
-                    ProgressView(value: cpuUsage / 100)
-                        .progressViewStyle(LinearProgressViewStyle(tint: .red))
-                        .shadow(color: .red, radius: 3)
-                }
-                .padding(.horizontal)
-                
-                // 思维 - 内存使用
-                VStack(alignment: .leading, spacing: 5) {
-                    HStack {
-                        Text("💜 思维")
-                            .font(.headline)
-                            .foregroundColor(.purple)
-                        Spacer()
-                        Text(String(format: "%.1f%%", memoryUsage))
-                            .font(.headline)
-                            .foregroundColor(.purple)
+                    .padding(.horizontal)
+                    
+                    // 心跳 - CPU负载
+                    VStack(alignment: .leading, spacing: 5) {
+                        HStack {
+                            Text("❤️ 心跳")
+                                .font(.headline)
+                                .foregroundColor(.red)
+                            Spacer()
+                            Text(String(format: "%.1f%%", cpuUsage))
+                                .font(.headline)
+                                .foregroundColor(.red)
+                        }
+                        ProgressView(value: cpuUsage / 100)
+                            .progressViewStyle(LinearProgressViewStyle(tint: .red))
+                            .shadow(color: .red, radius: 3)
                     }
-                    ProgressView(value: memoryUsage / 100)
-                        .progressViewStyle(LinearProgressViewStyle(tint: .purple))
-                        .shadow(color: .purple, radius: 3)
-                }
-                .padding(.horizontal)
-                
-                // 储备 - 存储使用
-                VStack(alignment: .leading, spacing: 5) {
-                    HStack {
-                        Text("💛 储备")
-                            .font(.headline)
-                            .foregroundColor(.yellow)
-                        Spacer()
-                        Text("\(storageUsed) / \(storageTotal)")
-                            .font(.headline)
-                            .foregroundColor(.yellow)
+                    .padding(.horizontal)
+                    
+                    // 思维 - 内存使用
+                    VStack(alignment: .leading, spacing: 5) {
+                        HStack {
+                            Text("💜 思维")
+                                .font(.headline)
+                                .foregroundColor(.purple)
+                            Spacer()
+                            Text(String(format: "%.1f%%", memoryUsage))
+                                .font(.headline)
+                                .foregroundColor(.purple)
+                        }
+                        ProgressView(value: memoryUsage / 100)
+                            .progressViewStyle(LinearProgressViewStyle(tint: .purple))
+                            .shadow(color: .purple, radius: 3)
                     }
-                    ProgressView(value: storagePercent / 100)
-                        .progressViewStyle(LinearProgressViewStyle(tint: .yellow))
-                        .shadow(color: .yellow, radius: 3)
+                    .padding(.horizontal)
+                    
+                    // 储备 - 存储使用
+                    VStack(alignment: .leading, spacing: 5) {
+                        HStack {
+                            Text("💛 储备")
+                                .font(.headline)
+                                .foregroundColor(.yellow)
+                            Spacer()
+                            Text("\(storageUsed) / \(storageTotal)")
+                                .font(.headline)
+                                .foregroundColor(.yellow)
+                        }
+                        ProgressView(value: storagePercent / 100)
+                            .progressViewStyle(LinearProgressViewStyle(tint: .yellow))
+                            .shadow(color: .yellow, radius: 3)
+                    }
+                    .padding(.horizontal)
+                    
+                    // 触觉 - 运动感知
+                    VStack(alignment: .leading, spacing: 5) {
+                        HStack {
+                            Text("🧭 触觉")
+                                .font(.headline)
+                                .foregroundColor(.orange)
+                            Spacer()
+                            Text(String(format: "%.0f%%", motionIntensity))
+                                .font(.headline)
+                                .foregroundColor(.orange)
+                        }
+                        
+                        HStack(spacing: 10) {
+                            VStack {
+                                Text("X: " + String(format: "%.2f", accelerometerX))
+                                    .font(.caption)
+                                    .foregroundColor(.orange.opacity(0.8))
+                                Text("Y: " + String(format: "%.2f", accelerometerY))
+                                    .font(.caption)
+                                    .foregroundColor(.orange.opacity(0.8))
+                                Text("Z: " + String(format: "%.2f", accelerometerZ))
+                                    .font(.caption)
+                                    .foregroundColor(.orange.opacity(0.8))
+                            }
+                            
+                            VStack {
+                                Text("Rx: " + String(format: "%.1f", gyroX))
+                                    .font(.caption)
+                                    .foregroundColor(.orange.opacity(0.8))
+                                Text("Ry: " + String(format: "%.1f", gyroY))
+                                    .font(.caption)
+                                    .foregroundColor(.orange.opacity(0.8))
+                                Text("Rz: " + String(format: "%.1f", gyroZ))
+                                    .font(.caption)
+                                    .foregroundColor(.orange.opacity(0.8))
+                            }
+                        }
+                        
+                        ProgressView(value: motionIntensity / 100)
+                            .progressViewStyle(LinearProgressViewStyle(tint: .orange))
+                            .shadow(color: .orange, radius: 3)
+                    }
+                    .padding(.horizontal)
                 }
-                .padding(.horizontal)
+                .padding()
             }
-            .padding()
         }
         .onReceive(timer) { _ in
             updateBatteryLevel()
@@ -163,6 +226,30 @@ struct ContentView: View {
             updateCPUUsage()
             updateMemoryUsage()
             updateStorageUsage()
+            startMotionUpdates()
+        }
+    }
+    
+    func startMotionUpdates() {
+        if motionManager.isAccelerometerAvailable && motionManager.isGyroAvailable {
+            motionManager.accelerometerUpdateInterval = 0.1
+            motionManager.gyroUpdateInterval = 0.1
+            
+            motionManager.startAccelerometerUpdates(to: .main) { data, _ in
+                if let data = data {
+                    accelerometerX = data.acceleration.x
+                    accelerometerY = data.acceleration.y
+                    accelerometerZ = data.acceleration.z
+                }
+            }
+            
+            motionManager.startGyroUpdates(to: .main) { data, _ in
+                if let data = data {
+                    gyroX = data.rotationRate.x
+                    gyroY = data.rotationRate.y
+                    gyroZ = data.rotationRate.z
+                }
+            }
         }
     }
     
