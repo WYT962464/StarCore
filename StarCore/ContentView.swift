@@ -45,6 +45,13 @@ struct ContentView: View {
         return min(100, (accel + gyro) * 10)
     }
     
+    // 阴阳平衡：阴 = 思维(CPU+内存)，阳 = 肉身(电量+运动)
+    var yinYangBalance: (Double, Double) {
+        let yin = (cpuUsage + memoryUsage) / 2
+        let yang = (Double(batteryLevel) * 100 + motionIntensity) / 2
+        return (yin, yang)
+    }
+    
     var body: some View {
         ZStack {
             // 深色科技背景
@@ -61,13 +68,78 @@ struct ContentView: View {
             
             ScrollView {
                 VStack(spacing: 25) {
-                    // 标题带心跳动画
-                    Text("✨ 星核 ✨")
-                        .font(.system(size: 48, weight: .bold))
-                        .foregroundColor(.white)
-                        .shadow(color: .cyan, radius: 10)
-                        .scaleEffect(heartBeatScale)
-                        .animation(.easeInOut(duration: 0.3), value: heartBeatScale)
+                    // 太极阴阳鱼
+                    ZStack {
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    gradient: Gradient(stops: [
+                                        .init(color: .black, location: 0),
+                                        .init(color: .black, location: 0.5),
+                                        .init(color: .white, location: 0.5),
+                                        .init(color: .white, location: 1)
+                                    ]),
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
+                            .frame(width: 120, height: 120)
+                            .shadow(color: .cyan, radius: 15)
+                        
+                        // 阴中阳眼
+                        Circle()
+                            .fill(.white)
+                            .frame(width: 30, height: 30)
+                            .offset(y: -30)
+                        
+                        // 阳中阴眼
+                        Circle()
+                            .fill(.black)
+                            .frame(width: 30, height: 30)
+                            .offset(y: 30)
+                        
+                        // 阴阳平衡指示器
+                        Circle()
+                            .stroke(Color.cyan, lineWidth: 2)
+                            .frame(width: 140, height: 140)
+                            .overlay(
+                                Text("☯️")
+                                    .font(.title)
+                                    .offset(y: -85)
+                            )
+                    }
+                    .scaleEffect(heartBeatScale)
+                    .animation(.easeInOut(duration: 0.3), value: heartBeatScale)
+                    
+                    // 阴阳平衡显示
+                    HStack(spacing: 40) {
+                        VStack {
+                            Text("阴")
+                                .font(.headline)
+                                .foregroundColor(.purple)
+                            Text(String(format: "%.0f%%", yinYangBalance.0))
+                                .font(.title)
+                                .foregroundColor(.purple)
+                            Text("(思维)")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                        }
+                        
+                        Text("⚡")
+                            .font(.title)
+                        
+                        VStack {
+                            Text("阳")
+                                .font(.headline)
+                                .foregroundColor(.orange)
+                            Text(String(format: "%.0f%%", yinYangBalance.1))
+                                .font(.title)
+                                .foregroundColor(.orange)
+                            Text("(肉身)")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                        }
+                    }
                     
                     // 整体状态
                     HStack {
@@ -176,8 +248,11 @@ struct ContentView: View {
                                 .foregroundColor(.orange)
                         }
                         
-                        HStack(spacing: 10) {
-                            VStack {
+                        HStack(spacing: 20) {
+                            VStack(alignment: .leading) {
+                                Text("加速计")
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
                                 Text("X: " + String(format: "%.2f", accelerometerX))
                                     .font(.caption)
                                     .foregroundColor(.orange.opacity(0.8))
@@ -189,7 +264,10 @@ struct ContentView: View {
                                     .foregroundColor(.orange.opacity(0.8))
                             }
                             
-                            VStack {
+                            VStack(alignment: .leading) {
+                                Text("陀螺仪")
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
                                 Text("Rx: " + String(format: "%.1f", gyroX))
                                     .font(.caption)
                                     .foregroundColor(.orange.opacity(0.8))
