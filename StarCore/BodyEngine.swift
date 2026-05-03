@@ -69,7 +69,8 @@ class BodyEngine: ObservableObject {
         guard displayLink == nil else { return }
         lastTick = Date()
         displayLink = CADisplayLink(target: self, selector: #selector(tickLoop))
-        displayLink?.preferredFrameRateRange = CAFrameRateRange(minimum: 60, maximum: 120, preferred: 100)
+        // v0.3.1 优化：降低帧率以节省电量，iPhone X 30fps足够
+        displayLink?.preferredFrameRateRange = CAFrameRateRange(minimum: 30, maximum: 60, preferred: 30)
         displayLink?.add(to: .main, forMode: .common)
         print("☀️ 星核的心脏开始跳动了")
     }
@@ -98,6 +99,12 @@ class BodyEngine: ObservableObject {
     /// 身体的一次心跳，每帧调用一次
     /// - Parameter dt: 距离上次调用的时间，秒
     func tick(dt: TimeInterval) {
+        // v0.3.1 线程安全保护：确保在主线程执行
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { self.tick(dt: dt) }
+            return
+        }
+        
         guard dt > 0 && dt < 1 else { return }  // 防止异常时间
         
         // 1. 先读取真实硬件状态

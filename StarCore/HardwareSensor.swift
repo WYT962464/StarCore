@@ -42,6 +42,7 @@ class HardwareSensor: NSObject, ObservableObject {
     private var displayLink: CADisplayLink?
     private var lastCPUTime: (user: UInt64, system: UInt64, idle: UInt64) = (0, 0, 0)
     private var cancellables = Set<AnyCancellable>()
+    private var frameCount: Int = 0  // 用于节流CPU更新
     
     // 位置代理
     private class LocationDelegate: NSObject, CLLocationManagerDelegate {
@@ -135,9 +136,12 @@ class HardwareSensor: NSObject, ObservableObject {
         queue.name = "HardwareSensor.Motion"
         queue.maxConcurrentOperationCount = 1
         
+        // v0.3.1 优化：降低更新频率以节省电量（10Hz → 5Hz）
+        let updateInterval: TimeInterval = 0.2  // 5Hz，更省电
+        
         // 加速计
         if motionManager.isAccelerometerAvailable {
-            motionManager.accelerometerUpdateInterval = 0.1
+            motionManager.accelerometerUpdateInterval = updateInterval
             motionManager.startAccelerometerUpdates(to: queue) { [weak self] data, error in
                 guard let data = data, error == nil else { return }
                 DispatchQueue.main.async {
@@ -148,7 +152,7 @@ class HardwareSensor: NSObject, ObservableObject {
         
         // 陀螺仪
         if motionManager.isGyroAvailable {
-            motionManager.gyroUpdateInterval = 0.1
+            motionManager.gyroUpdateInterval = updateInterval
             motionManager.startGyroUpdates(to: queue) { [weak self] data, error in
                 guard let data = data, error == nil else { return }
                 DispatchQueue.main.async {
@@ -159,7 +163,7 @@ class HardwareSensor: NSObject, ObservableObject {
         
         // 设备姿态（综合使用加速计和陀螺仪）
         if motionManager.isDeviceMotionAvailable {
-            motionManager.deviceMotionUpdateInterval = 0.1
+            motionManager.deviceMotionUpdateInterval = updateInterval
             motionManager.startDeviceMotionUpdates(to: queue) { [weak self] data, error in
                 guard let data = data, error == nil else { return }
                 let attitude = data.attitude
@@ -283,9 +287,7 @@ class HardwareSensor: NSObject, ObservableObject {
         // 更新屏幕亮度
         screenBrightness = Double(UIScreen.main.brightness)
         
-        // 定期更新CPU估算
-        // 每秒更新一次
-        static var frameCount = 0
+        // 定期更新CPU估算（每20帧约1秒）
         frameCount += 1
         if frameCount % 20 == 0 {
             updateCPUUsage()

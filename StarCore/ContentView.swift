@@ -553,6 +553,18 @@ struct ContentView: View {
             NotificationCenter.default.addObserver(forName: UIDevice.orientationDidChangeNotification, object: nil, queue: .main) { _ in deviceOrientation = UIDevice.current.orientation }
             UNUserNotificationCenter.current().getNotificationSettings { settings in DispatchQueue.main.async { notificationsEnabled = settings.authorizationStatus == .authorized } }
             
+            // v0.3.1 新增：后台/前台通知监听，节省电量
+            NotificationCenter.default.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { _ in
+                self.emotionEngine.stop()
+                self.bodyEngine.stop()
+                self.hardwareSensor.stop()
+            }
+            NotificationCenter.default.addObserver(forName: UIApplication.willEnterForegroundNotification, object: nil, queue: .main) { _ in
+                self.hardwareSensor.start()
+                self.bodyEngine.start()
+                self.emotionEngine.start()
+            }
+            
             // v0.3.0 启动身体引擎系统
             hardwareSensor.start()
             bodyEngine.bind(hardwareSensor: hardwareSensor)
@@ -569,6 +581,9 @@ struct ContentView: View {
             emotionEngine.stop()
             bodyEngine.stop()
             hardwareSensor.stop()
+            // v0.3.1 移除通知监听
+            NotificationCenter.default.removeObserver(self, name: UIApplication.didEnterBackgroundNotification, object: nil)
+            NotificationCenter.default.removeObserver(self, name: UIApplication.willEnterForegroundNotification, object: nil)
         }
     }
     
