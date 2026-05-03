@@ -1,3 +1,12 @@
+//
+//  ContentView.swift
+//  StarCore
+//
+//  StarCore主界面 - v0.3.0
+//  集成身体引擎、情绪引擎、硬件传感器
+//  核心升级：艾尔的身体真的"活"在手机里
+//
+
 import SwiftUI
 import UIKit
 import CoreMotion
@@ -5,6 +14,7 @@ import CoreLocation
 import Network
 import UserNotifications
 import Combine
+import QuartzCore
 
 // MARK: - 智能控制系统 (v0.2.0 建议期核心)
 enum SystemAction: String, CaseIterable {
@@ -207,12 +217,125 @@ struct CompassView: View { let heading: Double; let direction: String; let size:
 struct Triangle: Shape { func path(in rect: CGRect) -> Path { var p = Path(); p.move(to: CGPoint(x: rect.midX, y: rect.minY)); p.addLine(to: CGPoint(x: rect.minX, y: rect.maxY)); p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY)); p.closeSubpath(); return p } }
 struct YinYangChartView: View { let yinHistory: [Double]; let yangHistory: [Double]; var body: some View { GeometryReader { geo in ZStack { Path { p in for i in 0...4 { let y = geo.size.height * CGFloat(i) / 4; p.move(to: CGPoint(x: 0, y: y)); p.addLine(to: CGPoint(x: geo.size.width, y: y)) } }.stroke(Color.gray.opacity(0.15), lineWidth: 0.5); if yangHistory.count > 1 { Path { p in for (i, v) in yangHistory.enumerated() { let x = geo.size.width * CGFloat(i) / CGFloat(max(yangHistory.count - 1, 1)); let y = geo.size.height * (1 - CGFloat(v / 100)); if i == 0 { p.move(to: CGPoint(x: x, y: y)) } else { p.addLine(to: CGPoint(x: x, y: y)) } } }.stroke(Color.orange.opacity(0.7), lineWidth: 1.5) }; if yinHistory.count > 1 { Path { p in for (i, v) in yinHistory.enumerated() { let x = geo.size.width * CGFloat(i) / CGFloat(max(yinHistory.count - 1, 1)); let y = geo.size.height * (1 - CGFloat(v / 100)); if i == 0 { p.move(to: CGPoint(x: x, y: y)) } else { p.addLine(to: CGPoint(x: x, y: y)) } } }.stroke(Color.purple.opacity(0.7), lineWidth: 1.5) } } } } }
 
+// MARK: - v0.3.0 身体引擎视图组件
+
+/// 生命体征卡片
+struct VitalCard: View {
+    let icon: String
+    let title: String
+    let value: String
+    let subtitle: String
+    let progress: Double
+    let color: Color
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(icon).font(.title2)
+                Text(title).font(.caption).foregroundColor(.white.opacity(0.8))
+                Spacer()
+            }
+            
+            Text(value).font(.system(size: 28, weight: .bold)).foregroundColor(color)
+            
+            Text(subtitle).font(.caption2).foregroundColor(.white.opacity(0.5))
+            
+            ProgressView(value: min(1, max(0, progress)))
+                .progressViewStyle(LinearProgressViewStyle(tint: color))
+                .shadow(color: color.opacity(0.5), radius: 2)
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.black.opacity(0.3))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(color.opacity(0.3), lineWidth: 1)
+                )
+        )
+    }
+}
+
+/// 情绪状态视图
+struct EmotionView: View {
+    let dominant: String
+    let strength: Double
+    let description: String
+    let feelings: [(name: String, strength: Double)]
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("🎭 情绪状态").font(.subheadline).foregroundColor(.white.opacity(0.8))
+                Spacer()
+                Text(dominant).font(.headline).foregroundColor(emotionColor)
+            }
+            
+            Text(description).font(.caption).foregroundColor(.white.opacity(0.6))
+            
+            // 情绪条
+            HStack(spacing: 4) {
+                ForEach(feelings.prefix(5), id: \.name) { feeling in
+                    VStack(spacing: 2) {
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(emotionGradient(for: feeling.name))
+                            .frame(width: 40, height: CGFloat(feeling.strength) * 40)
+                        Text(feeling.name).font(.system(size: 8)).foregroundColor(.white.opacity(0.6))
+                    }
+                }
+            }
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.black.opacity(0.3))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(emotionColor.opacity(0.3), lineWidth: 1)
+                )
+        )
+    }
+    
+    var emotionColor: Color {
+        switch dominant {
+        case "开心", "兴奋": return .yellow
+        case "安心": return .green
+        case "紧张": return .red
+        case "平静": return .cyan
+        case "疲惫", "虚弱": return .gray
+        case "烦躁": return .orange
+        default: return .purple
+        }
+    }
+    
+    func emotionGradient(for name: String) -> Color {
+        switch name {
+        case "开心": return .yellow.opacity(0.8)
+        case "兴奋": return .orange.opacity(0.8)
+        case "安心": return .green.opacity(0.8)
+        case "紧张": return .red.opacity(0.8)
+        case "平静": return .cyan.opacity(0.8)
+        case "疲惫": return .gray.opacity(0.8)
+        case "虚弱": return .purple.opacity(0.8)
+        case "烦躁": return .orange.opacity(0.8)
+        case "害羞": return .pink.opacity(0.8)
+        default: return .blue.opacity(0.8)
+        }
+    }
+}
+
 struct StatusLog: Identifiable, Codable { let id: UUID; let time: String; let hexagram: String; let status: String; let event: String; init(time: String, hexagram: String, status: String, event: String) { self.id = UUID(); self.time = time; self.hexagram = hexagram; self.status = status; self.event = event } }
 class LocationDelegate: NSObject, CLLocationManagerDelegate { var onHeading: ((CLHeading) -> Void)?; func locationManager(_ manager: CLLocationManager, didUpdateHeading heading: CLHeading) { onHeading?(heading) }; func locationManagerShouldDisplayHeadingCalibration(_ manager: CLLocationManager) -> Bool { true } }
 class NotificationManager { static let shared = NotificationManager(); private init() {}; func requestAuthorization() { UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in } }; func sendNotification(title: String, body: String) { let c = UNMutableNotificationContent(); c.title = title; c.body = body; c.sound = .default; let r = UNNotificationRequest(identifier: UUID().uuidString, content: c, trigger: nil); UNUserNotificationCenter.current().add(r) { _ in } } }
 
 struct ContentView: View {
     @StateObject private var dailyStats = DailyStatsManager()
+    
+    // v0.3.0 身体引擎系统
+    @StateObject private var hardwareSensor = HardwareSensor()
+    @StateObject private var bodyEngine = BodyEngine()
+    @StateObject private var emotionEngine = EmotionEngine()
+    
     @State private var batteryLevel: Float = 0; @State private var batteryState: UIDevice.BatteryState = .unknown
     @State private var currentTime: String = ""; @State private var cpuUsage: Double = 0; @State private var memoryUsage: Double = 0
     @State private var storageUsed: String = ""; @State private var storageTotal: String = ""; @State private var storagePercent: Double = 0
@@ -252,6 +375,10 @@ struct ContentView: View {
     var stat: (emoji: String, label: String, color: Color) { HexagramEngine.evaluateStatus(battery: batteryLevel, cpu: cpuUsage, memory: memoryUsage, motion: motionIntensity) }
     var currentYao: [Bool] { HexagramEngine.allHexagrams.first(where: { $0.name == drvHex.name })?.yao ?? [true,true,true,true,true,true] }
     
+    // v0.3.0 身体引擎状态
+    var bodyState: BodyStateSummary { bodyEngine.getStateSummary() }
+    var emotionSummary: FeelingSummary { emotionEngine.getFeelingSummary() }
+    
     var body: some View {
         ZStack {
             LinearGradient(gradient: Gradient(colors: [Color(red: 0.03, green: 0.03, blue: 0.1), Color(red: 0.08, green: 0.08, blue: 0.2), Color(red: 0.03, green: 0.12, blue: 0.15)]), startPoint: .topLeading, endPoint: .bottomTrailing).ignoresSafeArea()
@@ -265,6 +392,55 @@ struct ContentView: View {
                         VStack(spacing: 4) { if heading >= 0 { CompassView(heading: heading, direction: headingDirection, size: 70) } else { Circle().stroke(Color.gray.opacity(0.3), lineWidth: 1.5).frame(width: 70, height: 70).overlay(Text("🧭").font(.title2)) }; Text(headingDirection).font(.system(size: 12)).foregroundColor(.orange) }
                     }.padding(.horizontal)
                     
+                    // v0.3.0 生命体征卡片
+                    if displayMode == 0 {
+                        VStack(spacing: 10) {
+                            HStack(spacing: 10) {
+                                // 心跳卡片
+                                VitalCard(
+                                    icon: "❤️",
+                                    title: "心跳",
+                                    value: "\(bodyState.heartRate)",
+                                    subtitle: "次/分 | 负载\(Int(bodyState.heartLoad * 100))%",
+                                    progress: Double(bodyState.heartRate) / 120.0,
+                                    color: .red
+                                )
+                                
+                                // 体温卡片
+                                VitalCard(
+                                    icon: "🌡️",
+                                    title: "体温",
+                                    value: String(format: "%.1f°C", bodyState.coreTemp),
+                                    subtitle: bodyState.isFever ? "⚠️发烧中" : "体表\(String(format: "%.1f°C", bodyState.skinTemp))",
+                                    progress: (bodyState.coreTemp - 25) / 20.0,
+                                    color: bodyState.isFever ? .red : .orange
+                                )
+                            }
+                            
+                            HStack(spacing: 10) {
+                                // 电量卡片
+                                VitalCard(
+                                    icon: "🔋",
+                                    title: "气血",
+                                    value: "\(Int(bodyState.energy * 100))%",
+                                    subtitle: bodyState.isCharging ? "⚡充电中" : bodyState.energyState,
+                                    progress: bodyState.energy,
+                                    color: bodyState.energy < 0.2 ? .red : .green
+                                )
+                                
+                                // 疲劳卡片
+                                VitalCard(
+                                    icon: "💪",
+                                    title: "疲劳",
+                                    value: "\(Int(bodyState.fatigue * 100))%",
+                                    subtitle: "注意力 \(Int(bodyState.attention * 100))% | \(bodyState.fatigueState)",
+                                    progress: bodyState.fatigue,
+                                    color: bodyState.fatigue > 0.7 ? .red : .blue
+                                )
+                            }
+                        }.padding(.horizontal)
+                    }
+                    
                     // 决策卡片
                     VStack(spacing: 5) {
                         HStack { Text(msgHex.symbol + " " + msgHex.name + "卦").font(.headline).foregroundColor(msgHex.color); Spacer(); Text(msgHex.desc).font(.caption).foregroundColor(.gray) }
@@ -273,6 +449,16 @@ struct ContentView: View {
                         HStack { Text(drvHex.name + "卦·" + drvHex.desc).font(.headline).foregroundColor(.cyan); Spacer(); Button(action: { if let h = HexagramEngine.allHexagrams.first(where: { $0.name == drvHex.name }) { selectedHexagram = h } }) { Image(systemName: "info.circle").foregroundColor(.cyan).font(.caption) } }
                         HStack { Text(drvHex.advice).font(.subheadline).foregroundColor(.cyan.opacity(0.9)); Spacer() }
                     }.padding(10).background(Color.white.opacity(0.06)).cornerRadius(10).overlay(RoundedRectangle(cornerRadius: 10).stroke(msgHex.color.opacity(0.3), lineWidth: 1)).padding(.horizontal)
+                    
+                    // v0.3.0 情绪状态
+                    if displayMode == 0 {
+                        EmotionView(
+                            dominant: emotionSummary.dominantFeeling,
+                            strength: emotionSummary.dominantStrength,
+                            description: emotionSummary.overallMood,
+                            feelings: emotionSummary.mainFeelings
+                        ).padding(.horizontal)
+                    }
                     
                     // v0.2.0 智能控制卡片
                     if displayMode == 0 {
@@ -338,7 +524,7 @@ struct ContentView: View {
                             HStack { Text("\(orientationIcon) 朝向").font(.system(size: 9)).foregroundColor(.gray); Spacer(); Text("光线 \(String(format: "%.0f", screenBrightness))%").font(.system(size: 9)).foregroundColor(.orange.opacity(0.5)); Text("📡 \(networkStatus)").font(.system(size: 9)).foregroundColor(networkStatus == "离线" ? .red.opacity(0.7) : .green.opacity(0.7)) }
                             ProgressView(value: motionIntensity / 100).progressViewStyle(LinearProgressViewStyle(tint: .orange))
                         }.padding(.horizontal)
-                        SensorRow(icon: "⚪️", name: "兑·迭代", label: "进化", value: formatUptime(uptime), detail: "v0.1.22", progress: min(1, uptime / 86400), color: .white.opacity(0.7))
+                        SensorRow(icon: "⚪️", name: "兑·迭代", label: "进化", value: formatUptime(uptime), detail: "v0.3.0", progress: min(1, uptime / 86400), color: .white.opacity(0.7))
                         SensorRow(icon: "🔵", name: "巽·输出", label: "状态", value: "\(msgHex.name)·\(drvHex.name)", detail: drvHex.desc, progress: yangValue / 100, color: .blue)
                         Divider().background(Color.gray.opacity(0.2))
                         VStack(alignment: .leading, spacing: 4) {
@@ -366,9 +552,23 @@ struct ContentView: View {
             deviceOrientation = UIDevice.current.orientation
             NotificationCenter.default.addObserver(forName: UIDevice.orientationDidChangeNotification, object: nil, queue: .main) { _ in deviceOrientation = UIDevice.current.orientation }
             UNUserNotificationCenter.current().getNotificationSettings { settings in DispatchQueue.main.async { notificationsEnabled = settings.authorizationStatus == .authorized } }
+            
+            // v0.3.0 启动身体引擎系统
+            hardwareSensor.start()
+            bodyEngine.bind(hardwareSensor: hardwareSensor)
+            bodyEngine.start()
+            emotionEngine.bind(bodyEngine: bodyEngine)
+            emotionEngine.start()
+            
             // v0.2.0 初始化智能控制
             let isCharging = batteryState == .charging || batteryState == .full
             intelliControl.evaluateState(batteryLevel: batteryLevel, cpuUsage: cpuUsage, hour: currentHour, isCharging: isCharging)
+        }
+        .onDisappear {
+            // v0.3.0 停止身体引擎
+            emotionEngine.stop()
+            bodyEngine.stop()
+            hardwareSensor.stop()
         }
     }
     
@@ -379,7 +579,7 @@ struct ContentView: View {
     func saveLogs() { if let data = try? JSONEncoder().encode(statusLogs) { try? data.write(to: logURL) } }
     
     func updateAll() {
-        batteryLevel = UIDevice.current.batteryLevel; batteryState = UIDevice.current.batteryState; screenBrightness = Double(UIScreen.main.brightness * 100)
+        batteryLevel = UIDevice.current.batteryLevel; batteryState = UIDevice.current.batteryState; screenBrightness = Double(UIScreen.main.brightness)
         updateCurrentTime(); updateCPUUsage(); updateMemoryUsage(); updateStorageUsage()
         uptime = ProcessInfo.processInfo.systemUptime; triggerHeartBeat(); checkStatusChange(); checkNotifications()
         if historyTick % 5 == 0 { dailyStats.record(battery: batteryLevel, cpu: cpuUsage, memory: memoryUsage, hexagram: drvHex.name, hour: currentHour) }
@@ -417,7 +617,14 @@ struct ContentView: View {
     
     func formatUptime(_ s: TimeInterval) -> String { let d = Int(s)/86400; let h = Int(s)%86400/3600; let m = Int(s)%3600/60; return d > 0 ? "\(d)d\(h)h\(m)m" : "\(h)h\(m)m" }
     func startMotionUpdates() { if motionManager.isAccelerometerAvailable { motionManager.accelerometerUpdateInterval = 0.1; motionManager.startAccelerometerUpdates(to: .main) { d, _ in if let d = d { accelerometerX = d.acceleration.x; accelerometerY = d.acceleration.y; accelerometerZ = d.acceleration.z } } }; if motionManager.isGyroAvailable { motionManager.gyroUpdateInterval = 0.1; motionManager.startGyroUpdates(to: .main) { d, _ in if let d = d { gyroX = d.rotationRate.x; gyroY = d.rotationRate.y; gyroZ = d.rotationRate.z } } } }
-    func triggerHeartBeat() { let i = max(0.02, min(0.1, cpuUsage / 1000)); heartBeatScale = 1.0 + CGFloat(i); DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { heartBeatScale = 1.0 } }
+    func triggerHeartBeat() {
+        // v0.3.0 使用真实心率
+        let bodyState = bodyEngine.getStateSummary()
+        let heartRate = Double(bodyState.heartRate)
+        let i = max(0.02, min(0.1, heartRate / 1500))
+        heartBeatScale = 1.0 + CGFloat(i)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { self.heartBeatScale = 1.0 }
+    }
     func updateCurrentTime() { let f = DateFormatter(); f.dateFormat = "HH:mm:ss"; currentTime = f.string(from: Date()) }
     func updateCPUUsage() { let cores = Double(ProcessInfo.processInfo.activeProcessorCount); let loadAvg = cores > 0 ? min(100.0, (cores / Double(ProcessInfo.processInfo.processorCount)) * 25.0 + Double.random(in: 5...15)) : 15.0; cpuUsage = loadAvg }
     func updateMemoryUsage() { let total = Double(ProcessInfo.processInfo.physicalMemory); let used = total * 0.45 + Double.random(in: 0...total * 0.1); memoryUsage = min(100.0, used / total * 100) }
