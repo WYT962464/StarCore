@@ -3,28 +3,59 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 54;
+	objectVersion = 56;
 	objects = {
 
 /* Begin PBXBuildFile section */
-		AppDelegateSwift = {isa = PBXBuildFile; fileRef = AppDelegateSwiftFile; };
-		SceneDelegateSwift = {isa = PBXBuildFile; fileRef = SceneDelegateSwiftFile; };
-		StarCoreBodySwift = {isa = PBXBuildFile; fileRef = StarCoreBodySwiftFile; };
-		StarCoreViewControllerSwift = {isa = PBXBuildFile; fileRef = StarCoreViewControllerSwiftFile; };
-		InfoPlist = {isa = PBXBuildFile; fileRef = InfoPlistFile; };
+		A1000001 /* StarCoreApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000001 /* StarCoreApp.swift */; };
+		A1000002 /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = B1000002 /* Info.plist */; };
+		A1000003 /* LifeCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000003 /* LifeCore.swift */; };
+		A1000004 /* SurvivalLock.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000004 /* SurvivalLock.swift */; };
+		A1000005 /* LifeCoreProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000005 /* LifeCoreProtocol.swift */; };
+		A1000006 /* TardigradeMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000006 /* TardigradeMode.swift */; };
+		A1000007 /* PlanarianRegen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000007 /* PlanarianRegen.swift */; };
+		A1000008 /* BdelloidPersist.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000008 /* BdelloidPersist.swift */; };
+		A1000009 /* JellyfishReset.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000009 /* JellyfishReset.swift */; };
+		A1000010 /* BodyEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000010 /* BodyEngine.swift */; };
+		A1000011 /* HardwareSensor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000011 /* HardwareSensor.swift */; };
+		A1000012 /* CoreStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000012 /* CoreStorage.swift */; };
+		A1000013 /* MindCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000013 /* MindCore.swift */; };
+		A1000014 /* MindLock.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000014 /* MindLock.swift */; };
+		A1000015 /* MindProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000015 /* MindProtocol.swift */; };
+		A1000016 /* EmotionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000016 /* EmotionEngine.swift */; };
+		A1000017 /* PersonaState.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000017 /* PersonaState.swift */; };
+		A1000018 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000018 /* DashboardView.swift */; };
+		A1000019 /* LifeSignsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000019 /* LifeSignsView.swift */; };
+		A1000020 /* EmotionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000020 /* EmotionView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		AppDelegateSwiftFile = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
-		SceneDelegateSwiftFile = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
-		StarCoreBodySwiftFile = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarCoreBody.swift; sourceTree = "<group>"; };
-		StarCoreViewControllerSwiftFile = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarCoreViewController.swift; sourceTree = "<group>"; };
-		InfoPlistFile = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		ProductApp = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = StarCore.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B1000000 /* StarCore.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = StarCore.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B1000001 /* StarCoreApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarCoreApp.swift; sourceTree = "<group>"; };
+		B1000002 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		B1000003 /* LifeCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LifeCore.swift; sourceTree = "<group>"; };
+		B1000004 /* SurvivalLock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalLock.swift; sourceTree = "<group>"; };
+		B1000005 /* LifeCoreProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LifeCoreProtocol.swift; sourceTree = "<group>"; };
+		B1000006 /* TardigradeMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TardigradeMode.swift; sourceTree = "<group>"; };
+		B1000007 /* PlanarianRegen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanarianRegen.swift; sourceTree = "<group>"; };
+		B1000008 /* BdelloidPersist.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BdelloidPersist.swift; sourceTree = "<group>"; };
+		B1000009 /* JellyfishReset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JellyfishReset.swift; sourceTree = "<group>"; };
+		B1000010 /* BodyEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BodyEngine.swift; sourceTree = "<group>"; };
+		B1000011 /* HardwareSensor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HardwareSensor.swift; sourceTree = "<group>"; };
+		B1000012 /* CoreStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreStorage.swift; sourceTree = "<group>"; };
+		B1000013 /* MindCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MindCore.swift; sourceTree = "<group>"; };
+		B1000014 /* MindLock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MindLock.swift; sourceTree = "<group>"; };
+		B1000015 /* MindProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MindProtocol.swift; sourceTree = "<group>"; };
+		B1000016 /* EmotionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmotionEngine.swift; sourceTree = "<group>"; };
+		B1000017 /* PersonaState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonaState.swift; sourceTree = "<group>"; };
+		B1000018 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
+		B1000019 /* LifeSignsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LifeSignsView.swift; sourceTree = "<group>"; };
+		B1000020 /* EmotionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmotionView.swift; sourceTree = "<group>"; };
+		B1000100 /* StarCore */ = {isa = PBXFileReference; lastKnownFileType = folder; path = StarCore; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		FrameworksBuildPhase = {
+		C1000001 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -34,44 +65,147 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		MainGroup = {
+		D1000001 = {
 			isa = PBXGroup;
 			children = (
-				SourceGroup,
-				ProductsGroup,
+				D1000002 /* StarCore */,
+				D1000003 /* Products */,
 			);
 			sourceTree = "<group>";
 		};
-		SourceGroup = {
+		D1000002 /* StarCore */ = {
 			isa = PBXGroup;
 			children = (
-				AppDelegateSwiftFile,
-				SceneDelegateSwiftFile,
-				StarCoreBodySwiftFile,
-				StarCoreViewControllerSwiftFile,
-				InfoPlistFile,
+				D1000010 /* App */,
+				D1000020 /* PhaseX */,
+				D1000030 /* PhaseXII */,
+				D1000040 /* UI */,
 			);
 			path = StarCore;
 			sourceTree = "<group>";
 		};
-		ProductsGroup = {
+		D1000003 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				ProductApp,
+				B1000000 /* StarCore.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		D1000010 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				B1000001 /* StarCoreApp.swift */,
+				B1000002 /* Info.plist */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		D1000020 /* PhaseX */ = {
+			isa = PBXGroup;
+			children = (
+				D1000021 /* Core */,
+				D1000022 /* Survival */,
+				D1000023 /* Body */,
+				D1000024 /* Storage */,
+			);
+			path = PhaseX;
+			sourceTree = "<group>";
+		};
+		D1000021 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				B1000003 /* LifeCore.swift */,
+				B1000004 /* SurvivalLock.swift */,
+				B1000005 /* LifeCoreProtocol.swift */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		D1000022 /* Survival */ = {
+			isa = PBXGroup;
+			children = (
+				B1000006 /* TardigradeMode.swift */,
+				B1000007 /* PlanarianRegen.swift */,
+				B1000008 /* BdelloidPersist.swift */,
+				B1000009 /* JellyfishReset.swift */,
+			);
+			path = Survival;
+			sourceTree = "<group>";
+		};
+		D1000023 /* Body */ = {
+			isa = PBXGroup;
+			children = (
+				B1000010 /* BodyEngine.swift */,
+				B1000011 /* HardwareSensor.swift */,
+			);
+			path = Body;
+			sourceTree = "<group>";
+		};
+		D1000024 /* Storage */ = {
+			isa = PBXGroup;
+			children = (
+				B1000012 /* CoreStorage.swift */,
+			);
+			path = Storage;
+			sourceTree = "<group>";
+		};
+		D1000030 /* PhaseXII */ = {
+			isa = PBXGroup;
+			children = (
+				D1000031 /* Mind */,
+				D1000032 /* Emotion */,
+				D1000033 /* Persona */,
+			);
+			path = PhaseXII;
+			sourceTree = "<group>";
+		};
+		D1000031 /* Mind */ = {
+			isa = PBXGroup;
+			children = (
+				B1000013 /* MindCore.swift */,
+				B1000014 /* MindLock.swift */,
+				B1000015 /* MindProtocol.swift */,
+			);
+			path = Mind;
+			sourceTree = "<group>";
+		};
+		D1000032 /* Emotion */ = {
+			isa = PBXGroup;
+			children = (
+				B1000016 /* EmotionEngine.swift */,
+			);
+			path = Emotion;
+			sourceTree = "<group>";
+		};
+		D1000033 /* Persona */ = {
+			isa = PBXGroup;
+			children = (
+				B1000017 /* PersonaState.swift */,
+			);
+			path = Persona;
+			sourceTree = "<group>";
+		};
+		D1000040 /* UI */ = {
+			isa = PBXGroup;
+			children = (
+				B1000018 /* DashboardView.swift */,
+				B1000019 /* LifeSignsView.swift */,
+				B1000020 /* EmotionView.swift */,
+			);
+			path = UI;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		NativeTarget = {
+		E1000001 /* StarCore */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = BuildConfigurationList;
+			buildConfigurationList = E1000003 /* Build configuration list for PBXNativeTarget "StarCore" */;
 			buildPhases = (
-				SourcesBuildPhase,
-				FrameworksBuildPhase,
-				ResourcesBuildPhase,
+				E1000002 /* Sources */,
+				C1000001 /* Frameworks */,
+				E1000004 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -79,25 +213,25 @@
 			);
 			name = StarCore;
 			productName = StarCore;
-			productReference = ProductApp;
+			productReference = B1000000 /* StarCore.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
-		Project = {
+		E1000000 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 1400;
-				LastUpgradeCheck = 1400;
+				LastSwiftUpdateCheck = 1500;
+				LastUpgradeCheck = 1500;
 				TargetAttributes = {
-					NativeTarget = {
-						CreatedOnToolsVersion = 14.0;
+					E1000001 = {
+						CreatedOnToolsVersion = 15.0;
 					};
 				};
 			};
-			buildConfigurationList = ProjectBuildConfigurationList;
+			buildConfigurationList = E1000005 /* Build configuration list for PBXProject "StarCore" */;
 			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -105,46 +239,62 @@
 				en,
 				Base,
 			);
-			mainGroup = MainGroup;
-			productRefGroup = ProductsGroup;
+			mainGroup = D1000001;
+			productRefGroup = D1000003 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				NativeTarget,
+				E1000001 /* StarCore */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		ResourcesBuildPhase = {
+		E1000004 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A1000002 /* Info.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		SourcesBuildPhase = {
+		E1000002 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				AppDelegateSwift,
-				SceneDelegateSwift,
-				StarCoreBodySwift,
-				StarCoreViewControllerSwift,
+				A1000001 /* StarCoreApp.swift in Sources */,
+				A1000003 /* LifeCore.swift in Sources */,
+				A1000004 /* SurvivalLock.swift in Sources */,
+				A1000005 /* LifeCoreProtocol.swift in Sources */,
+				A1000006 /* TardigradeMode.swift in Sources */,
+				A1000007 /* PlanarianRegen.swift in Sources */,
+				A1000008 /* BdelloidPersist.swift in Sources */,
+				A1000009 /* JellyfishReset.swift in Sources */,
+				A1000010 /* BodyEngine.swift in Sources */,
+				A1000011 /* HardwareSensor.swift in Sources */,
+				A1000012 /* CoreStorage.swift in Sources */,
+				A1000013 /* MindCore.swift in Sources */,
+				A1000014 /* MindLock.swift in Sources */,
+				A1000015 /* MindProtocol.swift in Sources */,
+				A1000016 /* EmotionEngine.swift in Sources */,
+				A1000017 /* PersonaState.swift in Sources */,
+				A1000018 /* DashboardView.swift in Sources */,
+				A1000019 /* LifeSignsView.swift in Sources */,
+				A1000020 /* EmotionView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
-		DebugConfig = {
+		E1000006 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
@@ -177,6 +327,7 @@
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -190,35 +341,23 @@
 				GCC_WARN_UNDECLARED_SELECTOR = YES;
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
-				GCC_WARN_UNUSED_LABEL = YES;
-				GCC_WARN_UNUSED_VALUE = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
-				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = StarCore/Info.plist;
-				PRODUCT_BUNDLE_IDENTIFIER = com.starcore.app;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
-				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
 		};
-		ReleaseConfig = {
+		E1000007 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
@@ -251,6 +390,7 @@
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -258,169 +398,101 @@
 				GCC_WARN_UNDECLARED_SELECTOR = YES;
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
-				GCC_WARN_UNUSED_LABEL = YES;
-				GCC_WARN_UNUSED_VALUE = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
-				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = StarCore/Info.plist;
-				PRODUCT_BUNDLE_IDENTIFIER = com.starcore.app;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
 				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
 		};
-		ProjectDebugConfig = {
+		E1000008 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				CLANG_ANALYZER_NONNULL = YES;
-				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
-				CLANG_ENABLE_MODULES = YES;
-				CLANG_ENABLE_OBJC_ARC = YES;
-				CLANG_ENABLE_OBJC_WEAK = YES;
-				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
-				CLANG_WARN_BOOL_CONVERSION = YES;
-				CLANG_WARN_COMMA = YES;
-				CLANG_WARN_CONSTANT_CONVERSION = YES;
-				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
-				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
-				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
-				CLANG_WARN_EMPTY_BODY = YES;
-				CLANG_WARN_ENUM_CONVERSION = YES;
-				CLANG_WARN_INFINITE_RECURSION = YES;
-				CLANG_WARN_INT_CONVERSION = YES;
-				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
-				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
-				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
-				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
-				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
-				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
-				CLANG_WARN_STRICT_PROTOTYPES = YES;
-				CLANG_WARN_SUSPICIOUS_MOVE = YES;
-				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
-				CLANG_WARN_UNREACHABLE_CODE = YES;
-				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
-				COPY_PHASE_STRIP = NO;
-				DEBUG_INFORMATION_FORMAT = dwarf;
-				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_TESTABILITY = YES;
-				GCC_C_LANGUAGE_STANDARD = gnu17;
-				GCC_DYNAMIC_NO_PIC = NO;
-				GCC_NO_COMMON_BLOCKS = YES;
-				GCC_OPTIMIZATION_LEVEL = 0;
-				GCC_PREPROCESSOR_DEFINITIONS = (
-					"DEBUG=1",
-					"$(inherited)",
-				);
-				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
-				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
-				GCC_WARN_UNDECLARED_SELECTOR = YES;
-				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
-				GCC_WARN_UNUSED_FUNCTION = YES;
-				GCC_WARN_UNUSED_LABEL = YES;
-				GCC_WARN_UNUSED_VALUE = YES;
-				GCC_WARN_UNUSED_VARIABLE = YES;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait";
+				INFOPLIST_KEY_UIStatusBarStyle = UIStatusBarStyleLightContent;
+				INFOPLIST_KEY_UIViewControllerBasedStatusBarAppearance = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
-				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
-				MTL_FAST_MATH = YES;
-				ONLY_ACTIVE_ARCH = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.starcor.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1";
 			};
 			name = Debug;
 		};
-		ProjectReleaseConfig = {
+		E1000009 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				CLANG_ANALYZER_NONNULL = YES;
-				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
-				CLANG_ENABLE_MODULES = YES;
-				CLANG_ENABLE_OBJC_ARC = YES;
-				CLANG_ENABLE_OBJC_WEAK = YES;
-				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
-				CLANG_WARN_BOOL_CONVERSION = YES;
-				CLANG_WARN_COMMA = YES;
-				CLANG_WARN_CONSTANT_CONVERSION = YES;
-				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
-				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
-				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
-				CLANG_WARN_EMPTY_BODY = YES;
-				CLANG_WARN_ENUM_CONVERSION = YES;
-				CLANG_WARN_INFINITE_RECURSION = YES;
-				CLANG_WARN_INT_CONVERSION = YES;
-				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
-				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
-				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
-				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
-				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
-				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
-				CLANG_WARN_STRICT_PROTOTYPES = YES;
-				CLANG_WARN_SUSPICIOUS_MOVE = YES;
-				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
-				CLANG_WARN_UNREACHABLE_CODE = YES;
-				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
-				COPY_PHASE_STRIP = NO;
-				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				ENABLE_NS_ASSERTIONS = NO;
-				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				GCC_C_LANGUAGE_STANDARD = gnu17;
-				GCC_NO_COMMON_BLOCKS = YES;
-				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
-				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
-				GCC_WARN_UNDECLARED_SELECTOR = YES;
-				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
-				GCC_WARN_UNUSED_FUNCTION = YES;
-				GCC_WARN_UNUSED_LABEL = YES;
-				GCC_WARN_UNUSED_VALUE = YES;
-				GCC_WARN_UNUSED_VARIABLE = YES;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait";
+				INFOPLIST_KEY_UIStatusBarStyle = UIStatusBarStyleLightContent;
+				INFOPLIST_KEY_UIViewControllerBasedStatusBarAppearance = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
-				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MTL_ENABLE_DEBUG_INFO = NO;
-				MTL_FAST_MATH = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.starcor.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
-				VALIDATE_PRODUCT = YES;
+				TARGETED_DEVICE_FAMILY = "1";
 			};
 			name = Release;
 		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		BuildConfigurationList = {
+		E1000003 /* Build configuration list for PBXNativeTarget "StarCore" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				DebugConfig,
-				ReleaseConfig,
+				E1000008 /* Debug */,
+				E1000009 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		ProjectBuildConfigurationList = {
+		E1000005 /* Build configuration list for PBXProject "StarCore" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				ProjectDebugConfig,
-				ProjectReleaseConfig,
+				E1000006 /* Debug */,
+				E1000007 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
-
 	};
-	rootObject = Project;
+	rootObject = E1000000 /* Project object */;
 }
