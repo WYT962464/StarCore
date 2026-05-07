@@ -134,7 +134,7 @@ final class CoreStorage {
 }
 
 // MARK: - Backup Info
-struct BackupInfo {
+struct BackupInfo: Encodable {
     let path: String
     let modificationDate: Date
     let size: Int64
