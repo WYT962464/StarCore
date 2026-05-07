@@ -11,9 +11,7 @@ let package = Package(
         .executableTarget(
             name: "StarCoreApp",
             path: "StarCore",
-            resources: [
-                .process("App/Info.plist")
-            ]
+            exclude: ["App/Info.plist"]
         )
     ]
 )
