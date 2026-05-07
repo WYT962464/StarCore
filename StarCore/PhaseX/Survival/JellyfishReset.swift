@@ -3,7 +3,7 @@ import Foundation
 /// 灯塔水母模式 - 逆分化重置
 /// 参考灯塔水母的生物学逆分化过程，实现系统状态重置
 final class JellyfishReset {
-    private var lastResetDate: Date?
+    private(set) var lastResetDate: Date?
     private var resetCount: Int = 0
     private var scheduledResetTimer: Timer?
     

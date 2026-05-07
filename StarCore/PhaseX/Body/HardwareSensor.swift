@@ -24,7 +24,7 @@ final class HardwareSensor {
     func getCPUUsage() -> Float {
         var totalUsageOfCPU: Float = 0.0
         var threadsList = UnsafeMutablePointer(mutating: [thread_act_t]())
-        var threadsCount = mach_msg_type_number_t = 0
+        var threadsCount: mach_msg_type_number_t = 0
         let threadsResult = withUnsafeMutablePointer(to: &threadsList) {
             return $0.withMemoryRebound(to: thread_act_array_t?.self, capacity: 1) {
                 task_threads(mach_task_self_, $0, &threadsCount)

@@ -44,7 +44,6 @@ struct LifeSignsView: View {
                 Image(systemName: "heart.fill")
                     .font(.system(size: 60))
                     .foregroundColor(heartRateColor)
-                    .symbolEffect(.pulse)
             }
             
             Divider()

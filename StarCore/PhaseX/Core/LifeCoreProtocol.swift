@@ -3,7 +3,7 @@ import Foundation
 /// 生命核心只读协议 - 双层架构隔离层
 /// 上层MindCore只能通过此协议读取LifeCore的数据
 /// 确保下层核心的完整性和隔离性
-protocol LifeCoreReadOnly {
+protocol LifeCoreReadOnly: AnyObject {
     // MARK: - 生命体征 (只读)
     var heartRate: Int { get }
     var energyLevel: Float { get }
