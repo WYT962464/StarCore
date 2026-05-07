@@ -55,7 +55,7 @@ final class PlanarianRegen {
 }
 
 // MARK: - Backup Version
-struct BackupVersion {
+struct BackupVersion: Codable {
     let versionNumber: Int
     let timestamp: Date
     let checksum: String
@@ -63,22 +63,7 @@ struct BackupVersion {
     init(versionNumber: Int, timestamp: Date = Date()) {
         self.versionNumber = versionNumber
         self.timestamp = timestamp
-        // 简化checksum计算
-        self.checksum = "\(versionNumber)-\(timestamp.timeIntervalSince1970)".md5Hash
+        // 简化checksum计算（不依赖CommonCrypto）
+        self.checksum = "v\(versionNumber)-\(Int(timestamp.timeIntervalSince1970))"
     }
 }
-
-// MARK: - String MD5 Extension
-extension String {
-    var md5Hash: String {
-        let data = Data(self.utf8)
-        var hash = [UInt8](repeating: 0, count: Int(CC_MD5_DIGEST_LENGTH))
-        data.withUnsafeBytes {
-            _ = CC_MD5($0.baseAddress, CC_LONG(data.count), &hash)
-        }
-        return hash.map { String(format: "%02x", $0) }.joined()
-    }
-}
-
-// Import CommonCrypto for MD5
-import CommonCrypto
