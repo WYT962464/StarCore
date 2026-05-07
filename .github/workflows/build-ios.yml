@@ -13,11 +13,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build with Swift Package Manager
+      - name: Resolve Package Dependencies
+        run: swift package resolve
+
+      - name: List Available Schemes
+        run: xcodebuild -list -workspace StarCore.xcworkspace
+
+      - name: Build with xcodebuild
         run: |
-          # 先用xcodebuild基于Package.swift构建
+          # Find the correct scheme name
+          SCHEME=$(xcodebuild -list -workspace StarCore.xcworkspace 2>/dev/null | grep -A5 "Schemes:" | grep -v "Schemes:" | head -1 | xargs)
+          echo "Using scheme: $SCHEME"
+          
           xcodebuild build \
-            -scheme StarCoreApp \
+            -workspace StarCore.xcworkspace \
+            -scheme "$SCHEME" \
             -sdk iphoneos \
             -configuration Release \
             -derivedDataPath build \
@@ -27,8 +37,7 @@ jobs:
 
       - name: Package IPA
         run: |
-          # 找到编译好的.app
-          APP_PATH=$(find build -name "StarCoreApp.app" -type d | head -1)
+          APP_PATH=$(find build -name "*.app" -path "*/Release-iphoneos/*" -type d | head -1)
           echo "Found app at: $APP_PATH"
           
           mkdir -p IPA/Payload
