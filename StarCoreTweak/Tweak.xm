@@ -9,16 +9,13 @@
 
 #import <UIKit/UIKit.h>
 #import <objc/runtime.h>
+#import <objc/message.h>
 #import <sys/socket.h>
 #import <netinet/in.h>
 #import <arpa/inet.h>
 #import <unistd.h>
 
-// 私有框架声明
-@interface LSApplicationWorkspace : NSObject
-+ (instancetype)defaultWorkspace;
-- (BOOL)openApplicationWithBundleID:(NSString *)bundleID;
-@end
+// 私有框架 - 使用运行时动态调用
 
 #pragma mark - TCP服务器
 
@@ -188,13 +185,22 @@ static StarCoreTCPServer *_server = nil;
     else if ([action isEqualToString:@"openApp"]) {
         NSString *bundleId = request[@"bundleId"];
         NSLog(@"[StarCoreTweak] openApp: %@", bundleId);
-        LSApplicationWorkspace *workspace = [LSApplicationWorkspace defaultWorkspace];
-        if (workspace) {
-            BOOL success = [workspace openApplicationWithBundleID:bundleId];
-            response[@"success"] = @(success);
+        // 运行时动态调用LSApplicationWorkspace（私有框架，编译时不可链接）
+        Class workspaceClass = objc_getClass("LSApplicationWorkspace");
+        if (workspaceClass) {
+            SEL defaultWorkspaceSel = sel_registerName("defaultWorkspace");
+            SEL openAppSel = sel_registerName("openApplicationWithBundleID:");
+            id workspace = ((id (*)(Class, SEL))objc_msgSend)(workspaceClass, defaultWorkspaceSel);
+            if (workspace) {
+                BOOL success = ((BOOL (*)(id, SEL, NSString *))objc_msgSend)(workspace, openAppSel, bundleId);
+                response[@"success"] = @(success);
+            } else {
+                response[@"success"] = @NO;
+                response[@"error"] = @"workspace instance nil";
+            }
         } else {
             response[@"success"] = @NO;
-            response[@"error"] = @"workspace unavailable";
+            response[@"error"] = @"workspace class not found";
         }
     }
     else if ([action isEqualToString:@"getScreenSize"]) {

@@ -124,7 +124,7 @@ class ActionCoordinator {
     }
     
     @objc private func handleTweakStateChange(_ notification: Notification) {
-        if let state = notification.object as? TweakTCPClient.ConnectionState {
+        if let state = notification.object as? ConnectionState {
             print("[ActionCoordinator] Tweak连接状态变更: \(state.rawValue)")
         }
     }
