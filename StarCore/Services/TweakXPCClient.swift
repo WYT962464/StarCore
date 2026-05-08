@@ -6,7 +6,7 @@
  * 实现触摸注入和系统操作
  */
 
-import Foundation
+import UIKit
 
 // MARK: - XPC协议定义（Swift版本）
 
@@ -154,7 +154,7 @@ class TweakXPCClient {
         disconnectInternal()
         
         // 创建新连接
-        let newConnection = NSXPCConnection(serviceName: kStarCoreTweakXPCServiceName)
+        let newConnection = NSXPCConnection(machServiceName: kStarCoreTweakXPCServiceName, options: [])
         newConnection.remoteObjectInterface = NSXPCInterface(with: StarCoreTweakXPCProtocol.self)
         
         // 设置中断处理器
