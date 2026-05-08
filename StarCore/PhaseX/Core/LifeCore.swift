@@ -72,6 +72,8 @@ final class LifeCore: ObservableObject {
         }
     }
     
+    private var heartbeatCount = 0
+    
     private func updateVitalSigns() {
         let hardwareData = bodyEngine.getCurrentData()
         heartRate = hardwareData.heartRate
@@ -79,6 +81,12 @@ final class LifeCore: ObservableObject {
         bodyTemperature = hardwareData.bodyTemperature
         fatigueLevel = hardwareData.fatigueLevel
         checkCryptobiosisTrigger()
+        
+        // 每60秒输出一条运行日志
+        heartbeatCount += 1
+        if heartbeatCount % 60 == 0 {
+            addLog(.info, "心跳:\(heartRate)bpm 能量:\(Int(energyLevel*100))% 体温:\(String(format: "%.1f", bodyTemperature))℃ 疲劳:\(Int(fatigueLevel*100))%")
+        }
     }
     
     // MARK: - Cryptobiosis
@@ -133,27 +141,27 @@ final class LifeCore: ObservableObject {
     private func attemptRecovery() {
         storage.loadBackup { [weak self] state in
             DispatchQueue.main.async {
-                guard let self = self, let state = state else { return }
-                if self.detectAnomaly(state: state) {
+                guard let self = self else { return }
+                if let state = state {
+                    // 有历史备份 = 从上次状态恢复（涡虫再生）
                     self.performRecovery(from: state)
+                    self.planarianRegen.incrementRecoveryCount()
+                    self.addLog(.success, "涡虫再生：从备份恢复，累计恢复\(self.planarianRegen.totalRecoveries)次")
+                } else {
+                    // 首次启动，无备份
+                    self.addLog(.info, "首次启动，无历史备份可恢复")
                 }
             }
         }
     }
     
-    private func detectAnomaly(state: CoreState) -> Bool {
-        return state.bodyTemperature < 35.0 || state.bodyTemperature > 40.0 || state.heartRate == 0
-    }
-    
     private func performRecovery(from state: CoreState) {
-        addLog(.warning, "检测到异常，正在从备份恢复...")
-        heartRate = state.heartRate
-        energyLevel = state.energyLevel
+        addLog(.info, "正在从备份恢复上次状态...")
+        // 恢复上次保存的状态作为初始参考
         bodyTemperature = state.bodyTemperature
-        fatigueLevel = state.fatigueLevel
         cryptobiosisActive = state.cryptobiosisActive
-        addLog(.success, "从备份恢复完成")
-        planarianRegen.incrementRecoveryCount()
+        // 心率和能量水平从实时硬件读取（更准确），不使用旧值
+        addLog(.info, "状态恢复完成，硬件数据实时采集中")
     }
     
     // MARK: - Logging

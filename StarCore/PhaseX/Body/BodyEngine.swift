@@ -52,18 +52,26 @@ final class BodyEngine {
     }
     
     private func mapThermalToTemperature(_ state: ProcessInfo.ThermalState) -> Float {
+        // 基础体温由热状态决定
+        let baseTemp: Float
         switch state {
         case .nominal:
-            return 36.5  // 正常体温
+            baseTemp = 36.5
         case .fair:
-            return 37.0  // 轻微发热
+            baseTemp = 37.0
         case .serious:
-            return 38.0  // 中度发热
+            baseTemp = 38.0
         case .critical:
-            return 39.0  // 高热
+            baseTemp = 39.0
         @unknown default:
-            return 36.5
+            baseTemp = 36.5
         }
+        // CPU负载微调体温（0-100% CPU -> +0~0.8℃）
+        let cpuUsage = hardwareSensor.getCPUUsage()
+        let cpuTempBoost = cpuUsage * 0.008
+        // 加入微小随机波动（模拟真实体温±0.1℃）
+        let noise = Float.random(in: -0.1...0.1)
+        return baseTemp + cpuTempBoost + noise
     }
     
     private func calculateFatigueLevel() -> Float {
