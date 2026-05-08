@@ -26,8 +26,10 @@ jobs:
         run: |
           git clone --recursive https://github.com/theos/theos.git ${{ github.workspace }}/theos
       
-      - name: Clone Theos SDKs
+      - name: Setup Theos SDK
         run: |
+          # Theos子模块可能没有完整的SDK，需要单独克隆
+          rm -rf ${{ github.workspace }}/theos/sdks
           git clone --depth 1 https://github.com/theos/sdks.git ${{ github.workspace }}/theos/sdks
       
       - name: Build Tweak (rootless)
