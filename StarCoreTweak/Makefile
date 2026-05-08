@@ -2,7 +2,7 @@
 # 适配多巴胺无根越狱(rootless)环境
 
 THEOS_PACKAGE_SCHEME = rootless
-ARCHS = arm64 arm64e
+ARCHS = arm64
 TARGET = iphone:clang:latest:14.0
 
 INSTALL_TARGET_PROCESSES = SpringBoard
