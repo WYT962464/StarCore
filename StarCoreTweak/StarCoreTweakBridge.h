@@ -1,104 +1,42 @@
 /**
  * StarCoreTweakBridge.h
- * XPC协议定义 - App和Tweak共用
+ * TCP Socket协议定义 - App和Tweak共用
  * 
- * 定义了StarCore App与Tweak之间的通信接口
- * 协议设计预留扩展能力，后续可按需添加新接口
+ * 通信方式：TCP Socket 127.0.0.1:6000
+ * 协议格式：JSON over TCP，每条消息以\n结尾
+ * 
+ * 请求格式：{"action":"<action>","id":<int>, ...params}
+ * 响应格式：{"success":<bool>,"id":<int>, ...data}
+ * 
+ * 支持的action：
+ * - ping: 心跳检测
+ * - tap: 点击 {"action":"tap","x":100,"y":200}
+ * - swipe: 滑动 {"action":"swipe","fromX":0,"fromY":0,"toX":100,"toY":100,"duration":0.5}
+ * - longPress: 长按 {"action":"longPress","x":100,"y":200,"duration":1.0}
+ * - pressHome: Home键
+ * - openApp: 打开应用 {"action":"openApp","bundleId":"com.xxx.xxx"}
+ * - getScreenSize: 获取屏幕尺寸
+ * - getCurrentApp: 获取当前前台应用
  */
 
 #import <Foundation/Foundation.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
-#pragma mark - XPC协议定义
+// TCP服务端口
+static const int kStarCoreTCPPort = 6000;
 
-/**
- * StarCore Tweak XPC协议
- * 定义所有可通过XPC调用的触摸注入和系统操作接口
- */
-@protocol StarCoreTweakProtocol <NSObject>
+// TCP服务地址
+static NSString * const kStarCoreTCPHost = @"127.0.0.1";
 
-@required
-#pragma mark - 基础触摸操作
-
-/**
- * 点击指定坐标
- * @param x X坐标（逻辑像素）
- * @param y Y坐标（逻辑像素）
- * @param reply 回调：操作是否成功
- */
-- (void)tapAtX:(NSInteger)x Y:(NSInteger)y reply:(void (^)(BOOL))reply;
-
-/**
- * 滑动操作
- * @param fromX 起始X坐标（逻辑像素）
- * @param fromY 起始Y坐标（逻辑像素）
- * @param toX 结束X坐标（逻辑像素）
- * @param toY 结束Y坐标（逻辑像素）
- * @param duration 持续时间（秒），默认0.5秒
- * @param reply 回调：操作是否成功
- */
-- (void)swipeFromX:(NSInteger)fromX 
-             fromY:(NSInteger)fromY 
-               toX:(NSInteger)toX 
-               toY:(NSInteger)toY 
-          duration:(double)duration 
-             reply:(void (^)(BOOL))reply;
-
-/**
- * 长按操作
- * @param x X坐标（逻辑像素）
- * @param y Y坐标（逻辑像素）
- * @param duration 持续时间（秒）
- * @param reply 回调：操作是否成功
- */
-- (void)longPressAtX:(NSInteger)x 
-                   Y:(NSInteger)y 
-            duration:(double)duration 
-               reply:(void (^)(BOOL))reply;
-
-#pragma mark - 系统操作
-
-/**
- * 按下Home键
- * @param reply 回调：操作是否成功
- */
-- (void)pressHomeButton:(void (^)(BOOL))reply;
-
-/**
- * 打开指定应用
- * @param bundleId 应用Bundle ID
- * @param reply 回调：操作是否成功
- */
-- (void)openApp:(NSString *)bundleId reply:(void (^)(BOOL))reply;
-
-#pragma mark - 感知能力（预留）
-
-/**
- * 获取屏幕尺寸
- * @param reply 回调：包含width/height的字典
- */
-- (void)getScreenSize:(void (^)(NSDictionary *))reply;
-
-/**
- * 获取当前前台应用
- * @param reply 回调：当前应用bundleId
- */
-- (void)getCurrentApp:(void (^)(NSString *))reply;
-
-#pragma mark - 截图能力（预留）
-
-/**
- * 截取当前屏幕
- * @param reply 回调：PNG图片数据
- */
-- (void)takeScreenshot:(void (^)(NSData *))reply;
-
-@end
-
-#pragma mark - 服务标识
-
-// XPC服务名称（无根越狱路径）
-extern NSString * const kStarCoreTweakServiceName;
+// Action常量
+static NSString * const kActionPing = @"ping";
+static NSString * const kActionTap = @"tap";
+static NSString * const kActionSwipe = @"swipe";
+static NSString * const kActionLongPress = @"longPress";
+static NSString * const kActionPressHome = @"pressHome";
+static NSString * const kActionOpenApp = @"openApp";
+static NSString * const kActionGetScreenSize = @"getScreenSize";
+static NSString * const kActionGetCurrentApp = @"getCurrentApp";
 
 NS_ASSUME_NONNULL_END

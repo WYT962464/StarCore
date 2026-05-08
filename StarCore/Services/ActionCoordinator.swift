@@ -81,7 +81,7 @@ class ActionCoordinator {
     
     // MARK: - 依赖服务
     
-    private let tweakClient = TweakXPCClient.shared
+    private let tweakClient = TweakTCPClient.shared
     
     // MARK: - 配置
     
@@ -124,7 +124,7 @@ class ActionCoordinator {
     }
     
     @objc private func handleTweakStateChange(_ notification: Notification) {
-        if let state = notification.object as? TweakXPCClient.ConnectionState {
+        if let state = notification.object as? TweakTCPClient.ConnectionState {
             print("[ActionCoordinator] Tweak连接状态变更: \(state.rawValue)")
         }
     }
