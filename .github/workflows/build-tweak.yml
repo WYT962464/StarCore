@@ -18,7 +18,9 @@ jobs:
         uses: actions/checkout@v4
       
       - name: Set up Theos
-        uses: beer-psi/theos-action@v1
+        uses: BandarHL/theos-action@v1
+        with:
+          swifttoolchain: false  # 不下载Swift工具链，避免Ubuntu 24.04兼容性问题
       
       - name: Install plistutil
         run: sudo apt-get update && sudo apt-get install -y plist-util
