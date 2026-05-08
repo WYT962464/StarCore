@@ -16,23 +16,19 @@ final class PersonaState {
     
     // MARK: - Initialization
     init() {
-        // 出厂设置：所有参数为空
-        resetToFactoryDefaults()
+        // 出厂完全空白：参数为空，由交互自然填充
+        // 这才是总纲说的"出厂完全空白"
     }
     
-    /// 重置为出厂默认
+    /// 重置为出厂默认（真正的空白）
     func resetToFactoryDefaults() {
         parameters.removeAll()
-        // 默认所有维度为0.5 (中立)
-        for key in dimensionKeys {
-            parameters[key] = 0.5
-        }
     }
     
     // MARK: - Parameter Access
     /// 获取人格参数
-    func getParameter(_ key: String) -> Float {
-        return parameters[key] ?? 0.5
+    func getParameter(_ key: String) -> Float? {
+        return parameters[key]
     }
     
     /// 设置人格参数
@@ -85,14 +81,24 @@ final class PersonaState {
         return !parameters.isEmpty
     }
     
+    /// 人格是否已激活（至少有一个维度被交互修改过）
+    var isActivated: Bool {
+        return parameters.values.contains { $0 != 0.5 }
+    }
+    
     var summary: String {
-        return """
-        人格参数:
-        - 开放性: \(String(format: "%.1f", getParameter("openness") * 100))%
-        - 尽责性: \(String(format: "%.1f", getParameter("conscientiousness") * 100))%
-        - 外向性: \(String(format: "%.1f", getParameter("extraversion") * 100))%
-        - 宜人性: \(String(format: "%.1f", getParameter("agreeableness") * 100))%
-        - 神经质: \(String(format: "%.1f", getParameter("neuroticism") * 100))%
-        """
+        if parameters.isEmpty { return "" }
+        var lines: [String] = []
+        let labels: [(String, String)] = [
+            ("openness", "开放性"), ("conscientiousness", "尽责性"),
+            ("extraversion", "外向性"), ("agreeableness", "宜人性"),
+            ("neuroticism", "神经质")
+        ]
+        for (key, label) in labels {
+            if let val = parameters[key] {
+                lines.append("\(label): \(String(format: "%.0f", val * 100))%")
+            }
+        }
+        return lines.isEmpty ? "" : lines.joined(separator: " · ")
     }
 }

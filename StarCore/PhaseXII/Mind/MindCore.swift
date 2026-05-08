@@ -74,6 +74,54 @@ final class MindCore: ObservableObject {
         )
     }
     
+    // MARK: - Interaction Processing
+    /// 处理用户交互，驱动人格自然成型
+    func processInteraction(text: String, feedback: Float) {
+        // 1. 更新人格参数（由交互驱动，自然成型）
+        personaState.updateFromInteraction(feedback: feedback)
+        
+        // 2. 记录交互历史（记忆系统雏形）
+        recordInteraction(text: text, feedback: feedback)
+        
+        // 3. 情绪引擎也受交互影响
+        let emotionalState = emotionEngine.calculateEmotion(
+            heartRate: lifeCoreReadOnly.heartRate,
+            energy: lifeCoreReadOnly.energyLevel,
+            fatigue: lifeCoreReadOnly.fatigueLevel
+        )
+        // 交互反馈微调剂价（情绪不是纯硬件映射了）
+        valenceLevel = max(0, min(1, emotionalState.valence + feedback * 0.1))
+    }
+    
+    /// 交互记忆存储（阶段十二：记忆系统雏形）
+    private var interactionMemory: [InteractionRecord] = []
+    
+    private func recordInteraction(text: String, feedback: Float) {
+        let record = InteractionRecord(
+            text: text,
+            feedback: feedback,
+            emotion: dominantEmotion,
+            arousal: arousalLevel,
+            valence: valenceLevel,
+            timestamp: Date()
+        )
+        interactionMemory.append(record)
+        // 保持最近100条
+        if interactionMemory.count > 100 {
+            interactionMemory.removeFirst()
+        }
+    }
+    
+    /// 获取交互记忆
+    func getInteractionMemory() -> [InteractionRecord] {
+        return interactionMemory
+    }
+    
+    /// 获取人格摘要
+    func getPersonaSummary() -> String {
+        return personaState.summary
+    }
+    
     // MARK: - Write Protection
     /// 尝试写入底层（会被阻止）
     func attemptWrite底层(_ value: Any) -> Bool {
@@ -93,4 +141,14 @@ struct VitalSignsSnapshot {
     let energyLevel: Float
     let bodyTemperature: Float
     let fatigueLevel: Float
+}
+
+/// 交互记忆记录
+struct InteractionRecord {
+    let text: String
+    let feedback: Float      // -1 到 1
+    let emotion: EmotionType  // 当时的情绪
+    let arousal: Float        // 当时的唤醒度
+    let valence: Float        // 当时的效价
+    let timestamp: Date
 }

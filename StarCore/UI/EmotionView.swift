@@ -12,6 +12,8 @@ struct EmotionView: View {
                 emotionDimensionsCard
                 personaCard
                 cognitiveCard
+                interactionCard
+                jellyfishResetCard
             }
             .padding()
         }
@@ -77,11 +79,128 @@ struct EmotionView: View {
             HStack {
                 Text("人格状态").font(.headline).foregroundColor(.white)
                 Spacer()
-                Text("出厂设置").font(.caption)
+                Text(mindCore.getPersonaSummary().isEmpty ? "出厂设置" : "成长中").font(.caption)
                     .padding(.horizontal, 8).padding(.vertical, 4)
-                    .background(Color.blue.opacity(0.3)).cornerRadius(4)
+                    .background(mindCore.getPersonaSummary().isEmpty ? Color.blue.opacity(0.3) : Color.green.opacity(0.3)).cornerRadius(4)
             }
-            Text("所有人格参数均为默认值，人格系统尚未激活。").font(.caption).foregroundColor(.gray)
+            if mindCore.getPersonaSummary().isEmpty {
+                Text("出厂空白，通过交互自然成型。").font(.caption).foregroundColor(.gray)
+            } else {
+                Text(mindCore.getPersonaSummary()).font(.caption).foregroundColor(.gray)
+            }
+        }
+        .padding()
+        .background(RoundedRectangle(cornerRadius: 16).fill(Color(red: 37/255, green: 37/255, blue: 64/255)))
+    }
+    
+    // MARK: - 交互入口
+    @State private var inputText: String = ""
+    @State private var interactionLog: [String] = []
+    
+    private var interactionCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("交互").font(.headline).foregroundColor(.white)
+            
+            // 输入框
+            HStack(spacing: 8) {
+                TextField("说点什么...", text: $inputText)
+                    .font(.subheadline)
+                    .padding(10)
+                    .background(Color.white.opacity(0.1))
+                    .cornerRadius(8)
+                    .foregroundColor(.white)
+                
+                Button(action: submitInteraction) {
+                    Image(systemName: "arrow.up.circle.fill")
+                        .font(.title2)
+                        .foregroundColor(.blue)
+                }
+                .disabled(inputText.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+            
+            // 交互记录
+            if !interactionLog.isEmpty {
+                ScrollView(.vertical, showsIndicators: false) {
+                    LazyVStack(alignment: .leading, spacing: 6) {
+                        ForEach(interactionLog.reversed(), id: \.self) { log in
+                            Text(log)
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                                .padding(.vertical, 2)
+                        }
+                    }
+                }
+                .frame(maxHeight: 120)
+            }
+        }
+        .padding()
+        .background(RoundedRectangle(cornerRadius: 16).fill(Color(red: 37/255, green: 37/255, blue: 64/255)))
+    }
+    
+    private func submitInteraction() {
+        let text = inputText.trimmingCharacters(in: .whitespaces)
+        guard !text.isEmpty else { return }
+        
+        // 记录交互
+        let timestamp = DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .short)
+        interactionLog.append("[\(timestamp)] \(text)")
+        
+        // 驱动人格参数变化（阶段十二：交互自然成型）
+        let feedback = analyzeSentiment(text)
+        mindCore.processInteraction(text: text, feedback: feedback)
+        
+        inputText = ""
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    }
+    
+    /// 极简情感分析：正/负/中性
+    private func analyzeSentiment(_ text: String) -> Float {
+        let positive = ["好", "棒", "厉害", "开心", "喜欢", "爱", "赞", "不错", "优秀", "谢谢", "感谢", "辛苦", "加油"]
+        let negative = ["差", "烂", "坏", "讨厌", "烦", "恨", "错", "笨", "傻", "不行", "失望", "生气"]
+        
+        var score: Float = 0
+        for word in positive {
+            if text.contains(word) { score += 0.3 }
+        }
+        for word in negative {
+            if text.contains(word) { score -= 0.3 }
+        }
+        return max(-1, min(score, 1))
+    }
+    
+    // MARK: - 灯塔重置按钮
+    private var jellyfishResetCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("灯塔重置").font(.headline).foregroundColor(.white)
+                Spacer()
+                Text("清理冗余 · 理论永久稳定").font(.caption2).foregroundColor(.purple)
+            }
+            
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("已重置 \(lifeCore.jellyfishReset.numberOfResets) 次").font(.caption).foregroundColor(.gray)
+                    if let lastDate = lifeCore.jellyfishReset.lastReset {
+                        Text("上次: \(DateFormatter.localizedString(from: lastDate, dateStyle: .short, timeStyle: .short))").font(.caption2).foregroundColor(.gray)
+                    }
+                }
+                Spacer()
+                Button(action: {
+                    lifeCore.jellyfishReset.performReset()
+                    lifeCore.addLog(.success, "灯塔重置：清理冗余完成")
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.counterclockwise")
+                        Text("重置")
+                    }
+                    .font(.caption)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color.purple.opacity(0.3))
+                    .cornerRadius(8)
+                    .foregroundColor(.white)
+                }
+            }
         }
         .padding()
         .background(RoundedRectangle(cornerRadius: 16).fill(Color(red: 37/255, green: 37/255, blue: 64/255)))
