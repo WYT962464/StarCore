@@ -76,7 +76,8 @@ class EnvironmentPathResolver {
     
     // MARK: - Static Detection (avoid self before init)
     private static func checkJailbroken() -> Bool {
-        let jailbreakPaths = [
+        // 传统越狱路径
+        let legacyPaths = [
             "/Applications/Cydia.app",
             "/Library/MobileSubstrate/MobileSubstrate.dylib",
             "/bin/bash",
@@ -84,8 +85,28 @@ class EnvironmentPathResolver {
             "/etc/apt",
             "/private/var/lib/apt/"
         ]
-        for path in jailbreakPaths {
+        for path in legacyPaths {
             if FileManager.default.fileExists(atPath: path) {
+                return true
+            }
+        }
+        // 无根越狱路径（多巴胺Dopamine/palera1n等）
+        let rootlessPaths = [
+            "/var/jb/bin/bash",
+            "/var/jb/usr/sbin/sshd",
+            "/var/jb/Library/MobileSubstrate/MobileSubstrate.dylib",
+            "/var/jb/Applications",
+            "/var/jb/etc/apt"
+        ]
+        for path in rootlessPaths {
+            if FileManager.default.fileExists(atPath: path) {
+                return true
+            }
+        }
+        // 检测 /var/jb 目录是否存在（无根越狱核心标志）
+        if FileManager.default.fileExists(atPath: "/var/jb") {
+            var isDir: ObjCBool = false
+            if FileManager.default.fileExists(atPath: "/var/jb", isDirectory: &isDir), isDir.boolValue {
                 return true
             }
         }
