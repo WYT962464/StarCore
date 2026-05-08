@@ -122,10 +122,14 @@ struct LifeSignsView: View {
     }
     
     private var jellyfishStatus: String {
-        if let lastReset = lifeCore.jellyfishReset.lastResetDate {
-            let formatter = RelativeDateTimeFormatter()
-            formatter.unitsStyle = .abbreviated
-            return "上次\(formatter.localizedString(for: lastReset, relativeTo: Date()))"
+        let count = lifeCore.jellyfishReset.numberOfResets
+        if count > 0 {
+            if let lastReset = lifeCore.jellyfishReset.lastReset {
+                let formatter = RelativeDateTimeFormatter()
+                formatter.unitsStyle = .abbreviated
+                return "重置\(count)次 上次\(formatter.localizedString(for: lastReset, relativeTo: Date()))"
+            }
+            return "重置\(count)次"
         }
         return "从未重置"
     }

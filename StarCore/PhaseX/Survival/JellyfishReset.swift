@@ -83,6 +83,12 @@ final class JellyfishReset {
         return lastResetDate
     }
     
+    /// 从备份恢复时恢复重置状态
+    func restoreState(count: Int, lastDate: Date?) {
+        resetCount = count
+        lastResetDate = lastDate
+    }
+    
     var nextScheduledReset: Date? {
         guard let last = lastResetDate else { return Date() }
         return last.addingTimeInterval(resetInterval)

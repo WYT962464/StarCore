@@ -36,6 +36,11 @@ final class PlanarianRegen {
     
     var totalRecoveries: Int { return recoveryCount }
     var totalBackups: Int { return totalBackupsCreated }
+    
+    /// 从备份恢复时设置恢复计数
+    func setRecoveryCount(_ count: Int) {
+        recoveryCount = count
+    }
     var latestBackup: BackupVersion? {
         return backupVersions.values.sorted { $0.versionNumber > $1.versionNumber }.first
     }

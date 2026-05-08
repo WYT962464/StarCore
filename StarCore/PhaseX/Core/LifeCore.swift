@@ -1,4 +1,11 @@
 import Foundation
+import UIKit
+
+/// 持久化统计（不放入CoreState，运行时辅助用）
+struct PersistedStats {
+    var totalBackups: Int = 0
+    var launchCount: Int = 0
+}
 
 /// 生命核心引擎 - 阶段十：生命中枢
 @available(iOS 15.0, *)
@@ -28,15 +35,16 @@ final class LifeCore: ObservableObject {
     let bodyEngine: BodyEngine
     
     // MARK: - Initialization
+    // 持久化统计（从备份恢复）
+    private var persistedStats = PersistedStats()
+    
     init() {
-        // 先初始化所有stored properties，再创建依赖self的模块
         self.bodyEngine = BodyEngine()
         self.bdelloidPersist = BdelloidPersist()
         self.jellyfishReset = JellyfishReset()
         self.tardigradeMode = TardigradeMode()
         self.planarianRegen = PlanarianRegen()
         
-        // 绑定LifeCore引用（在所有属性初始化后）
         self.tardigradeMode.bind(lifeCore: self)
         self.planarianRegen.bind(lifeCore: self)
         
@@ -44,6 +52,8 @@ final class LifeCore: ObservableObject {
         startHeartbeat()
         startPeriodicBackup()
         attemptRecovery()
+        scheduleFirstBackup()
+        registerLifecycleObservers()
         
         addLog(.info, "LifeCore 初始化完成")
     }
@@ -114,7 +124,31 @@ final class LifeCore: ObservableObject {
     
     // MARK: - Backup
     private func startPeriodicBackup() {
-        backupTimer = Timer.scheduledTimer(withTimeInterval: 1800, repeats: true) { [weak self] _ in
+        // 每5分钟自动备份
+        backupTimer = Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { [weak self] _ in
+            self?.performBackup()
+        }
+    }
+    
+    /// 启动后60秒执行首次备份
+    private func scheduleFirstBackup() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 60) { [weak self] in
+            self?.performBackup()
+        }
+    }
+    
+    /// 监听app生命周期，进入后台时保存
+    private func registerLifecycleObservers() {
+        NotificationCenter.default.addObserver(
+            forName: UIApplication.didEnterBackgroundNotification,
+            object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.performBackup()
+        }
+        NotificationCenter.default.addObserver(
+            forName: UIApplication.willTerminateNotification,
+            object: nil, queue: .main
+        ) { [weak self] _ in
             self?.performBackup()
         }
     }
@@ -122,13 +156,26 @@ final class LifeCore: ObservableObject {
     func performBackup() {
         backupStatus = .inProgress
         addLog(.info, "开始备份核心状态...")
-        let state = CoreState(heartRate: heartRate, energyLevel: energyLevel, bodyTemperature: bodyTemperature, fatigueLevel: fatigueLevel, cryptobiosisActive: cryptobiosisActive, timestamp: Date())
+        let state = CoreState(
+            heartRate: heartRate,
+            energyLevel: energyLevel,
+            bodyTemperature: bodyTemperature,
+            fatigueLevel: fatigueLevel,
+            cryptobiosisActive: cryptobiosisActive,
+            timestamp: Date(),
+            totalRecoveries: planarianRegen.totalRecoveries,
+            totalResets: jellyfishReset.numberOfResets,
+            lastResetDate: jellyfishReset.lastReset,
+            totalBackups: persistedStats.totalBackups + 1,
+            launchCount: persistedStats.launchCount
+        )
         storage.saveBackup(state) { [weak self] success in
             DispatchQueue.main.async {
                 if success {
                     self?.lastBackupDate = Date()
                     self?.backupStatus = .completed
-                    self?.addLog(.success, "备份完成")
+                    self?.persistedStats.totalBackups += 1
+                    self?.addLog(.success, "备份完成(累计\(self?.persistedStats.totalBackups ?? 0)次)")
                 } else {
                     self?.backupStatus = .failed
                     self?.addLog(.error, "备份失败")
@@ -143,12 +190,20 @@ final class LifeCore: ObservableObject {
             DispatchQueue.main.async {
                 guard let self = self else { return }
                 if let state = state {
-                    // 有历史备份 = 从上次状态恢复（涡虫再生）
+                    // 恢复持久化统计
+                    self.persistedStats = PersistedStats(
+                        totalBackups: state.totalBackups,
+                        launchCount: state.launchCount + 1
+                    )
+                    // 恢复涡虫再生计数（从上次备份恢复+1）
+                    self.planarianRegen.setRecoveryCount(state.totalRecoveries + 1)
+                    // 恢复灯塔重置状态
+                    self.jellyfishReset.restoreState(count: state.totalResets, lastDate: state.lastResetDate)
+                    
                     self.performRecovery(from: state)
-                    self.planarianRegen.incrementRecoveryCount()
-                    self.addLog(.success, "涡虫再生：从备份恢复，累计恢复\(self.planarianRegen.totalRecoveries)次")
+                    self.addLog(.success, "涡虫再生：从备份恢复，累计恢复\(self.planarianRegen.totalRecoveries)次，启动\(self.persistedStats.launchCount)次")
                 } else {
-                    // 首次启动，无备份
+                    self.persistedStats.launchCount = 1
                     self.addLog(.info, "首次启动，无历史备份可恢复")
                 }
             }
@@ -202,6 +257,13 @@ struct CoreState: Codable {
     let fatigueLevel: Float
     let cryptobiosisActive: Bool
     let timestamp: Date
+    
+    // 持久化生存统计
+    var totalRecoveries: Int = 0       // 涡虫再生累计次数
+    var totalResets: Int = 0           // 灯塔重置累计次数
+    var lastResetDate: Date?           // 上次重置时间
+    var totalBackups: Int = 0          // 累计备份次数
+    var launchCount: Int = 0           // 累计启动次数
 }
 
 extension Notification.Name {
