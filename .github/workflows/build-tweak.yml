@@ -26,6 +26,10 @@ jobs:
         run: |
           git clone --recursive https://github.com/theos/theos.git ${{ github.workspace }}/theos
       
+      - name: Clone Theos SDKs
+        run: |
+          git clone --depth 1 https://github.com/theos/sdks.git ${{ github.workspace }}/theos/sdks
+      
       - name: Build Tweak (rootless)
         working-directory: ./StarCoreTweak
         env:
