@@ -11,37 +11,18 @@ on:
 
 jobs:
   build-tweak:
-    runs-on: ubuntu-22.04
+    runs-on: macos-14
     
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
       
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential git perl libssl-dev xz-utils clang llvm libplist-dev curl
-      
-      - name: Clone Theos
-        run: |
-          git clone --recursive https://github.com/theos/theos.git ${{ github.workspace }}/theos
-      
-      - name: Setup Theos SDK
-        run: |
-          rm -rf ${{ github.workspace }}/theos/sdks
-          git clone --depth 1 https://github.com/theos/sdks.git ${{ github.workspace }}/theos/sdks
-      
-      - name: Setup iOS Toolchain
-        run: |
-          cd ${{ github.workspace }}/theos
-          curl -sL https://github.com/kabiroberai/swift-toolchain-linux/releases/download/v2.2.2/swift-5.7-ubuntu22.04.tar.xz | tar -xJ
-          mv swift-5.7-ubuntu22.04 toolchain/linux/iphone
-          ln -sf ../toolchain/linux/iphone toolchain/swift
+      - name: Setup Theos
+        uses: beer-psi/theos-action@v1
       
       - name: Build Tweak (rootless)
         working-directory: ./StarCoreTweak
         env:
-          THEOS: ${{ github.workspace }}/theos
           THEOS_PACKAGE_SCHEME: rootless
         run: |
           make clean
