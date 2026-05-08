@@ -93,20 +93,20 @@ static bool initTouchInjection() {
     initialized = true;
     
     // 加载IOHIDEvent函数 - 从已加载的框架中查找
-    IOHIDEventCreateDigitizerEventFunc = dlsym(RTLD_DEFAULT, "IOHIDEventCreateDigitizerEvent");
-    IOHIDEventCreateDigitizerFingerEventFunc = dlsym(RTLD_DEFAULT, "IOHIDEventCreateDigitizerFingerEvent");
-    IOHIDEventSetIntegerValueFunc = dlsym(RTLD_DEFAULT, "IOHIDEventSetIntegerValue");
-    IOHIDEventSetFloatValueFunc = dlsym(RTLD_DEFAULT, "IOHIDEventSetFloatValue");
-    IOHIDEventSetSenderIDFunc = dlsym(RTLD_DEFAULT, "IOHIDEventSetSenderID");
-    IOHIDEventAppendEventFunc = dlsym(RTLD_DEFAULT, "IOHIDEventAppendEvent");
+    IOHIDEventCreateDigitizerEventFunc = (typeof(IOHIDEventCreateDigitizerEventFunc))dlsym(RTLD_DEFAULT, "IOHIDEventCreateDigitizerEvent");
+    IOHIDEventCreateDigitizerFingerEventFunc = (typeof(IOHIDEventCreateDigitizerFingerEventFunc))dlsym(RTLD_DEFAULT, "IOHIDEventCreateDigitizerFingerEvent");
+    IOHIDEventSetIntegerValueFunc = (typeof(IOHIDEventSetIntegerValueFunc))dlsym(RTLD_DEFAULT, "IOHIDEventSetIntegerValue");
+    IOHIDEventSetFloatValueFunc = (typeof(IOHIDEventSetFloatValueFunc))dlsym(RTLD_DEFAULT, "IOHIDEventSetFloatValue");
+    IOHIDEventSetSenderIDFunc = (typeof(IOHIDEventSetSenderIDFunc))dlsym(RTLD_DEFAULT, "IOHIDEventSetSenderID");
+    IOHIDEventAppendEventFunc = (typeof(IOHIDEventAppendEventFunc))dlsym(RTLD_DEFAULT, "IOHIDEventAppendEvent");
     
-    IOHIDEventSystemClientCreateFunc = dlsym(RTLD_DEFAULT, "IOHIDEventSystemClientCreate");
-    IOHIDEventSystemClientDispatchEventFunc = dlsym(RTLD_DEFAULT, "IOHIDEventSystemClientDispatchEvent");
+    IOHIDEventSystemClientCreateFunc = (typeof(IOHIDEventSystemClientCreateFunc))dlsym(RTLD_DEFAULT, "IOHIDEventSystemClientCreate");
+    IOHIDEventSystemClientDispatchEventFunc = (typeof(IOHIDEventSystemClientDispatchEventFunc))dlsym(RTLD_DEFAULT, "IOHIDEventSystemClientDispatchEvent");
     
     // 加载BackBoardServices中的BKSHIDEventSetDigitizerInfo
     void *bbsHandle = dlopen("/System/Library/PrivateFrameworks/BackBoardServices.framework/BackBoardServices", RTLD_NOW);
     if (bbsHandle) {
-        BKSHIDEventSetDigitizerInfoFunc = dlsym(bbsHandle, "BKSHIDEventSetDigitizerInfo");
+        BKSHIDEventSetDigitizerInfoFunc = (BKSHIDEventSetDigitizerInfoFuncType)dlsym(bbsHandle, "BKSHIDEventSetDigitizerInfo");
     }
     
     // 日志打印所有函数加载状态
