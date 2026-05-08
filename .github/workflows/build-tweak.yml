@@ -16,46 +16,24 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GH_PAT }}
-          fetch-depth: 0
-        
+      
       - name: Set up Theos
-        uses: Randomblock1/theos-action@v1
-        with:
-          theos-branch: 'feature/rootless-support'
-          
-      - name: Configure SSH for iOS device deployment
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          echo "Host ios-device
-            HostName ${{ secrets.DEVICE_IP }}
-            User root
-            Port 22
-            IdentityFile ~/.ssh/id_rsa
-            StrictHostKeyChecking no" >> ~/.ssh/config
-          
+        uses: beer-psi/theos-action@v1
+      
+      - name: Install plistutil
+        run: sudo apt-get update && sudo apt-get install -y plist-util
+      
       - name: Build Tweak (rootless)
         working-directory: ./StarCoreTweak
         env:
           THEOS_PACKAGE_SCHEME: rootless
-          THEOS_DEVICE_ADDRESS: ${{ secrets.DEVICE_IP }}
         run: |
-          cd StarCoreTweak
           make clean
           make package
-          
+      
       - name: Upload DEB artifact
         uses: actions/upload-artifact@v4
         with:
           name: StarCoreTweak-rootless
           path: ./StarCoreTweak/.theos/obj/*.deb
           retention-days: 7
-          
-      - name: Deploy to iOS device (optional)
-        if: env.DEVICE_IP != ''
-        run: |
-          scp ./StarCoreTweak/.theos/obj/*.deb root@${{ secrets.DEVICE_IP }}:/tmp/
-          ssh root@${{ secrets.DEVICE_IP }} "cd /var/jb && dpkg -i /tmp/com.starcore.tweak_*.deb || echo 'Installation may require tweak restart'"

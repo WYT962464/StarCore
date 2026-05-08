@@ -1,16 +1,8 @@
-/**
- * control
- * DEB包配置文件
- * 
- * 适配多巴胺无根越狱(Dopamine rootless)
- * 安装路径：/var/jb/
- */
-
 Package: com.starcore.tweak
 Name: StarCoreTweak
 Version: 1.0.0
 Architecture: iphoneos-arm
-Description: StarCore触摸注入Tweak - 注入SpringBoard实现触摸操控
+Description: StarCore触摸注入Tweak
 Maintainer: StarCore <starcore@example.com>
 Author: StarCore
 Section: Tweaks
