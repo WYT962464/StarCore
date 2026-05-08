@@ -3,9 +3,8 @@ options:
   bundleIdPrefix: com.starcore
   deploymentTarget:
     iOS: "15.0"
-  xcodeVersion: "15.0"
   createIntermediateGroups: true
-  projectFormatVersion: "56"
+  projectFormat: xcode15_0
 
 targets:
   StarCore:
