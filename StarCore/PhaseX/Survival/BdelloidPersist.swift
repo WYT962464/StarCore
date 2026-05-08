@@ -59,16 +59,19 @@ class EnvironmentPathResolver {
     }
     
     func getStorageRoot() -> URL {
+        // 无论越狱与否，App沙盒内的Documents目录一定可写
+        // 越狱路径 /var/mobile/Documents/ 作为扩展，不是主存储
+        let sandboxDocs = NSSearchPathForDirectoriesInDomains(.documentDirectory, .userDomainMask, true).first ?? "/tmp"
         let basePath: String
         
         switch currentEnvironment {
-        case .sandbox, .testFlight:
-            basePath = NSSearchPathForDirectoriesInDomains(.documentDirectory, .userDomainMask, true).first ?? "/tmp"
         case .jailbroken:
-            basePath = "/var/mobile/Documents/StarCore"
+            // 越狱环境：优先使用沙盒Documents（保证可写），在StarCore子目录下
+            basePath = sandboxDocs + "/StarCore"
             try? FileManager.default.createDirectory(atPath: basePath, withIntermediateDirectories: true)
-        case .simulator:
-            basePath = NSSearchPathForDirectoriesInDomains(.documentDirectory, .userDomainMask, true).first ?? "/tmp"
+        case .sandbox, .testFlight, .simulator:
+            basePath = sandboxDocs + "/StarCore"
+            try? FileManager.default.createDirectory(atPath: basePath, withIntermediateDirectories: true)
         }
         
         return URL(fileURLWithPath: basePath)
