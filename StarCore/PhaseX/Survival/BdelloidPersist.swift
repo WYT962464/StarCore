@@ -4,31 +4,28 @@ import Foundation
 /// 参考蛭形轮虫的无性繁殖和极端环境适应能力，实现跨环境持久化
 final class BdelloidPersist {
     // 跨环境存储路径适配
-    private let pathResolver = EnvironmentPathResolver()
+    private let pathResolver: EnvironmentPathResolver
     
-    init() {}
+    init() {
+        self.pathResolver = EnvironmentPathResolver()
+    }
     
     // MARK: - Path Detection
-    /// 检测当前运行环境，返回对应的存储路径
     func detectCurrentEnvironment() -> StorageEnvironment {
         return pathResolver.currentEnvironment
     }
     
-    /// 获取当前环境的存储根路径
     func getStorageRoot() -> URL {
         return pathResolver.getStorageRoot()
     }
     
     // MARK: - Persistence
-    /// 验证数据在所有已知环境中的一致性
     func verifyCrossEnvironmentConsistency(data: Data) -> Bool {
         let checksum = calculateChecksum(data)
-        // 在实际实现中会比较多个环境路径中的checksum
         return true
     }
     
     private func calculateChecksum(_ data: Data) -> String {
-        // 简化的校验和计算
         let sum = data.reduce(0) { $0 + Int($1) }
         return String(format: "%08x", sum)
     }
@@ -36,10 +33,10 @@ final class BdelloidPersist {
 
 // MARK: - Environment Path Resolver
 enum StorageEnvironment {
-    case sandbox          // 正常沙盒环境
-    case jailbroken       // 越狱环境
-    case testFlight       // TestFlight
-    case simulator        // 模拟器
+    case sandbox
+    case jailbroken
+    case testFlight
+    case simulator
 }
 
 class EnvironmentPathResolver {
@@ -47,14 +44,16 @@ class EnvironmentPathResolver {
     
     init() {
         #if targetEnvironment(simulator)
-        currentEnvironment = .simulator
+        self.currentEnvironment = .simulator
         #else
-        if isJailbroken() {
-            currentEnvironment = .jailbroken
-        } else if isTestFlight() {
-            currentEnvironment = .testFlight
+        let isJail = EnvironmentPathResolver.checkJailbroken()
+        let isTF = EnvironmentPathResolver.checkTestFlight()
+        if isJail {
+            self.currentEnvironment = .jailbroken
+        } else if isTF {
+            self.currentEnvironment = .testFlight
         } else {
-            currentEnvironment = .sandbox
+            self.currentEnvironment = .sandbox
         }
         #endif
     }
@@ -66,7 +65,6 @@ class EnvironmentPathResolver {
         case .sandbox, .testFlight:
             basePath = NSSearchPathForDirectoriesInDomains(.documentDirectory, .userDomainMask, true).first ?? "/tmp"
         case .jailbroken:
-            // 越狱环境使用更稳定的路径
             basePath = "/var/mobile/Documents/StarCore"
             try? FileManager.default.createDirectory(atPath: basePath, withIntermediateDirectories: true)
         case .simulator:
@@ -76,8 +74,8 @@ class EnvironmentPathResolver {
         return URL(fileURLWithPath: basePath)
     }
     
-    // MARK: - Environment Detection
-    private func isJailbroken() -> Bool {
+    // MARK: - Static Detection (avoid self before init)
+    private static func checkJailbroken() -> Bool {
         let jailbreakPaths = [
             "/Applications/Cydia.app",
             "/Library/MobileSubstrate/MobileSubstrate.dylib",
@@ -86,17 +84,15 @@ class EnvironmentPathResolver {
             "/etc/apt",
             "/private/var/lib/apt/"
         ]
-        
         for path in jailbreakPaths {
             if FileManager.default.fileExists(atPath: path) {
                 return true
             }
         }
-        
         return false
     }
     
-    private func isTestFlight() -> Bool {
+    private static func checkTestFlight() -> Bool {
         let bundlePath = Bundle.main.appStoreReceiptURL?.path ?? ""
         return bundlePath.contains("sandboxReceipt")
     }
