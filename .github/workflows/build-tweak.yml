@@ -20,7 +20,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential git perl libssl-dev xz-utils clang llvm libplist-utils curl
+          sudo apt-get install -y build-essential git perl libssl-dev xz-utils clang llvm libplist-utils curl cpio
       
       - name: Clone Theos
         run: |
@@ -34,8 +34,20 @@ jobs:
       - name: Setup iOS Toolchain
         run: |
           cd ${{ github.workspace }}/theos
-          curl -sL https://github.com/kabiroberai/swift-toolchain-linux/releases/download/v2.1.0/swift-5.6.1-ubuntu20.04.tar.xz | tar -xJ
-          mv swift-5.6.1-ubuntu20.04 toolchain/linux/iphone
+          # 创建工具链目录
+          mkdir -p toolchain/linux/iphone/bin
+          
+          # 下载ldid签名工具
+          curl -sL https://github.com/poisondog/ldid/releases/download/v2.1.5.8/ldid -o toolchain/linux/iphone/bin/ldid
+          chmod +x toolchain/linux/iphone/bin/ldid
+          
+          # 创建符号链接指向系统clang
+          ln -sf $(which clang) toolchain/linux/iphone/bin/clang
+          ln -sf $(which clang++) toolchain/linux/iphone/bin/clang++
+          ln -sf $(which ld.lld) toolchain/linux/iphone/bin/ld
+          ln -sf $(which ar) toolchain/linux/iphone/bin/ar
+          ln -sf $(which strip) toolchain/linux/iphone/bin/strip
+          
           ln -sf ../toolchain/linux/iphone toolchain/swift
       
       - name: Build Tweak (rootless)
