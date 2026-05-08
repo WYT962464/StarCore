@@ -1,0 +1,31 @@
+/**
+ * StarCoreTweak.plist
+ * Tweak过滤器配置
+ * 
+ * 指定要注入的进程：SpringBoard
+ * SpringBoard是iOS主屏幕进程，注入后可实现全局触摸控制
+ */
+
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Filter</key>
+    <dict>
+        <key>Executables</key>
+        <array>
+            <string>SpringBoard</string>
+        </array>
+        <key>Plist</key>
+        <dict>
+            <key>Filter</key>
+            <dict>
+                <key>ExecutableNames</key>
+                <array>
+                    <string>SpringBoard</string>
+                </array>
+            </dict>
+        </dict>
+    </dict>
+</dict>
+</plist>
