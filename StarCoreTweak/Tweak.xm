@@ -68,7 +68,7 @@ static IOHIDEventRef (*IOHIDEventCreateDigitizerFingerEventWithQualityFunc)(
 static IOHIDEventRef (*IOHIDEventCreateKeyboardEventFunc)(
     CFAllocatorRef, uint64_t, uint32_t, uint32_t, bool, uint32_t) = NULL;
 
-static void (*IOHIDEventSetIntegerValueWithOptionsFunc)(IOHIDEventRef, uint32_t, int32_t, IOOptionBits) = NULL;
+static void (*IOHIDEventSetIntegerValueWithOptionsFunc)(IOHIDEventRef, uint32_t, int32_t, unsigned int) = NULL;
 static void (*IOHIDEventSetFloatValueFunc)(IOHIDEventRef, uint32_t, float) = NULL;
 static void (*IOHIDEventSetSenderIDFunc)(IOHIDEventRef, uint64_t) = NULL;
 static void (*IOHIDEventAppendEventFunc)(IOHIDEventRef, IOHIDEventRef) = NULL;
@@ -95,7 +95,7 @@ static const uint64_t kStarCoreSenderID = 0x000000010000027FULL;
 @end
 
 // ==================== BKUserEventTimer ====================
-@interface BKUserEventTimer
+@interface BKUserEventTimer : NSObject
 + (id)sharedInstance;
 - (void)userEventOccurredOnDisplay:(id)arg1;
 @end
@@ -228,8 +228,8 @@ static void simulateTouch(int type, float x, float y, int fingerId) {
     }
     
     // 关键设置 - 与SimulateTouch完全一致
-    IOHIDEventSetIntegerValueWithOptionsFunc(handEvent, kIOHIDEventFieldDigitizerDisplayIntegrated, 1, (IOOptionBits)-268435456);
-    IOHIDEventSetIntegerValueWithOptionsFunc(handEvent, kIOHIDEventFieldBuiltIn, 1, (IOOptionBits)-268435456);
+    IOHIDEventSetIntegerValueWithOptionsFunc(handEvent, kIOHIDEventFieldDigitizerDisplayIntegrated, 1, (unsigned int)-268435456);
+    IOHIDEventSetIntegerValueWithOptionsFunc(handEvent, kIOHIDEventFieldBuiltIn, 1, (unsigned int)-268435456);
     IOHIDEventSetSenderIDFunc(handEvent, kStarCoreSenderID);
     
     // 2. 创建Finger事件
@@ -278,9 +278,9 @@ static void simulateTouch(int type, float x, float y, int fingerId) {
         handEventMask |= kIOHIDDigitizerEventPosition;
     }
     
-    IOHIDEventSetIntegerValueWithOptionsFunc(handEvent, kIOHIDEventFieldDigitizerEventMask, handEventMask, (IOOptionBits)-268435456);
-    IOHIDEventSetIntegerValueWithOptionsFunc(handEvent, kIOHIDEventFieldDigitizerRange, handEventTouch, (IOOptionBits)-268435456);
-    IOHIDEventSetIntegerValueWithOptionsFunc(handEvent, kIOHIDEventFieldDigitizerTouch, handEventTouch, (IOOptionBits)-268435456);
+    IOHIDEventSetIntegerValueWithOptionsFunc(handEvent, kIOHIDEventFieldDigitizerEventMask, handEventMask, (unsigned int)-268435456);
+    IOHIDEventSetIntegerValueWithOptionsFunc(handEvent, kIOHIDEventFieldDigitizerRange, handEventTouch, (unsigned int)-268435456);
+    IOHIDEventSetIntegerValueWithOptionsFunc(handEvent, kIOHIDEventFieldDigitizerTouch, handEventTouch, (unsigned int)-268435456);
     
     // 5. 重置空闲计时器
     resetIdleTimer();
