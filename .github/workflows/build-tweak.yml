@@ -17,17 +17,22 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
       
-      - name: Set up Theos
-        uses: BandarHL/theos-action@v1
-        with:
-          swifttoolchain: false  # 不下载Swift工具链，避免Ubuntu 24.04兼容性问题
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential git perl libssl-dev xz-utils clang llvm
+      
+      - name: Clone Theos
+        run: |
+          git clone --recursive https://github.com/theos/theos.git ${{ github.workspace }}/theos
       
       - name: Install plistutil
-        run: sudo apt-get update && sudo apt-get install -y plist-util
+        run: sudo apt-get install -y plist-util
       
       - name: Build Tweak (rootless)
         working-directory: ./StarCoreTweak
         env:
+          THEOS: ${{ github.workspace }}/theos
           THEOS_PACKAGE_SCHEME: rootless
         run: |
           make clean
