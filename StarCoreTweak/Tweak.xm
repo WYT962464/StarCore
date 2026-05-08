@@ -172,15 +172,8 @@ static void postIOHIDEvent(IOHIDEventRef event) {
         }
     }
     
-    // 通过UIApplication _enqueueHIDEvent
-    @try {
-        UIApplication *app = [UIApplication sharedApplication];
-        if ([app respondsToSelector:@selector(_enqueueHIDEvent:)]) {
-            [app performSelector:@selector(_enqueueHIDEvent:) withObject:(__bridge id)event];
-        }
-    } @catch (NSException *e) {
-        NSLog(@"[StarCoreTweak] _enqueueHIDEvent失败: %@", e);
-    }
+    // 通过UIApplication _enqueueHIDEvent - 跳过，直接用DispatchEvent
+    // @try方式可能无法捕获CF层面的crash，先只用DispatchEvent
     
     // 通过EventSystemClient分发
     IOHIDEventSystemClientDispatchEventFunc(eventSystemClient, event);
@@ -193,6 +186,7 @@ static void simulateTouch(int type, float x, float y, int fingerIndex) {
         NSLog(@"[StarCoreTweak] 触摸注入未初始化，无法模拟触摸");
         return;
     }
+    @try {
     
     uint64_t timestamp = mach_absolute_time();
     
@@ -274,8 +268,15 @@ static void simulateTouch(int type, float x, float y, int fingerIndex) {
     }
     
     // 4. 发送事件
-    postIOHIDEvent(parentEvent);
+    @try {
+        postIOHIDEvent(parentEvent);
+    } @catch (NSException *e) {
+        NSLog(@"[StarCoreTweak] postIOHIDEvent异常: %@", e);
+    }
     CFRelease(parentEvent);
+    } @catch (NSException *e) {
+        NSLog(@"[StarCoreTweak] simulateTouch异常: %@", e);
+    }
 }
 
 // ==================== 高级触摸操作 ====================
@@ -588,8 +589,8 @@ static StarCoreTCPServer *_server = nil;
     %orig;
     NSLog(@"[StarCoreTweak] SpringBoard启动完成");
     
-    // 初始化触摸注入
-    initTouchInjection();
+    // 不在启动时初始化触摸注入 - 改为懒加载
+    // initTouchInjection(); 
     
     // 启动TCP服务器
     _server = [[StarCoreTCPServer alloc] init];
