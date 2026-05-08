@@ -13,21 +13,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Generate Xcode Project from SPM
-        run: swift package generate-xcodeproj
+      - name: Install xcodegen
+        run: brew install xcodegen
 
-      - name: Build with xcodebuild
+      - name: Generate Xcode Project
+        run: xcodegen generate
+
+      - name: Build Archive
         run: |
-          xcodebuild build \
-            -project StarCore.xcodeproj \
-            -list
-          
           xcodebuild archive \
             -project StarCore.xcodeproj \
             -scheme StarCore \
             -sdk iphoneos \
-            -archivePath ${{ runner.temp }}/StarCore.xcarchive \
             -configuration Release \
+            -archivePath ${{ runner.temp }}/StarCore.xcarchive \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO
