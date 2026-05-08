@@ -238,7 +238,7 @@ static void simulateTouch(int type, float x, float y, int fingerIndex) {
     }
     
     // 设置为内建显示屏 - 必须用WithOptions，options=-268435456
-    typedef void (*IOHIDEventSetIntegerValueWithOptionsFuncType)(IOHIDEventRef, uint32_t, int32_t, IOOptionBits);
+    typedef void (*IOHIDEventSetIntegerValueWithOptionsFuncType)(IOHIDEventRef, uint32_t, int32_t, unsigned);
     static IOHIDEventSetIntegerValueWithOptionsFuncType setValueWithOptionsFunc = NULL;
     if (!setValueWithOptionsFunc) {
         setValueWithOptionsFunc = (IOHIDEventSetIntegerValueWithOptionsFuncType)dlsym(RTLD_DEFAULT, "IOHIDEventSetIntegerValueWithOptions");
