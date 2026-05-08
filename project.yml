@@ -5,6 +5,7 @@ options:
     iOS: "15.0"
   xcodeVersion: "15.0"
   createIntermediateGroups: true
+  projectFormatVersion: "56"
 
 targets:
   StarCore:
