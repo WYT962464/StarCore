@@ -30,7 +30,7 @@ typedef struct __IOHIDEventSystemClient *IOHIDEventSystemClientRef;
 typedef uint32_t IOHIDDigitizerEventMask;
 
 // IOHIDEvent 常量
-#define kIOHIDDigitizerTransducerTypeHand 4
+#define kIOHIDDigitizerTransducerTypeHand 3  // iOS7+ uses 3, not 4
 #define kIOHIDDigitizerEventTouch    0x00000001
 #define kIOHIDDigitizerEventRange    0x00000004
 #define kIOHIDDigitizerEventPosition 0x00000002
@@ -60,6 +60,15 @@ static IOHIDEventRef (*IOHIDEventCreateDigitizerFingerEventFunc)(
     CFAllocatorRef, uint64_t, uint32_t, uint32_t,
     IOHIDDigitizerEventMask, float, float,
     float, float, float, bool, bool, uint32_t) = NULL;
+
+// WithQuality版本 - iOS9+必须用这个
+static IOHIDEventRef (*IOHIDEventCreateDigitizerFingerEventWithQualityFunc)(
+    CFAllocatorRef, uint64_t, uint32_t, uint32_t,
+    IOHIDDigitizerEventMask, float, float,
+    float, float, float,  // z, tipPressure, twist
+    float, float, float,  // minorRadius, majorRadius, quality
+    float, float,         // density, irregularity
+    bool, bool, uint32_t) = NULL;
 
 static void (*IOHIDEventSetIntegerValueFunc)(IOHIDEventRef, uint32_t, int32_t) = NULL;
 static void (*IOHIDEventSetFloatValueFunc)(IOHIDEventRef, uint32_t, float) = NULL;
@@ -95,6 +104,7 @@ static bool initTouchInjection() {
     // 加载IOHIDEvent函数 - 从已加载的框架中查找
     IOHIDEventCreateDigitizerEventFunc = (typeof(IOHIDEventCreateDigitizerEventFunc))dlsym(RTLD_DEFAULT, "IOHIDEventCreateDigitizerEvent");
     IOHIDEventCreateDigitizerFingerEventFunc = (typeof(IOHIDEventCreateDigitizerFingerEventFunc))dlsym(RTLD_DEFAULT, "IOHIDEventCreateDigitizerFingerEvent");
+    IOHIDEventCreateDigitizerFingerEventWithQualityFunc = (typeof(IOHIDEventCreateDigitizerFingerEventWithQualityFunc))dlsym(RTLD_DEFAULT, "IOHIDEventCreateDigitizerFingerEventWithQuality");
     IOHIDEventSetIntegerValueFunc = (typeof(IOHIDEventSetIntegerValueFunc))dlsym(RTLD_DEFAULT, "IOHIDEventSetIntegerValue");
     IOHIDEventSetFloatValueFunc = (typeof(IOHIDEventSetFloatValueFunc))dlsym(RTLD_DEFAULT, "IOHIDEventSetFloatValue");
     IOHIDEventSetSenderIDFunc = (typeof(IOHIDEventSetSenderIDFunc))dlsym(RTLD_DEFAULT, "IOHIDEventSetSenderID");
@@ -113,6 +123,7 @@ static bool initTouchInjection() {
     NSLog(@"[StarCoreTweak] === IOHIDEvent函数加载状态 ===");
     NSLog(@"[StarCoreTweak] CreateDigitizerEvent: %p", IOHIDEventCreateDigitizerEventFunc);
     NSLog(@"[StarCoreTweak] CreateFingerEvent: %p", IOHIDEventCreateDigitizerFingerEventFunc);
+    NSLog(@"[StarCoreTweak] CreateFingerEventWithQuality: %p", IOHIDEventCreateDigitizerFingerEventWithQualityFunc);
     NSLog(@"[StarCoreTweak] SetIntegerValue: %p", IOHIDEventSetIntegerValueFunc);
     NSLog(@"[StarCoreTweak] SetFloatValue: %p", IOHIDEventSetFloatValueFunc);
     NSLog(@"[StarCoreTweak] SetSenderID: %p", IOHIDEventSetSenderIDFunc);
@@ -201,9 +212,6 @@ static void simulateTouch(int type, float x, float y, int fingerIndex) {
         IOHIDEventSystemClientDispatchEventFunc,
         BKSHIDEventSetDigitizerInfoFunc);
     NSLog(@"[StarCoreTweak] DIAG: eventSystemClient=%p", eventSystemClient);
-    NSLog(@"[StarCoreTweak] 触摸事件已接收但未注入（诊断模式）");
-    return;
-    
     @try {
     
     uint64_t timestamp = mach_absolute_time();
@@ -229,9 +237,17 @@ static void simulateTouch(int type, float x, float y, int fingerIndex) {
         return;
     }
     
-    // 设置为内建显示屏
-    if (IOHIDEventSetIntegerValueFunc) {
-        IOHIDEventSetIntegerValueFunc(parentEvent, kIOHIDEventFieldDigitizerIsDisplayIntegrated, 1);
+    // 设置为内建显示屏 - 必须用WithOptions，options=-268435456
+    typedef void (*IOHIDEventSetIntegerValueWithOptionsFuncType)(IOHIDEventRef, uint32_t, int32_t, IOOptionBits);
+    static IOHIDEventSetIntegerValueWithOptionsFuncType setValueWithOptionsFunc = NULL;
+    if (!setValueWithOptionsFunc) {
+        setValueWithOptionsFunc = (IOHIDEventSetIntegerValueWithOptionsFuncType)dlsym(RTLD_DEFAULT, "IOHIDEventSetIntegerValueWithOptions");
+    }
+    if (setValueWithOptionsFunc) {
+        setValueWithOptionsFunc(parentEvent, 0x00040001 /* kIOHIDEventFieldDigitizerDisplayIntegrated */, 1, -268435456);
+        setValueWithOptionsFunc(parentEvent, 0x00040010 /* kIOHIDEventFieldBuiltIn */, 1, -268435456);
+    } else if (IOHIDEventSetIntegerValueFunc) {
+        IOHIDEventSetIntegerValueFunc(parentEvent, 0x00040001, 1);
     }
     
     // 2. 创建Child事件（Finger类型）
@@ -245,20 +261,44 @@ static void simulateTouch(int type, float x, float y, int fingerIndex) {
     
     bool isTouch = (type != TOUCH_UP);
     
-    IOHIDEventRef fingerEvent = IOHIDEventCreateDigitizerFingerEventFunc(
-        kCFAllocatorDefault,
-        timestamp,
-        fingerIndex + 1,  // finger index (1-based)
-        3,                // identity
-        eventMask,
-        x, y,             // 归一化坐标 0.0-1.0
-        0.0f,             // z
-        0.0f,             // tipPressure (iOS会用默认值)
-        0.0f,             // twist
-        isTouch,          // isTouch
-        isTouch,          // isRange
-        0                 // options
-    );
+    IOHIDEventRef fingerEvent = NULL;
+    // 优先使用WithQuality版本（iOS9+必须）
+    if (IOHIDEventCreateDigitizerFingerEventWithQualityFunc) {
+        fingerEvent = IOHIDEventCreateDigitizerFingerEventWithQualityFunc(
+            kCFAllocatorDefault,
+            timestamp,
+            fingerIndex + 1,  // finger index (1-based)
+            2,                // identity
+            eventMask,
+            x, y,             // 归一化坐标 0.0-1.0
+            0.0f,             // z
+            0.0f,             // tipPressure
+            0.0f,             // twist
+            5.0f,             // minorRadius
+            5.0f,             // majorRadius
+            1.0f,             // quality
+            1.0f,             // density
+            0.0f,             // irregularity
+            isTouch,          // isRange
+            isTouch,          // isTouch
+            0                 // options
+        );
+    } else if (IOHIDEventCreateDigitizerFingerEventFunc) {
+        fingerEvent = IOHIDEventCreateDigitizerFingerEventFunc(
+            kCFAllocatorDefault,
+            timestamp,
+            fingerIndex + 1,
+            2,
+            eventMask,
+            x, y,
+            0.0f,
+            0.0f,
+            0.0f,
+            isTouch,
+            isTouch,
+            0
+        );
+    }
     
     if (!fingerEvent) {
         NSLog(@"[StarCoreTweak] 创建finger事件失败");
