@@ -99,7 +99,7 @@ class ActionCoordinator {
     
     /// Tweak连接是否可用
     var isTweakAvailable: Bool {
-        return tweakClient.connectionState == .connected
+        return tweakClient.getConnectionState() == .connected
     }
     
     /// ZXTouch连接是否可用
@@ -133,13 +133,13 @@ class ActionCoordinator {
     
     /// 尝试连接所有服务
     func connectAll() {
-        tweakClient.connect()
+        tweakClient.checkConnection()
         // TODO: 连接ZXTouch
     }
     
     /// 断开所有服务
     func disconnectAll() {
-        tweakClient.disconnect()
+        // disconnect not needed with per-request TCP
         // TODO: 断开ZXTouch
     }
     
@@ -401,7 +401,7 @@ class ActionCoordinator {
     func getDiagnostics() -> [String: Any] {
         return [
             "tweakAvailable": isTweakAvailable,
-            "tweakState": tweakClient.connectionState.rawValue,
+            "tweakState": tweakClient.getConnectionState().rawValue,
             "zxtouchAvailable": isZXTouchAvailable,
             "actionTimeout": actionTimeout,
             "fallbackEnabled": enableFallback

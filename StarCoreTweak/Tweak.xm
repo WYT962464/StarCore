@@ -9,6 +9,10 @@
 
 #import <UIKit/UIKit.h>
 #import <objc/runtime.h>
+#import <sys/socket.h>
+#import <netinet/in.h>
+#import <arpa/inet.h>
+#import <unistd.h>
 
 // 私有框架声明
 @interface LSApplicationWorkspace : NSObject
@@ -16,40 +20,37 @@
 - (BOOL)openApplicationWithBundleID:(NSString *)bundleID;
 @end
 
-// TCP服务器
+#pragma mark - TCP服务器
+
 @interface StarCoreTCPServer : NSObject
 - (void)start;
 - (void)stop;
 @end
 
-static StarCoreTCPServer *server = nil;
+static StarCoreTCPServer *_server = nil;
 
 @implementation StarCoreTCPServer {
-    CFSocketRef _socket;
-    NSMutableArray<NSInputStream *> *_clients;
+    NSInteger _serverSock;
+    NSMutableArray<NSNumber *> *_clientFds;
 }
 
 - (instancetype)init {
     self = [super init];
     if (self) {
-        _clients = [NSMutableArray new];
+        _clientFds = [NSMutableArray new];
     }
     return self;
 }
 
 - (void)start {
-    CFSocketContext context = {0, (__bridge void *)self, NULL, NULL, NULL};
-    _socket = CFSocketCreate(kCFAllocatorDefault, PF_INET, SOCK_STREAM, IPPROTO_IP,
-                             kCFSocketAcceptCallBack, &SocketAcceptCallback, &context);
-    
-    if (!_socket) {
-        NSLog(@"[StarCoreTweak] 创建Socket失败");
+    _serverSock = socket(AF_INET, SOCK_STREAM, 0);
+    if (_serverSock < 0) {
+        NSLog(@"[StarCoreTweak] 创建socket失败");
         return;
     }
     
-    // 设置SO_REUSEADDR
     int yes = 1;
-    setsockopt(CFSocketGetNative(_socket), SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+    setsockopt((int)_serverSock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
     
     struct sockaddr_in addr;
     memset(&addr, 0, sizeof(addr));
@@ -58,135 +59,104 @@ static StarCoreTCPServer *server = nil;
     addr.sin_port = htons(6000);
     addr.sin_addr.s_addr = inet_addr("127.0.0.1");
     
-    NSData *addressData = [NSData dataWithBytes:&addr length:sizeof(addr)];
-    if (CFSocketSetAddress(_socket, (__bridge CFDataRef)addressData) != kCFSocketSuccess) {
-        NSLog(@"[StarCoreTweak] 绑定端口6000失败");
-        CFRelease(_socket);
-        _socket = NULL;
+    if (bind((int)_serverSock, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+        NSLog(@"[StarCoreTweak] 绑定端口失败");
+        close((int)_serverSock);
+        _serverSock = -1;
         return;
     }
     
-    CFRunLoopSourceRef source = CFSocketCreateRunLoopSource(kCFAllocatorDefault, _socket, 0);
-    CFRunLoopAddSource(CFRunLoopGetCurrent(), source, kCFRunLoopCommonModes);
-    CFRelease(source);
+    if (listen((int)_serverSock, 5) < 0) {
+        NSLog(@"[StarCoreTweak] listen失败");
+        close((int)_serverSock);
+        _serverSock = -1;
+        return;
+    }
+    
+    // 在后台线程accept连接
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        [self acceptLoop];
+    });
     
     NSLog(@"[StarCoreTweak] TCP服务器已启动 127.0.0.1:6000");
 }
 
-static void SocketAcceptCallback(CFSocketRef socket, CFSocketCallBackType type, 
-                                  CFDataRef address, const void *data, void *info) {
-    StarCoreTCPServer *server = (__bridge StarCoreTCPServer *)info;
-    [server handleNewConnection:*(CFSocketNativeHandle *)data];
-}
-
-- (void)handleNewConnection:(CFSocketNativeHandle)fd {
-    NSLog(@"[StarCoreTweak] 新连接 fd=%d", fd);
-    
-    // 创建读写流
-    CFReadStreamRef readStream;
-    CFWriteStreamRef writeStream;
-    CFStreamCreatePairWithSocket(kCFAllocatorDefault, fd, &readStream, &writeStream);
-    
-    NSInputStream *input = (__bridge_transfer NSInputStream *)readStream;
-    NSOutputStream *output = (__bridge_transfer NSOutputStream *)writeStream;
-    
-    input.delegate = self;
-    output.delegate = self;
-    [input scheduleInRunLoop:[NSRunLoop currentRunLoop] forMode:NSDefaultRunLoopMode];
-    [output scheduleInRunLoop:[NSRunLoop currentRunLoop] forMode:NSDefaultRunLoopMode];
-    [input open];
-    [output open];
-    
-    // 关联output到input
-    objc_setAssociatedObject(input, "output", output, OBJC_ASSOCIATION_RETAIN);
-    objc_setAssociatedObject(input, "buffer", [NSMutableData new], OBJC_ASSOCIATION_RETAIN);
-    
-    @synchronized (_clients) {
-        [_clients addObject:input];
-    }
-}
-
-- (void)stop {
-    if (_socket) {
-        CFSocketInvalidate(_socket);
-        CFRelease(_socket);
-        _socket = NULL;
-    }
-    @synchronized (_clients) {
-        for (NSInputStream *input in _clients) {
-            NSOutputStream *output = objc_getAssociatedObject(input, "output");
-            [input close];
-            [output close];
+- (void)acceptLoop {
+    while (_serverSock >= 0) {
+        struct sockaddr_in clientAddr;
+        socklen_t clientLen = sizeof(clientAddr);
+        int clientFd = accept((int)_serverSock, (struct sockaddr *)&clientAddr, &clientLen);
+        
+        if (clientFd < 0) {
+            continue;
         }
-        [_clients removeAllObjects];
+        
+        NSLog(@"[StarCoreTweak] 新连接 fd=%d", clientFd);
+        @synchronized (_clientFds) {
+            [_clientFds addObject:@(clientFd)];
+        }
+        
+        // 为每个客户端启动读线程
+        dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+            [self handleClient:clientFd];
+        });
     }
-    NSLog(@"[StarCoreTweak] TCP服务器已停止");
 }
 
-#pragma mark - NSStreamDelegate
-
-- (void)stream:(NSStream *)aStream handleEvent:(NSStreamEvent)eventCode {
-    switch (eventCode) {
-        case NSStreamEventHasBytesAvailable: {
-            if (![aStream isKindOfClass:[NSInputStream class]]) return;
-            NSInputStream *input = (NSInputStream *)aStream;
-            NSMutableData *buffer = objc_getAssociatedObject(input, "buffer");
-            
-            uint8_t buf[4096];
-            NSInteger len = [input read:buf maxLength:sizeof(buf)];
-            if (len > 0) {
-                [buffer appendBytes:buf length:len];
-                
-                // 按行处理JSON消息
-                while (YES) {
-                    NSRange nlRange = [[NSString alloc] initWithData:buffer encoding:NSUTF8StringEncoding].rangeOfString:@"\n"];
-                    if (nlRange.location == NSNotFound) break;
-                    
-                    NSData *lineData = [buffer subdataWithRange:NSMakeRange(0, nlRange.location)];
-                    [buffer replaceBytesInRange:NSMakeRange(0, nlRange.location + 1) withBytes:@"" length:0];
-                    
-                    NSString *jsonStr = [[NSString alloc] initWithData:lineData encoding:NSUTF8StringEncoding];
-                    [self handleMessage:jsonStr fromStream:input];
+- (void)handleClient:(int)fd {
+    NSMutableData *buffer = [NSMutableData new];
+    uint8_t buf[4096];
+    
+    while (YES) {
+        ssize_t len = read(fd, buf, sizeof(buf));
+        if (len <= 0) {
+            break;
+        }
+        
+        [buffer appendBytes:buf length:len];
+        
+        // 按\n分割处理
+        while (buffer.length > 0) {
+            // 查找\n
+            const uint8_t *bytes = (const uint8_t *)buffer.bytes;
+            NSInteger nlPos = -1;
+            for (NSInteger i = 0; i < buffer.length; i++) {
+                if (bytes[i] == '\n') {
+                    nlPos = i;
+                    break;
                 }
             }
-            break;
-        }
-        case NSStreamEventEndEncountered: {
-            @synchronized (_clients) {
-                [_clients removeObject:aStream];
+            
+            if (nlPos < 0) break; // 没有完整消息
+            
+            NSData *lineData = [buffer subdataWithRange:NSMakeRange(0, nlPos)];
+            [buffer replaceBytesInRange:NSMakeRange(0, nlPos + 1) withBytes:"" length:0];
+            
+            NSString *jsonStr = [[NSString alloc] initWithData:lineData encoding:NSUTF8StringEncoding];
+            if (jsonStr) {
+                NSDictionary *response = [self processMessage:jsonStr];
+                if (response) {
+                    [self sendResponse:response toFd:fd];
+                }
             }
-            NSOutputStream *output = objc_getAssociatedObject(aStream, "output");
-            [aStream close];
-            [output close];
-            NSLog(@"[StarCoreTweak] 连接断开");
-            break;
         }
-        case NSStreamEventErrorOccurred: {
-            NSLog(@"[StarCoreTweak] 流错误: %@", aStream.streamError);
-            @synchronized (_clients) {
-                [_clients removeObject:aStream];
-            }
-            NSOutputStream *output = objc_getAssociatedObject(aStream, "output");
-            [aStream close];
-            [output close];
-            break;
-        }
-        default:
-            break;
     }
+    
+    NSLog(@"[StarCoreTweak] 连接断开 fd=%d", fd);
+    @synchronized (_clientFds) {
+        [_clientFds removeObject:@(fd)];
+    }
+    close(fd);
 }
 
-#pragma mark - 消息处理
-
-- (void)handleMessage:(NSString *)jsonStr fromStream:(NSInputStream *)input {
+- (NSDictionary *)processMessage:(NSString *)jsonStr {
     NSData *data = [jsonStr dataUsingEncoding:NSUTF8StringEncoding];
-    if (!data) return;
+    if (!data) return nil;
     
     NSError *error;
     NSDictionary *request = [NSJSONSerialization JSONObjectWithData:data options:0 error:&error];
     if (!request || ![request isKindOfClass:[NSDictionary class]]) {
-        [self sendResponse:@{@"success": @NO, @"error": @"invalid JSON"} toStream:input];
-        return;
+        return @{@"success": @NO, @"error": @"invalid JSON"};
     }
     
     NSString *action = request[@"action"];
@@ -197,7 +167,6 @@ static void SocketAcceptCallback(CFSocketRef socket, CFSocketCallBackType type,
         NSInteger x = [request[@"x"] integerValue];
         NSInteger y = [request[@"y"] integerValue];
         NSLog(@"[StarCoreTweak] tap:(%ld,%ld)", (long)x, (long)y);
-        // TODO: IOHIDEvent触摸注入
         response[@"success"] = @YES;
         response[@"message"] = @"tap received (stub)";
     }
@@ -248,13 +217,10 @@ static void SocketAcceptCallback(CFSocketRef socket, CFSocketCallBackType type,
         response[@"error"] = [NSString stringWithFormat:@"unknown action: %@", action];
     }
     
-    [self sendResponse:response toStream:input];
+    return response;
 }
 
-- (void)sendResponse:(NSDictionary *)response toStream:(NSInputStream *)input {
-    NSOutputStream *output = objc_getAssociatedObject(input, "output");
-    if (!output || ![output hasSpaceAvailable]) return;
-    
+- (void)sendResponse:(NSDictionary *)response toFd:(int)fd {
     NSError *error;
     NSData *jsonData = [NSJSONSerialization dataWithJSONObject:response options:0 error:&error];
     if (!jsonData) return;
@@ -263,20 +229,43 @@ static void SocketAcceptCallback(CFSocketRef socket, CFSocketCallBackType type,
     uint8_t nl = '\n';
     [sendData appendBytes:&nl length:1];
     
-    [output write:[sendData bytes] maxLength:[sendData length]];
+    const uint8_t *bytes = (const uint8_t *)sendData.bytes;
+    size_t totalLen = sendData.length;
+    size_t sent = 0;
+    
+    while (sent < totalLen) {
+        ssize_t n = write(fd, bytes + sent, totalLen - sent);
+        if (n <= 0) break;
+        sent += n;
+    }
+}
+
+- (void)stop {
+    if (_serverSock >= 0) {
+        close((int)_serverSock);
+        _serverSock = -1;
+    }
+    @synchronized (_clientFds) {
+        for (NSNumber *fdNum in _clientFds) {
+            close([fdNum intValue]);
+        }
+        [_clientFds removeAllObjects];
+    }
+    NSLog(@"[StarCoreTweak] TCP服务器已停止");
 }
 
 @end
 
-// Hook SpringBoard启动
+#pragma mark - SpringBoard Hook
+
 %hook SpringBoard
 
 - (void)applicationDidFinishLaunching:(id)application {
     %orig;
     NSLog(@"[StarCoreTweak] SpringBoard启动完成");
     
-    server = [[StarCoreTCPServer alloc] init];
-    [server start];
+    _server = [[StarCoreTCPServer alloc] init];
+    [_server start];
     
     NSLog(@"[StarCoreTweak] Tweak初始化完成 - v1.0-tcp");
 }
@@ -289,5 +278,5 @@ static void SocketAcceptCallback(CFSocketRef socket, CFSocketCallBackType type,
 
 %dtor {
     NSLog(@"[StarCoreTweak] Tweak卸载");
-    [server stop];
+    [_server stop];
 }

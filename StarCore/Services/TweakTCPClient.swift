@@ -4,6 +4,7 @@
  * 
  * 通过127.0.0.1:6000与Tweak通信
  * 协议：JSON over TCP，每条消息以\n结尾
+ * 使用POSIX socket直接通信，零框架依赖
  */
 
 import UIKit
@@ -12,7 +13,6 @@ import UIKit
 
 enum TweakTCPError: Error, LocalizedError {
     case connectionFailed
-    case connectionInterrupted
     case serviceNotAvailable
     case operationTimeout
     case invalidResponse
@@ -21,8 +21,7 @@ enum TweakTCPError: Error, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .connectionFailed: return "TCP连接失败"
-        case .connectionInterrupted: return "TCP连接被中断"
-        case .serviceNotAvailable: return "Tweak服务不可用，请确保Tweak已安装并激活"
+        case .serviceNotAvailable: return "Tweak服务不可用"
         case .operationTimeout: return "操作超时"
         case .invalidResponse: return "无效的响应"
         case .encodingError: return "数据编码错误"
@@ -30,141 +29,102 @@ enum TweakTCPError: Error, LocalizedError {
     }
 }
 
+// MARK: - 连接状态
+
+enum ConnectionState: String {
+    case disconnected = "未连接"
+    case connecting = "连接中"
+    case connected = "已连接"
+    case failed = "连接失败"
+}
+
 // MARK: - TCP客户端
 
-class TweakTCPClient {
-    
-    // MARK: - 单例
+class TweakTCPClient: NSObject {
     
     static let shared = TweakTCPClient()
     
-    // MARK: - 属性
-    
-    private var inputStream: InputStream?
-    private var outputStream: OutputStream?
-    private let queue = DispatchQueue(label: "com.starcore.tweak.tcp", qos: .userInitiated)
-    private var pendingRequests: [Int: (Result<[String: Any], Error>) -> Void] = [:]
-    private var nextId: Int = 0
-    private var readBuffer = Data()
-    private let host = "127.0.0.1"
-    private let port: UInt32 = 6000
-    
-    /// 连接状态
-    enum ConnectionState: String {
-        case disconnected = "未连接"
-        case connecting = "连接中"
-        case connected = "已连接"
-        case failed = "连接失败"
-    }
-    
-    var connectionState: ConnectionState = .disconnected {
+    private var connectionState: ConnectionState = .disconnected {
         didSet {
             NotificationCenter.default.post(name: .tweakConnectionStateChanged, object: connectionState)
         }
     }
     
-    // MARK: - 初始化
+    private let host = "127.0.0.1"
+    private let port: UInt16 = 6000
+    private let timeout: TimeInterval = 5.0
+    private let queue = DispatchQueue(label: "com.starcore.tweak.tcp", qos: .userInitiated)
     
-    private init() {
+    private override init() {
+        super.init()
         NotificationCenter.default.addObserver(
             self,
-            selector: #selector(handleAppDidBecomeActive),
+            selector: #selector(appDidBecomeActive),
             name: UIApplication.didBecomeActiveNotification,
             object: nil
         )
     }
     
-    deinit {
-        disconnect()
-        NotificationCenter.default.removeObserver(self)
-    }
-    
-    @objc private func handleAppDidBecomeActive() {
+    @objc private func appDidBecomeActive() {
         if connectionState == .disconnected {
-            connect()
+            checkConnection()
         }
     }
     
-    // MARK: - 连接管理
+    // MARK: - 连接
     
-    func connect() {
+    func checkConnection() {
         queue.async { [weak self] in
-            self?.performConnect()
+            self?.performCheck()
         }
     }
     
-    private func performConnect() {
-        guard connectionState != .connected && connectionState != .connecting else { return }
-        
-        DispatchQueue.main.async {
-            self.connectionState = .connecting
-        }
-        
-        disconnectInternal()
-        
-        var readStream: Unmanaged<CFReadStream>?
-        var writeStream: Unmanaged<CFWriteStream>?
-        
-        CFStreamCreatePairWithSocketToHost(nil, self.host as CFString, self.port, &readStream, &writeStream)
-        
-        guard let input = readStream?.takeRetainedValue(),
-              let output = writeStream?.takeRetainedValue() else {
+    private func performCheck() {
+        let sock = self.createSocket()
+        if sock >= 0 {
+            close(sock)
+            DispatchQueue.main.async {
+                self.connectionState = .connected
+            }
+        } else {
             DispatchQueue.main.async {
                 self.connectionState = .failed
             }
-            return
-        }
-        
-        self.inputStream = input
-        self.outputStream = output
-        
-        input.delegate = self
-        output.delegate = self
-        
-        input.schedule(in: .current, forMode: .default)
-        output.schedule(in: .current, forMode: .default)
-        
-        input.open()
-        output.open()
-        
-        // 启动RunLoop在后台线程
-        CFRunLoopRun()
-    }
-    
-    func disconnect() {
-        queue.async { [weak self] in
-            self?.disconnectInternal()
-            DispatchQueue.main.async {
-                self?.connectionState = .disconnected
-            }
         }
     }
     
-    private func disconnectInternal() {
-        inputStream?.close()
-        outputStream?.close()
-        inputStream = nil
-        outputStream = nil
-        readBuffer = Data()
+    private func createSocket() -> Int32 {
+        let sock = socket(AF_INET, SOCK_STREAM, 0)
+        if sock < 0 { return -1 }
         
-        // 清理所有pending请求
-        for (_, callback) in pendingRequests {
-            callback(.failure(TweakTCPError.connectionInterrupted))
+        // 设置超时
+        var tv = timeval(tv_sec: Int(timeout), tv_usec: 0)
+        setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
+        setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
+        
+        var addr = sockaddr_in()
+        addr.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+        addr.sin_family = sa_family_t(AF_INET)
+        addr.sin_port = in_port_t(port).bigEndian
+        
+        if inet_pton(AF_INET, host, &addr.sin_addr) <= 0 {
+            close(sock)
+            return -1
         }
-        pendingRequests.removeAll()
+        
+        if connect(sock, UnsafePointer(UnsafeRawPointer(&addr).assumingMemoryBound(to: sockaddr.self)), socklen_t(MemoryLayout<sockaddr_in>.size)) < 0 {
+            close(sock)
+            return -1
+        }
+        
+        return sock
     }
     
     // MARK: - 发送请求
     
-    private func sendRequest(_ request: [String: Any]) async throws -> [String: Any] {
-        guard connectionState == .connected else {
-            throw TweakTCPError.serviceNotAvailable
-        }
-        
-        let id = nextId
-        nextId += 1
-        
+    private func sendRequest(_ request: [String: Any]) throws -> [String: Any] {
         var mutableRequest = request
+        let id = Int(Date().timeIntervalSince1970 * 1000)
         mutableRequest["id"] = id
         
         guard let jsonData = try? JSONSerialization.data(withJSONObject: mutableRequest),
@@ -173,136 +133,179 @@ class TweakTCPClient {
         }
         jsonStr += "\n"
         
-        guard let output = outputStream, output.hasSpaceAvailable else {
-            throw TweakTCPError.serviceNotAvailable
+        let sock = createSocket()
+        guard sock >= 0 else {
+            throw TweakTCPError.connectionFailed
+        }
+        defer { close(sock) }
+        
+        // 发送
+        let data = jsonStr.data(using: .utf8)!
+        var sent = 0
+        while sent < data.count {
+            let n = data.withUnsafeBytes { ptr in
+                send(sock, ptr.baseAddress!.advanced(by: sent), data.count - sent, 0)
+            }
+            if n <= 0 { throw TweakTCPError.connectionFailed }
+            sent += Int(n)
         }
         
-        jsonStr.withCString { ptr in
-            output.write(ptr, maxLength: strlen(ptr))
+        // 接收（直到收到\n）
+        var recvBuffer = Data()
+        var buf = [UInt8](repeating: 0, count: 4096)
+        var foundNewline = false
+        
+        while !foundNewline {
+            let n = recv(sock, &buf, buf.count, 0)
+            if n <= 0 { throw TweakTCPError.operationTimeout }
+            recvBuffer.append(buf, count: Int(n))
+            
+            // 检查是否有\n
+            if let idx = recvBuffer.firstIndex(of: 0x0A) {
+                recvBuffer = recvBuffer[0..<idx]
+                foundNewline = true
+            }
         }
         
-        return try await withCheckedThrowingContinuation { continuation in
-            pendingRequests[id] = { result in
-                switch result {
-                case .success(let response):
-                    continuation.resume(returning: response)
-                case .failure(let error):
+        // 解析JSON
+        guard let responseStr = String(data: recvBuffer, encoding: .utf8),
+              let responseData = responseStr.data(using: .utf8),
+              let response = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any] else {
+            throw TweakTCPError.invalidResponse
+        }
+        
+        DispatchQueue.main.async {
+            self.connectionState = .connected
+        }
+        
+        return response
+    }
+    
+    // MARK: - 异步API
+    
+    func ping() async throws -> Bool {
+        let response = try await withCheckedThrowingContinuation { continuation in
+            queue.async {
+                do {
+                    let result = try self.sendRequest(["action": "ping"])
+                    continuation.resume(returning: result["success"] as? Bool ?? false)
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
+        return response
+    }
+    
+    func tap(x: Int, y: Int) async throws -> Bool {
+        try await withCheckedThrowingContinuation { continuation in
+            queue.async {
+                do {
+                    let result = try self.sendRequest(["action": "tap", "x": x, "y": y])
+                    continuation.resume(returning: result["success"] as? Bool ?? false)
+                } catch {
                     continuation.resume(throwing: error)
                 }
             }
         }
     }
     
-    // MARK: - 公开API
-    
-    func ping() async throws -> Bool {
-        let response = try await sendRequest(["action": "ping"])
-        return response["success"] as? Bool ?? false
-    }
-    
-    func tap(x: Int, y: Int) async throws -> Bool {
-        let response = try await sendRequest(["action": "tap", "x": x, "y": y])
-        return response["success"] as? Bool ?? false
-    }
-    
     func swipe(fromX: Int, fromY: Int, toX: Int, toY: Int, duration: Double = 0.5) async throws -> Bool {
-        let response = try await sendRequest([
-            "action": "swipe",
-            "fromX": fromX, "fromY": fromY,
-            "toX": toX, "toY": toY,
-            "duration": duration
-        ])
-        return response["success"] as? Bool ?? false
+        try await withCheckedThrowingContinuation { continuation in
+            queue.async {
+                do {
+                    let result = try self.sendRequest([
+                        "action": "swipe",
+                        "fromX": fromX, "fromY": fromY,
+                        "toX": toX, "toY": toY,
+                        "duration": duration
+                    ])
+                    continuation.resume(returning: result["success"] as? Bool ?? false)
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
     }
     
     func longPress(x: Int, y: Int, duration: Double = 1.0) async throws -> Bool {
-        let response = try await sendRequest(["action": "longPress", "x": x, "y": y, "duration": duration])
-        return response["success"] as? Bool ?? false
+        try await withCheckedThrowingContinuation { continuation in
+            queue.async {
+                do {
+                    let result = try self.sendRequest(["action": "longPress", "x": x, "y": y, "duration": duration])
+                    continuation.resume(returning: result["success"] as? Bool ?? false)
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
     }
     
     func pressHome() async throws -> Bool {
-        let response = try await sendRequest(["action": "pressHome"])
-        return response["success"] as? Bool ?? false
+        try await withCheckedThrowingContinuation { continuation in
+            queue.async {
+                do {
+                    let result = try self.sendRequest(["action": "pressHome"])
+                    continuation.resume(returning: result["success"] as? Bool ?? false)
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
     }
     
     func openApp(bundleId: String) async throws -> Bool {
-        let response = try await sendRequest(["action": "openApp", "bundleId": bundleId])
-        return response["success"] as? Bool ?? false
+        try await withCheckedThrowingContinuation { continuation in
+            queue.async {
+                do {
+                    let result = try self.sendRequest(["action": "openApp", "bundleId": bundleId])
+                    continuation.resume(returning: result["success"] as? Bool ?? false)
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
     }
     
     func getScreenSize() async throws -> (width: Int, height: Int, scale: CGFloat) {
-        let response = try await sendRequest(["action": "getScreenSize"])
-        guard let width = response["width"] as? Int,
-              let height = response["height"] as? Int else {
-            throw TweakTCPError.invalidResponse
+        try await withCheckedThrowingContinuation { continuation in
+            queue.async {
+                do {
+                    let result = try self.sendRequest(["action": "getScreenSize"])
+                    guard let width = result["width"] as? Int,
+                          let height = result["height"] as? Int else {
+                        continuation.resume(throwing: TweakTCPError.invalidResponse)
+                        return
+                    }
+                    let scale = result["scale"] as? CGFloat ?? 3.0
+                    continuation.resume(returning: (width, height, scale))
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
         }
-        let scale = response["scale"] as? CGFloat ?? 3.0
-        return (width, height, scale)
     }
     
     func getCurrentApp() async throws -> String {
-        let response = try await sendRequest(["action": "getCurrentApp"])
-        return response["bundleId"] as? String ?? "unknown"
-    }
-}
-
-// MARK: - NSStreamDelegate
-
-extension TweakTCPClient: StreamDelegate {
-    func stream(_ aStream: Stream, handle eventCode: Stream.Event) {
-        switch eventCode {
-        case .openCompleted:
-            if aStream == outputStream {
-                DispatchQueue.main.async {
-                    self.connectionState = .connected
+        try await withCheckedThrowingContinuation { continuation in
+            queue.async {
+                do {
+                    let result = try self.sendRequest(["action": "getCurrentApp"])
+                    continuation.resume(returning: result["bundleId"] as? String ?? "unknown")
+                } catch {
+                    continuation.resume(throwing: error)
                 }
-                print("[TweakTCPClient] 连接成功")
             }
-            
-        case .hasBytesAvailable:
-            guard let input = aStream as? InputStream else { return }
-            var buffer = [UInt8](repeating: 0, count: 4096)
-            let len = input.read(&buffer, maxLength: buffer.count)
-            if len > 0 {
-                readBuffer.append(buffer, count: len)
-                processBuffer()
-            }
-            
-        case .errorOccurred:
-            print("[TweakTCPClient] 流错误: \(aStream.streamError?.localizedDescription ?? "unknown")")
-            DispatchQueue.main.async {
-                self.connectionState = .failed
-            }
-            disconnectInternal()
-            
-        case .endEncountered:
-            print("[TweakTCPClient] 连接断开")
-            DispatchQueue.main.async {
-                self.connectionState = .disconnected
-            }
-            disconnectInternal()
-            
-        default:
-            break
         }
     }
     
-    private func processBuffer() {
-        while let nlRange = readBuffer.range(of: Data([0x0A])) { // 0x0A = \n
-            let lineData = readBuffer.subdata(in: 0..<nlRange.lowerBound)
-            readBuffer = readBuffer.subdata(in: nlRange.upperBound..<readBuffer.count)
-            
-            guard let jsonStr = String(data: lineData, encoding: .utf8),
-                  let jsonData = jsonStr.data(using: .utf8),
-                  let response = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
-                  let id = response["id"] as? Int else {
-                continue
-            }
-            
-            if let callback = pendingRequests.removeValue(forKey: id) {
-                callback(.success(response))
-            }
-        }
+    func takeScreenshot() async throws -> Data? {
+        // TODO: 实现截图
+        return nil
+    }
+    
+    func getConnectionState() -> ConnectionState {
+        return connectionState
     }
 }
 
