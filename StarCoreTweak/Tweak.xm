@@ -182,10 +182,28 @@ static void postIOHIDEvent(IOHIDEventRef event) {
 // ==================== 触摸模拟核心 ====================
 
 static void simulateTouch(int type, float x, float y, int fingerIndex) {
-    if (!initTouchInjection()) {
+    bool inited = initTouchInjection();
+    NSLog(@"[StarCoreTweak] simulateTouch type=%d x=%.2f y=%.2f finger=%d init=%d", type, x, y, fingerIndex, inited);
+    if (!inited) {
         NSLog(@"[StarCoreTweak] 触摸注入未初始化，无法模拟触摸");
         return;
     }
+    
+    // v2.1: 仅打印函数指针地址，不实际调用（诊断模式）
+    NSLog(@"[StarCoreTweak] DIAG: CreateDigitizerEvent=%p CreateFingerEvent=%p SetInt=%p SetFloat=%p SetSender=%p Append=%p ClientCreate=%p Dispatch=%p BKSSet=%p",
+        IOHIDEventCreateDigitizerEventFunc,
+        IOHIDEventCreateDigitizerFingerEventFunc,
+        IOHIDEventSetIntegerValueFunc,
+        IOHIDEventSetFloatValueFunc,
+        IOHIDEventSetSenderIDFunc,
+        IOHIDEventAppendEventFunc,
+        IOHIDEventSystemClientCreateFunc,
+        IOHIDEventSystemClientDispatchEventFunc,
+        BKSHIDEventSetDigitizerInfoFunc);
+    NSLog(@"[StarCoreTweak] DIAG: eventSystemClient=%p", eventSystemClient);
+    NSLog(@"[StarCoreTweak] 触摸事件已接收但未注入（诊断模式）");
+    return;
+    
     @try {
     
     uint64_t timestamp = mach_absolute_time();
