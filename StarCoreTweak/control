@@ -1,8 +1,8 @@
 Package: com.starcore.tweak
 Name: StarCoreTweak
-Version: 1.0.0
+Version: 3.0.0
 Architecture: iphoneos-arm
-Description: StarCore触摸注入Tweak
+Description: StarCore触摸注入Tweak v3.0 (backboardd注入)
 Maintainer: StarCore <starcore@example.com>
 Author: StarCore
 Section: Tweaks
