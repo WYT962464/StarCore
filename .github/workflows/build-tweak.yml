@@ -19,6 +19,8 @@ jobs:
       
       - name: Setup Theos
         uses: beer-psi/theos-action@v1
+        with:
+          cache: false
       
       - name: Build Tweak (rootless)
         working-directory: ./StarCoreTweak
