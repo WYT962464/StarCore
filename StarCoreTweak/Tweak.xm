@@ -1,8 +1,12 @@
 /**
- * StarCoreTweak.xm v4.1 - Force dlopen + validate runtime environment
+ * StarCoreTweak.xm v4.2 - Add BKSHIDEventSetDigitizerInfo + contextID
  * 
- * v4.0问题：dlsym(RTLD_DEFAULT)全部返回NULL
- * 修复：显式dlopen + handle-based symbol lookup + validate诊断命令
+ * v4.1发现：
+ * - pressHome有效 → IOHIDEventSystemClientDispatchEvent能工作
+ * - tap无效 → 触摸事件缺少contextID路由信息
+ * 
+ * 修复：调用BKSHIDEventSetDigitizerInfo设置目标窗口contextID
+ * 参考：SpringBoard注入触摸的标准做法（GitHub社区代码验证）
  */
 
 #import <UIKit/UIKit.h>
@@ -42,9 +46,13 @@ typedef struct __IOHIDEventSystemClient *IOHIDEventSystemClientRef;
 - (void)injectHIDEvent:(IOHIDEventRef)arg1;
 @end
 
-@interface BKUserEventTimer : NSObject
-+ (id)sharedInstance;
-- (void)userEventOccurredOnDisplay:(id)arg1;
+// UIWindow私有方法
+@interface UIWindow (StarCorePrivate)
+@property (nonatomic, readonly) uint32_t _contextId;
+@end
+
+@interface UIApplication (StarCorePrivate)
+- (void)_enqueueHIDEvent:(IOHIDEventRef)arg1;
 @end
 
 // ==================== 函数指针 ====================
@@ -58,54 +66,38 @@ static void (*IOHIDEventAppendEventFunc)(IOHIDEventRef, IOHIDEventRef) = NULL;
 static IOHIDEventSystemClientRef (*IOHIDEventSystemClientCreateFunc)(CFAllocatorRef) = NULL;
 static void (*IOHIDEventSystemClientDispatchEventFunc)(IOHIDEventSystemClientRef, IOHIDEventRef) = NULL;
 
-static void *g_iokitHandle = NULL;
-static void *g_bbsHandle = NULL; // BackBoardServices
+// ★ 新增：BKSHIDEventSetDigitizerInfo（SpringBoard触摸路由必需）
+// 签名：void BKSHIDEventSetDigitizerInfo(IOHIDEventRef event, uint32_t contextID, uint8_t defaultDigitizer, uint8_t systemGestureisPossible, CFStringRef context, CFTimeInterval timestamp, float initialPressure)
+static void (*BKSHIDEventSetDigitizerInfoFunc)(IOHIDEventRef, uint32_t, uint8_t, uint8_t, CFStringRef, CFTimeInterval, float) = NULL;
 
-// ==================== 强制加载框架 ====================
+static void *g_iokitHandle = NULL;
+static void *g_bbsHandle = NULL;
+
+// ==================== 框架加载 ====================
 
 static bool forceLoadFrameworks() {
-    NSLog(@"[StarCoreTweak] === 强制加载框架 ===");
-    
-    // IOKit路径列表
     const char *iokitPaths[] = {
         "/System/Library/Frameworks/IOKit.framework/IOKit",
         "/System/Library/Frameworks/IOKit.framework/IOKit.dylib",
-        "/usr/lib/libIOKit.dylib",
         NULL
     };
-    
     for (int i = 0; iokitPaths[i]; i++) {
-        dlerror(); // 清除
+        dlerror();
         void *h = dlopen(iokitPaths[i], RTLD_NOW | RTLD_GLOBAL);
-        const char *err = dlerror();
-        if (h) {
-            g_iokitHandle = h;
-            NSLog(@"[StarCoreTweak] ✅ IOKit dlopen: %s → %p", iokitPaths[i], h);
-            break;
-        }
-        NSLog(@"[StarCoreTweak] ❌ IOKit dlopen: %s → %s", iokitPaths[i], err ?: "?");
+        if (h) { g_iokitHandle = h; NSLog(@"[StarCoreTweak] ✅ IOKit: %s", iokitPaths[i]); break; }
     }
     
-    // BackBoardServices路径
     const char *bbsPaths[] = {
         "/System/Library/PrivateFrameworks/BackBoardServices.framework/BackBoardServices",
-        "/System/Library/PrivateFrameworks/BackBoardServices.framework/BackBoardServices.dylib",
         NULL
     };
-    
     for (int i = 0; bbsPaths[i]; i++) {
         dlerror();
         void *h = dlopen(bbsPaths[i], RTLD_NOW | RTLD_GLOBAL);
-        const char *err = dlerror();
-        if (h) {
-            g_bbsHandle = h;
-            NSLog(@"[StarCoreTweak] ✅ BBS dlopen: %s → %p", bbsPaths[i], h);
-            break;
-        }
-        NSLog(@"[StarCoreTweak] ❌ BBS dlopen: %s → %s", bbsPaths[i], err ?: "?");
+        if (h) { g_bbsHandle = h; NSLog(@"[StarCoreTweak] ✅ BBS: %s", bbsPaths[i]); break; }
     }
     
-    return (g_iokitHandle != NULL || g_bbsHandle != NULL);
+    return (g_iokitHandle != NULL);
 }
 
 // ==================== 函数加载 ====================
@@ -116,10 +108,8 @@ static bool loadFunctions() {
     if (loaded) return success;
     loaded = true;
     
-    // 先强制加载框架
     forceLoadFrameworks();
     
-    // 依次从各handle尝试查找符号
     void *handles[] = { g_iokitHandle, g_bbsHandle, RTLD_DEFAULT, NULL };
     
     #define LOAD_SYM(var, name) do { \
@@ -127,7 +117,7 @@ static bool loadFunctions() {
         for (int _i = 0; handles[_i] && !var; _i++) { \
             var = (typeof(var))dlsym(handles[_i], name); \
         } \
-        NSLog(@"[StarCoreTweak] %s = %@", name, var ? [NSString stringWithFormat:@"%p", var] : @"NULL"); \
+        NSLog(@"[StarCoreTweak] %s = %@", name, var ? @"OK" : @"NULL"); \
     } while(0)
     
     LOAD_SYM(IOHIDEventCreateDigitizerEventFunc, "IOHIDEventCreateDigitizerEvent");
@@ -139,20 +129,46 @@ static bool loadFunctions() {
     LOAD_SYM(IOHIDEventAppendEventFunc, "IOHIDEventAppendEvent");
     LOAD_SYM(IOHIDEventSystemClientCreateFunc, "IOHIDEventSystemClientCreate");
     LOAD_SYM(IOHIDEventSystemClientDispatchEventFunc, "IOHIDEventSystemClientDispatchEvent");
+    LOAD_SYM(BKSHIDEventSetDigitizerInfoFunc, "BKSHIDEventSetDigitizerInfo");
     
     #undef LOAD_SYM
     
-    Class bksClass = objc_getClass("BKHIDSystemInterface");
-    NSLog(@"[StarCoreTweak] BKHIDSystemInterface = %@", bksClass ? @"OK" : @"NULL");
-    
-    if (!IOHIDEventCreateDigitizerEventFunc) {
-        NSLog(@"[StarCoreTweak] ❌ 核心函数仍未找到");
-        return false;
-    }
+    if (!IOHIDEventCreateDigitizerEventFunc) { NSLog(@"[StarCoreTweak] ❌ 核心函数缺失"); return false; }
     
     success = true;
-    NSLog(@"[StarCoreTweak] ✅ 函数加载成功 v4.1");
+    NSLog(@"[StarCoreTweak] ✅ v4.2 函数加载成功 (BKSHIDEventSetDigitizerInfo=%@)", BKSHIDEventSetDigitizerInfoFunc ? @"OK" : @"NULL");
     return true;
+}
+
+// ==================== 获取contextID ====================
+
+static uint32_t getKeyWindowContextID() {
+    UIApplication *app = [UIApplication sharedApplication];
+    if (!app) return 0;
+    
+    for (UIWindow *window in app.windows) {
+        if (window.isKeyWindow) {
+            uint32_t ctxId = 0;
+            @try { ctxId = window._contextId; } @catch (NSException *e) {}
+            if (ctxId) {
+                NSLog(@"[StarCoreTweak] contextID=%u from keyWindow", ctxId);
+                return ctxId;
+            }
+        }
+    }
+    
+    // 备选：取第一个window
+    for (UIWindow *window in app.windows) {
+        uint32_t ctxId = 0;
+        @try { ctxId = window._contextId; } @catch (NSException *e) {}
+        if (ctxId) {
+            NSLog(@"[StarCoreTweak] contextID=%u from firstWindow", ctxId);
+            return ctxId;
+        }
+    }
+    
+    NSLog(@"[StarCoreTweak] ⚠️ contextID=0 (no window found)");
+    return 0;
 }
 
 // ==================== 屏幕尺寸 ====================
@@ -172,16 +188,29 @@ static void dispatchHIDEvent(IOHIDEventRef event) {
         if (_dispatchClient) {
             IOHIDEventSystemClientDispatchEventFunc(_dispatchClient, event);
         }
-    } else {
-        BKHIDSystemInterface *iface = [objc_getClass("BKHIDSystemInterface") sharedInstance];
-        if (iface) { @try { [iface injectHIDEvent:event]; } @catch (NSException *e) {} }
     }
+    
+    // 备选：_enqueueHIDEvent
+    @try {
+        UIApplication *app = [UIApplication sharedApplication];
+        if (app && [app respondsToSelector:@selector(_enqueueHIDEvent:)]) {
+            [app _enqueueHIDEvent:event];
+        }
+    } @catch (NSException *e) {}
+    
     CFRelease(event);
 }
 
+// ==================== 重置空闲计时器 ====================
 static void resetIdleTimer() {
-    BKUserEventTimer *t = (BKUserEventTimer *)[objc_getClass("BKUserEventTimer") sharedInstance];
-    if ([t respondsToSelector:@selector(userEventOccurredOnDisplay:)]) [t userEventOccurredOnDisplay:nil];
+    // BKUserEventTimer可能不可用，用performSelector兜底
+    Class timerClass = objc_getClass("BKUserEventTimer");
+    if (timerClass) {
+        id timer = [timerClass sharedInstance];
+        if ([timer respondsToSelector:@selector(userEventOccurredOnDisplay:)]) {
+            [timer userEventOccurredOnDisplay:nil];
+        }
+    }
 }
 
 // ==================== 触摸模拟 ====================
@@ -195,19 +224,33 @@ static void simulateTouch(int type, float x, float y, int fingerId) {
     int touch_ = (type == TOUCH_UP) ? 0 : 1;
     uint64_t ts = mach_absolute_time();
     
+    NSLog(@"[StarCoreTweak] touch type=%d rX=%.4f rY=%.4f sf=%.1f", type, rX, rY, sf);
+    
+    // Hand事件
     IOHIDEventRef hand = IOHIDEventCreateDigitizerEventFunc(kCFAllocatorDefault, ts, kIOHIDTransducerTypeHand, 0, 1, 0, 0, 0, 0, 0, 0, 0, false, false, 0);
-    if (!hand) return;
+    if (!hand) { NSLog(@"[StarCoreTweak] ❌ hand=NULL"); return; }
     
     IOHIDEventSetIntegerValueWithOptionsFunc(hand, kIOHIDEventFieldDigitizerDisplayIntegrated, 1, (unsigned int)-268435456);
     IOHIDEventSetIntegerValueWithOptionsFunc(hand, kIOHIDEventFieldBuiltIn, 1, (unsigned int)-268435456);
     IOHIDEventSetSenderIDFunc(hand, kIOHIDEventDigitizerSenderID);
     
+    // ★ 设置contextID（SpringBoard路由必需）
+    uint32_t contextID = getKeyWindowContextID();
+    if (BKSHIDEventSetDigitizerInfoFunc && contextID) {
+        BKSHIDEventSetDigitizerInfoFunc(hand, contextID, false, false, NULL, 0, 0);
+        NSLog(@"[StarCoreTweak] ✅ BKSHIDEventSetDigitizerInfo contextID=%u", contextID);
+    } else if (contextID == 0) {
+        NSLog(@"[StarCoreTweak] ⚠️ contextID=0, touch may not route");
+    }
+    
+    // Finger事件
     IOHIDEventRef finger = IOHIDEventCreateDigitizerFingerEventWithQualityFunc(kCFAllocatorDefault, ts, fingerId, fingerId+2, eventM, rX, rY, 0, 0, 0, 0, 0, 0, 0, 0, touch_, touch_, 0);
-    if (!finger) { CFRelease(hand); return; }
+    if (!finger) { NSLog(@"[StarCoreTweak] ❌ finger=NULL"); CFRelease(hand); return; }
     
     IOHIDEventAppendEventFunc(hand, finger);
     CFRelease(finger);
     
+    // Hand事件掩码
     int hem = 0;
     if (type == TOUCH_MOVE) hem |= kIOHIDDigitizerEventPosition;
     else hem |= (kIOHIDDigitizerEventRange | kIOHIDDigitizerEventTouch | kIOHIDDigitizerEventIdentity);
@@ -233,10 +276,10 @@ static void simulateHomeButton() {
     if (!loadFunctions()) return;
     uint64_t ts = mach_absolute_time();
     IOHIDEventRef d = IOHIDEventCreateKeyboardEventFunc(kCFAllocatorDefault, ts, kHIDPage_Consumer, kHIDUsage_Csmr_Menu, true, 0);
-    if (d) dispatchHIDEvent(d);
+    if (d) { if (IOHIDEventSetSenderIDFunc) IOHIDEventSetSenderIDFunc(d, kIOHIDEventDigitizerSenderID); dispatchHIDEvent(d); }
     usleep(50000); ts = mach_absolute_time();
     IOHIDEventRef u = IOHIDEventCreateKeyboardEventFunc(kCFAllocatorDefault, ts, kHIDPage_Consumer, kHIDUsage_Csmr_Menu, false, 0);
-    if (u) dispatchHIDEvent(u);
+    if (u) { if (IOHIDEventSetSenderIDFunc) IOHIDEventSetSenderIDFunc(u, kIOHIDEventDigitizerSenderID); dispatchHIDEvent(u); }
     resetIdleTimer();
 }
 
@@ -256,7 +299,7 @@ static StarCoreTCPServer *_server = nil;
     struct sockaddr_in a; memset(&a,0,sizeof(a)); a.sin_len=sizeof(a); a.sin_family=AF_INET; a.sin_port=htons(6000); a.sin_addr.s_addr=inet_addr("127.0.0.1");
     if (bind((int)_sock,(struct sockaddr*)&a,sizeof(a))<0||listen((int)_sock,5)<0) { close((int)_sock); _sock=-1; return; }
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT,0),^{[self acceptLoop];});
-    NSLog(@"[StarCoreTweak] TCP :6000 v4.1");
+    NSLog(@"[StarCoreTweak] TCP :6000 v4.2");
 }
 - (void)acceptLoop {
     while(_sock>=0) { struct sockaddr_in ca; socklen_t cl=sizeof(ca); int fd=accept((int)_sock,(struct sockaddr*)&ca,&cl); if(fd<0) continue;
@@ -293,71 +336,21 @@ static StarCoreTCPServer *_server = nil;
     }
     else if([action isEqualToString:@"getScreenSize"]) { CGRect b=[UIScreen mainScreen].bounds; resp[@"success"]=@YES; resp[@"width"]=@(b.size.width); resp[@"height"]=@(b.size.height); resp[@"scale"]=@([UIScreen mainScreen].scale); }
     else if([action isEqualToString:@"diagnose"]) {
-        NSMutableDictionary *diag=[@{@"version":@"4.1",
-            @"iokitHandle":g_iokitHandle?[NSString stringWithFormat:@"%p",g_iokitHandle]:@"NULL",
-            @"bbsHandle":g_bbsHandle?[NSString stringWithFormat:@"%p",g_bbsHandle]:@"NULL",
-            @"createDigitizerEvent":IOHIDEventCreateDigitizerEventFunc?@"OK":@"NULL",
-            @"fingerEventWithQuality":IOHIDEventCreateDigitizerFingerEventWithQualityFunc?@"OK":@"NULL",
-            @"createKeyboardEvent":IOHIDEventCreateKeyboardEventFunc?@"OK":@"NULL",
-            @"setIntegerValueWithOptions":IOHIDEventSetIntegerValueWithOptionsFunc?@"OK":@"NULL",
-            @"setSenderID":IOHIDEventSetSenderIDFunc?@"OK":@"NULL",
-            @"appendEvent":IOHIDEventAppendEventFunc?@"OK":@"NULL",
-            @"eventSystemClientCreate":IOHIDEventSystemClientCreateFunc?@"OK":@"NULL",
-            @"eventSystemClientDispatchEvent":IOHIDEventSystemClientDispatchEventFunc?@"OK":@"NULL",
-            @"BKHIDSystemInterface":objc_getClass("BKHIDSystemInterface")?@"OK":@"NULL",
-            @"BKUserEventTimer":objc_getClass("BKUserEventTimer")?@"OK":@"NULL",
-        } mutableCopy];
-        resp[@"success"]=@YES; resp[@"diagnostics"]=diag;
-    }
-    else if([action isEqualToString:@"validate"]) {
-        // 运行时环境验证
-        NSMutableDictionary *val=[NSMutableDictionary new];
-        
-        // 1. 扫描dyld镜像中IOKit/BackBoard相关的
-        uint32_t ic=_dyld_image_count();
-        NSMutableArray *matching=[NSMutableArray new];
-        for(uint32_t i=0;i<ic;i++) {
-            const char *n=_dyld_get_image_name(i);
-            if(n && (strstr(n,"IOKit")||strstr(n,"BackBoard")||strstr(n,"HID"))) {
-                [matching addObject:@{@"index":@(i),@"name":[NSString stringWithUTF8String:n],@"addr":[NSString stringWithFormat:@"%p",_dyld_get_image_header(i)]}];
-            }
-        }
-        val[@"matchingImages"]=matching;
-        val[@"totalImages"]=@(ic);
-        
-        // 2. 测试dlopen + dlerror
-        const char *paths[] = {
-            "/System/Library/Frameworks/IOKit.framework/IOKit",
-            "/System/Library/PrivateFrameworks/BackBoardServices.framework/BackBoardServices",
-            NULL
+        resp[@"success"]=@YES; resp[@"diagnostics"]=@{
+            @"version": @"4.2",
+            @"iokitHandle": g_iokitHandle?@"OK":@"NULL",
+            @"bbsHandle": g_bbsHandle?@"OK":@"NULL",
+            @"createDigitizerEvent": IOHIDEventCreateDigitizerEventFunc?@"OK":@"NULL",
+            @"fingerEventWithQuality": IOHIDEventCreateDigitizerFingerEventWithQualityFunc?@"OK":@"NULL",
+            @"createKeyboardEvent": IOHIDEventCreateKeyboardEventFunc?@"OK":@"NULL",
+            @"setIntegerValueWithOptions": IOHIDEventSetIntegerValueWithOptionsFunc?@"OK":@"NULL",
+            @"setSenderID": IOHIDEventSetSenderIDFunc?@"OK":@"NULL",
+            @"appendEvent": IOHIDEventAppendEventFunc?@"OK":@"NULL",
+            @"eventSystemClientCreate": IOHIDEventSystemClientCreateFunc?@"OK":@"NULL",
+            @"eventSystemClientDispatchEvent": IOHIDEventSystemClientDispatchEventFunc?@"OK":@"NULL",
+            @"BKSHIDEventSetDigitizerInfo": BKSHIDEventSetDigitizerInfoFunc?@"OK":@"NULL",
+            @"contextID": @([[[[UIApplication sharedApplication] keyWindow] _contextId] unsignedIntValue]),
         };
-        NSMutableArray *dlr=[NSMutableArray new];
-        for(int i=0;paths[i];i++) {
-            dlerror(); void *h=dlopen(paths[i],RTLD_NOW); const char *err=dlerror();
-            [dlr addObject:@{@"path":[NSString stringWithUTF8String:paths[i]],@"handle":h?[NSString stringWithFormat:@"%p",h]:@"NULL",@"error":err?[NSString stringWithUTF8String:err]:@"none"}];
-        }
-        val[@"dlopenResults"]=dlr;
-        
-        // 3. 测试RTLD_DEFAULT dlsym
-        void *s1=dlsym(RTLD_DEFAULT,"IOHIDEventCreateDigitizerEvent"); const char *e1=dlerror();
-        void *s2=dlsym(RTLD_DEFAULT,"IOHIDEventSetSenderID"); const char *e2=dlerror();
-        void *s3=dlsym(RTLD_DEFAULT,"IOHIDEventSystemClientCreate"); const char *e3=dlerror();
-        val[@"rtldDefault"]=@{
-            @"IOHIDEventCreateDigitizerEvent":s1?[NSString stringWithFormat:@"%p",s1]:@"NULL",
-            @"IOHIDEventSetSenderID":s2?[NSString stringWithFormat:@"%p",s2]:@"NULL",
-            @"IOHIDEventSystemClientCreate":s3?[NSString stringWithFormat:@"%p",s3]:@"NULL",
-        };
-        
-        // 4. 测试ObjC类
-        val[@"objcClasses"]=@{
-            @"BKHIDSystemInterface":objc_getClass("BKHIDSystemInterface")?@"OK":@"NULL",
-            @"BKUserEventTimer":objc_getClass("BKUserEventTimer")?@"OK":@"NULL",
-            @"CAWindowServer":objc_getClass("CAWindowServer")?@"OK":@"NULL",
-            @"LSApplicationWorkspace":objc_getClass("LSApplicationWorkspace")?@"OK":@"NULL",
-            @"UIScreen":objc_getClass("UIScreen")?@"OK":@"NULL",
-        };
-        
-        resp[@"success"]=@YES; resp[@"validate"]=val;
     }
     else { resp[@"success"]=@NO; resp[@"error"]=[NSString stringWithFormat:@"unknown: %@",action]; }
     return resp;
@@ -376,12 +369,12 @@ static StarCoreTCPServer *_server = nil;
 %hook SpringBoard
 - (void)applicationDidFinishLaunching:(id)application {
     %orig;
-    NSLog(@"[StarCoreTweak] SpringBoard启动 v4.1");
+    NSLog(@"[StarCoreTweak] SpringBoard启动 v4.2");
     loadFunctions();
     _server = [[StarCoreTCPServer alloc] init];
     [_server start];
 }
 %end
 
-%ctor { NSLog(@"[StarCoreTweak] v4.1 loading..."); }
+%ctor { NSLog(@"[StarCoreTweak] v4.2 loading... (BKSHIDEventSetDigitizerInfo)"); }
 %dtor { [_server stop]; }
