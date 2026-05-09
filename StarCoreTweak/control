@@ -1,8 +1,8 @@
 Package: com.starcore.tweak
 Name: StarCoreTweak
-Version: 5.2.0
+Version: 5.3.0
 Architecture: iphoneos-arm64
-Description: StarCore Tweak v5.2 - 安全修复版（禁用keyPress通过IOHIDEventSystemClient，创建虚拟键盘设备）
+Description: StarCore Tweak v5.3 - Shell命令 + HID Entitlements（新增shell命令执行，添加HID entitlements尝试修复虚拟设备创建）
 Maintainer: StarCore
 Author: StarCore
 Section: Tweaks

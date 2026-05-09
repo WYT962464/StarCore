@@ -1,14 +1,15 @@
 /**
- * StarCoreTweak.xm v5.2 - 安全修复版
+ * StarCoreTweak.xm v5.3 - Shell命令 + HID Entitlements
  * 
- * v5.1问题：keyPress命令通过IOHIDEventSystemClient分发Keyboard页面事件导致SpringBoard崩溃
+ * v5.2问题：IOHIDUserDeviceCreate返回NULL（缺entitlements），keyPress崩SpringBoard
  * 
- * v5.2 安全修复：
- * 1. 禁用keyPress通过IOHIDEventSystemClient - 会崩溃
- * 2. 创建虚拟键盘设备 - 通过IOHIDUserDevice发送键盘事件
- * 3. keyPress/textInput只在虚拟键盘设备就绪时工作
- * 4. pressHome保持不变 - Consumer页面事件安全
- * 5. initDevice返回更详细的状态信息
+ * v5.3 更新：
+ * 1. 新增shell命令 - 通过popen()执行shell命令并返回结果（64KB限制）
+ * 2. 添加HID entitlements - 尝试让IOHIDUserDeviceCreate成功
+ * 3. 改进initDevice - 失败时返回更详细错误信息（含entitlements检查提示）
+ * 4. 改进diagnose - 添加shellCommand状态
+ * 5. keyPress仍只在虚拟键盘设备就绪时工作
+ * 6. pressHome/openApp保持不变
  */
 
 #import <UIKit/UIKit.h>
@@ -19,6 +20,7 @@
 #import <netinet/in.h>
 #import <arpa/inet.h>
 #import <unistd.h>
+#import <stdio.h>
 #import <mach/mach_time.h>
 #import <mach-o/dyld.h>
 #import <CoreFoundation/CoreFoundation.h>
@@ -254,7 +256,7 @@ static bool loadFunctions() {
     if (!IOHIDEventCreateDigitizerEventFunc) { NSLog(@"[StarCoreTweak] ❌ 核心函数缺失"); return false; }
     
     success = true;
-    NSLog(@"[StarCoreTweak] ✅ v5.1 函数加载成功");
+    NSLog(@"[StarCoreTweak] ✅ v5.3 函数加载成功");
     return true;
 }
 
@@ -488,7 +490,7 @@ static bool initVirtualKeyboardDevice() {
     g_virtualKeyboardDevice = IOHIDUserDeviceCreateFunc(kCFAllocatorDefault, cfProps, 0);
     
     if (!g_virtualKeyboardDevice) {
-        NSLog(@"[StarCoreTweak] ❌ IOHIDUserDeviceCreate键盘设备失败");
+        NSLog(@"[StarCoreTweak] ❌ IOHIDUserDeviceCreate键盘设备失败 (可能缺少HID entitlements)");
         return false;
     }
     
@@ -593,8 +595,8 @@ static bool initVirtualTouchDevice() {
     g_virtualDevice = IOHIDUserDeviceCreateFunc(kCFAllocatorDefault, cfProps, 0);
     
     if (!g_virtualDevice) {
-        g_virtualDeviceError = @"IOHIDUserDeviceCreate返回NULL";
-        NSLog(@"[StarCoreTweak] ❌ IOHIDUserDeviceCreate触摸设备失败");
+        g_virtualDeviceError = @"IOHIDUserDeviceCreate返回NULL (可能缺少HID entitlements)";
+        NSLog(@"[StarCoreTweak] ❌ IOHIDUserDeviceCreate触摸设备失败 (可能缺少HID entitlements)");
         // 不返回false，让键盘设备继续工作
     } else {
         g_virtualDeviceReady = true;
@@ -864,7 +866,7 @@ static StarCoreTCPServer *_server = nil;
     struct sockaddr_in a; memset(&a,0,sizeof(a)); a.sin_len=sizeof(a); a.sin_family=AF_INET; a.sin_port=htons(6000); a.sin_addr.s_addr=inet_addr("127.0.0.1");
     if (bind((int)_sock,(struct sockaddr*)&a,sizeof(a))<0||listen((int)_sock,5)<0) { close((int)_sock); _sock=-1; return; }
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT,0),^{[self acceptLoop];});
-    NSLog(@"[StarCoreTweak] TCP :6000 v5.2 (IOHIDUserDevice + virtual keyboard)");
+    NSLog(@"[StarCoreTweak] TCP :6000 v5.3 (shell + HID entitlements)");
 }
 - (void)acceptLoop {
     while(_sock>=0) { struct sockaddr_in ca; socklen_t cl=sizeof(ca); int fd=accept((int)_sock,(struct sockaddr*)&ca,&cl); if(fd<0) continue;
@@ -975,19 +977,57 @@ static StarCoreTCPServer *_server = nil;
         }
     }
     
-    else if([action isEqualToString:@"openApp"]) {
+    // ★ v5.3: shell - 执行shell命令
+    else if([action isEqualToString:@"shell"]) {
+        NSString *cmd = req[@"command"];
+        if (!cmd || cmd.length == 0) {
+            resp[@"success"]=@NO;
+            resp[@"error"]=@"command required";
+        } else {
+            FILE *fp = popen([cmd UTF8String], "r");
+            if (fp) {
+                NSMutableData *output = [NSMutableData data];
+                char buf[4096];
+                while (fgets(buf, sizeof(buf), fp)) {
+                    [output appendBytes:buf length:strlen(buf)];
+                }
+                int status = pclose(fp);
+                // 限制输出长度到64KB
+                if (output.length > 65536) {
+                    [output replaceBytesInRange:NSMakeRange(65536, output.length - 65536) withBytes:"" length:0];
+                    NSString *result = [[NSString alloc] initWithData:output encoding:NSUTF8StringEncoding];
+                    result = [result stringByAppendingString:@"\n... [truncated]"];
+                    resp[@"success"]=@(status == 0);
+                    resp[@"output"]=result ?: @"";
+                    resp[@"exitCode"]=@(WEXITSTATUS(status));
+                } else {
+                    NSString *result = [[NSString alloc] initWithData:output encoding:NSUTF8StringEncoding];
+                    resp[@"success"]=@(status == 0);
+                    resp[@"output"]=result ?: @"";
+                    resp[@"exitCode"]=@(WEXITSTATUS(status));
+                }
+            } else {
+                resp[@"success"]=@NO;
+                resp[@"error"]=@"popen failed";
+            }
+        }
+    }
+        else if([action isEqualToString:@"openApp"]) {
         NSString *bid=req[@"bundleId"]; if(!bid){resp[@"success"]=@NO;resp[@"error"]=@"bundleId required";}
         else { Class wc=objc_getClass("LSApplicationWorkspace"); if(wc){id ws=[wc performSelector:@selector(defaultWorkspace)];BOOL ok=(BOOL)((BOOL(*)(id,SEL,NSString*))objc_msgSend)(ws,@selector(openApplicationWithBundleID:),bid);resp[@"success"]=@(ok);}else{resp[@"success"]=@NO;resp[@"error"]=@"no workspace";} }
     }
     else if([action isEqualToString:@"getScreenSize"]) { CGRect b=[UIScreen mainScreen].bounds; resp[@"success"]=@YES; resp[@"width"]=@(b.size.width); resp[@"height"]=@(b.size.height); resp[@"scale"]=@([UIScreen mainScreen].scale); }
     
-    // ★ v5.2: initDevice - 手动初始化虚拟设备（触摸+键盘）
+    // ★ v5.3: initDevice - 手动初始化虚拟设备（触摸+键盘）
     else if([action isEqualToString:@"initDevice"]) {
         bool ok = initVirtualTouchDevice();
         resp[@"success"]=@(ok);
         resp[@"virtualDevice"]=g_virtualDeviceReady ? @"OK" : @"FAILED";
         resp[@"virtualKeyboardDevice"]=g_virtualKeyboardReady ? @"OK" : @"FAILED";
         resp[@"error"]=g_virtualDeviceError ?: @"";
+        if (!g_virtualDeviceReady || !g_virtualKeyboardReady) {
+            resp[@"hint"]=@"IOHIDUserDeviceCreate返回NULL通常因为缺少HID entitlements，v5.3已添加entitlements plist，请重新安装deb";
+        }
     }
     
     else if([action isEqualToString:@"diagnose"]) {
@@ -996,7 +1036,7 @@ static StarCoreTCPServer *_server = nil;
         
         resp[@"success"]=@YES; 
         resp[@"diagnostics"]=@{
-            @"version": @"5.2",
+            @"version": @"5.3",
             @"iokitHandle": g_iokitHandle?@"OK":@"NULL",
             @"bbsHandle": g_bbsHandle?@"OK":@"NULL",
             @"createDigitizerEvent": IOHIDEventCreateDigitizerEventFunc?@"OK":@"NULL",
@@ -1009,6 +1049,8 @@ static StarCoreTCPServer *_server = nil;
             @"virtualDevice": g_virtualDeviceReady?@"OK":@"FAILED",
             @"virtualKeyboardDevice": g_virtualKeyboardReady?@"OK":@"FAILED",
             @"virtualDeviceError": g_virtualDeviceError ?: @"",
+            // ★ v5.3: shell命令状态
+            @"shellCommand": @"OK",
             @"frontmostApp": g_frontmostApp ?: @"unknown",
             @"frontmostContextID": @(frontmostCID),
             @"springBoardContextID": @(springCID),
@@ -1056,7 +1098,7 @@ static StarCoreTCPServer *_server = nil;
 %hook SpringBoard
 - (void)applicationDidFinishLaunching:(id)application {
     %orig;
-    NSLog(@"[StarCoreTweak] SpringBoard启动 v5.2 (安全修复版)");
+    NSLog(@"[StarCoreTweak] SpringBoard启动 v5.3 (shell + HID entitlements)");
     loadFunctions();
     _server = [[StarCoreTCPServer alloc] init];
     [_server start];
@@ -1068,9 +1110,9 @@ static StarCoreTCPServer *_server = nil;
 //        bool ok = initVirtualTouchDevice();
 //        NSLog(@"[StarCoreTweak] 虚拟触摸设备初始化: %@", ok ? @"成功" : @"失败");
 //    });
-    NSLog(@"[StarCoreTweak] v5.2 安全模式: 虚拟设备未自动创建，需手动调用initDevice");
+    NSLog(@"[StarCoreTweak] v5.3: 虚拟设备需手动调用initDevice, shell命令已就绪");
 }
 %end
 
-%ctor { NSLog(@"[StarCoreTweak] v5.2 loading... (安全修复版)"); }
+%ctor { NSLog(@"[StarCoreTweak] v5.3 loading... (shell + HID entitlements)"); }
 %dtor { [_server stop]; }
