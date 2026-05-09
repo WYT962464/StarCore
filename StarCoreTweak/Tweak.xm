@@ -20,6 +20,7 @@
 #import <unistd.h>
 #import <mach/mach_time.h>
 #import <mach-o/dyld.h>
+#import <IOKit/IOKitLib.h>
 
 // ==================== 私有类型 ====================
 typedef struct __IOHIDEvent *IOHIDEventRef;
@@ -140,6 +141,10 @@ static const uint8_t g_multitouch_descriptor[] = {
     0xC0               // End Collection
 };
 
+// ==================== 前向声明 ====================
+static void resetIdleTimer(void);
+static void dispatchHIDEvent(IOHIDEventRef event);
+
 // ==================== 框架加载 ====================
 
 static bool forceLoadFrameworks() {
@@ -209,6 +214,195 @@ static bool loadFunctions() {
     success = true;
     NSLog(@"[StarCoreTweak] ✅ v5.0 函数加载成功");
     return true;
+}
+
+// ==================== 旧方案辅助函数（放在前面定义） ====================
+
+static uint32_t getContextIDFromCAWindowServer() {
+    Class wsClass = objc_getClass("CAWindowServer");
+    if (!wsClass) {
+        wsClass = NSClassFromString(@"CAWindowServer");
+    }
+    
+    if (!wsClass) {
+        return 0;
+    }
+    
+    SEL serverSel = NSSelectorFromString(@"serverIfRunning");
+    if (![wsClass respondsToSelector:serverSel]) {
+        return 0;
+    }
+    
+    id ws = [wsClass performSelector:serverSel];
+    if (!ws) {
+        return 0;
+    }
+    
+    SEL contextsSel = NSSelectorFromString(@"contexts");
+    NSArray *contexts = nil;
+    
+    if ([ws respondsToSelector:contextsSel]) {
+        contexts = [ws performSelector:contextsSel];
+    }
+    
+    if (!contexts || contexts.count == 0) {
+        return 0;
+    }
+    
+    uint32_t bestCID = 0;
+    
+    for (id ctx in contexts) {
+        if (![ctx respondsToSelector:@selector(pid)]) continue;
+        pid_t pid = [[ctx performSelector:@selector(pid)] intValue];
+        
+        if (pid == getpid()) continue;
+        
+        if (pid == 0) {
+            if ([ctx respondsToSelector:@selector(contextID)]) {
+                uint32_t cid = [[ctx performSelector:@selector(contextID)] unsignedIntValue];
+                if (cid != 0) {
+                    bestCID = cid;
+                    break;
+                }
+            }
+        }
+    }
+    
+    return bestCID;
+}
+
+static uint32_t getKeyWindowContextID() {
+    @try {
+        id frontApp = nil;
+        Class uiApp = [UIApplication class];
+        if ([uiApp respondsToSelector:@selector(sharedApplication)]) {
+            frontApp = [uiApp performSelector:@selector(sharedApplication)];
+        }
+        
+        if (frontApp && [frontApp respondsToSelector:@selector(keyWindow)]) {
+            id keyWin = [frontApp performSelector:@selector(keyWindow)];
+            if (keyWin && [keyWin respondsToSelector:@selector(_contextId)]) {
+                uint32_t cid = [[keyWin performSelector:@selector(_contextId)] unsignedIntValue];
+                if (cid != 0) {
+                    g_contextSource = @"keyWindow";
+                    return cid;
+                }
+            }
+        }
+    } @catch (NSException *e) {}
+    
+    return 0;
+}
+
+static uint32_t getTargetContextID() {
+    uint32_t cid = getKeyWindowContextID();
+    if (cid != 0) {
+        @try {
+            Class uiApp = [UIApplication class];
+            if ([uiApp respondsToSelector:@selector(sharedApplication)]) {
+                id app = [uiApp performSelector:@selector(sharedApplication)];
+                if (app && [app respondsToSelector:@selector(frontmostApplication)]) {
+                    id frontApp = [app performSelector:@selector(frontmostApplication)];
+                    if (frontApp && [frontApp respondsToSelector:@selector(bundleIdentifier)]) {
+                        g_frontmostApp = [frontApp performSelector:@selector(bundleIdentifier)];
+                    }
+                }
+            }
+        } @catch (NSException *e) {}
+        return cid;
+    }
+    
+    cid = getContextIDFromCAWindowServer();
+    if (cid != 0) {
+        g_contextSource = @"CAWindowServer";
+        return cid;
+    }
+    
+    g_contextSource = @"fallback";
+    g_springBoardContextID = 2939785827;
+    return g_springBoardContextID;
+}
+
+static void resetIdleTimer() {
+    @try {
+        Class uiApp = [UIApplication class];
+        if ([uiApp respondsToSelector:@selector(sharedApplication)]) {
+            id app = [uiApp performSelector:@selector(sharedApplication)];
+            if (app && [app respondsToSelector:@selector(setIdleTimerDisabled:)]) {
+                ((void(*)(id, SEL, BOOL))objc_msgSend)(app, @selector(setIdleTimerDisabled:), YES);
+                ((void(*)(id, SEL, BOOL))objc_msgSend)(app, @selector(setIdleTimerDisabled:), NO);
+            }
+        }
+    } @catch (NSException *e) {}
+}
+
+static void dispatchHIDEvent(IOHIDEventRef event) {
+    if (!event) return;
+    
+    if (IOHIDEventSystemClientDispatchEventFunc) {
+        static IOHIDEventSystemClientRef client = NULL;
+        static dispatch_once_t onceToken;
+        dispatch_once(&onceToken, ^{
+            client = IOHIDEventSystemClientCreateFunc(kCFAllocatorDefault);
+        });
+        if (client) {
+            IOHIDEventSystemClientDispatchEventFunc(client, event);
+        }
+    }
+}
+
+static void simulateTouchEx(int type, float x, float y, int fingerId, uint32_t cid, bool setDigitizerInfo) {
+    if (!loadFunctions()) return;
+    
+    int touch_ = (type == TOUCH_DOWN) ? 1 : 0;
+    int range_ = (type == TOUCH_UP) ? 0 : 1;
+    uint32_t hem = (touch_ << 0) | (range_ << 1);
+    uint64_t ts = mach_absolute_time();
+    
+    IOHIDEventRef hand = IOHIDEventCreateDigitizerEventFunc(
+        kCFAllocatorDefault, ts, 0, 0, kIOHIDTransducerTypeHand,
+        fingerId, 0, 0, x, y, 0, 0, touch_ ? true : false,
+        touch_ ? true : false, kIOHIDDigitizerEventTouch);
+    
+    if (!hand) return;
+    
+    if (IOHIDEventSetSenderIDFunc) IOHIDEventSetSenderIDFunc(hand, kIOHIDEventDigitizerSenderID);
+    
+    if (setDigitizerInfo && BKSHIDEventSetDigitizerInfoFunc) {
+        BKSHIDEventSetDigitizerInfoFunc(hand, cid, 1, 1, NULL, 0, touch_ ? 0.2f : 0.0f);
+    }
+    
+    IOHIDEventSetIntegerValueWithOptionsFunc(hand, kIOHIDEventFieldDigitizerEventMask, hem, (unsigned int)-268435456);
+    IOHIDEventSetIntegerValueWithOptionsFunc(hand, kIOHIDEventFieldDigitizerRange, range_, (unsigned int)-268435456);
+    IOHIDEventSetIntegerValueWithOptionsFunc(hand, kIOHIDEventFieldDigitizerTouch, touch_, (unsigned int)-268435456);
+    
+    resetIdleTimer();
+    dispatchHIDEvent(hand);
+}
+
+static void simulateTouch(int type, float x, float y, int fingerId) {
+    uint32_t cid = getTargetContextID();
+    simulateTouchEx(type, x, y, fingerId, cid, cid != 0);
+}
+
+// 旧方案触摸函数（用于回退）
+static void simulateTap_old(float x, float y) { simulateTouch(TOUCH_DOWN, x, y, 1); usleep(50000); simulateTouch(TOUCH_UP, x, y, 1); }
+static void simulateSwipe_old(float fX, float fY, float tX, float tY, float dur) {
+    int steps = (int)(dur * 120); if (steps < 2) steps = 2;
+    simulateTouch(TOUCH_DOWN, fX, fY, 1);
+    for (int i = 1; i <= steps; i++) { float t = (float)i/steps; simulateTouch(TOUCH_MOVE, fX+(tX-fX)*t, fY+(tY-fY)*t, 1); usleep((useconds_t)(dur*1000000/steps)); }
+    simulateTouch(TOUCH_UP, tX, tY, 1);
+}
+static void simulateLongPress_old(float x, float y, float d) { simulateTouch(TOUCH_DOWN, x, y, 1); usleep((useconds_t)(d*1000000)); simulateTouch(TOUCH_UP, x, y, 1); }
+static void simulateHomeButton() {
+    if (!loadFunctions()) return;
+    uint64_t ts = mach_absolute_time();
+    IOHIDEventRef d = IOHIDEventCreateKeyboardEventFunc(kCFAllocatorDefault, ts, kHIDPage_Consumer, kHIDUsage_Csmr_Menu, true, 0);
+    if (d) { if (IOHIDEventSetSenderIDFunc) IOHIDEventSetSenderIDFunc(d, kIOHIDEventDigitizerSenderID); dispatchHIDEvent(d); }
+    usleep(50000); ts = mach_absolute_time();
+    IOHIDEventRef u = IOHIDEventCreateKeyboardEventFunc(kCFAllocatorDefault, ts, kHIDPage_Consumer, kHIDUsage_Csmr_Menu, false, 0);
+    if (u) { if (IOHIDEventSetSenderIDFunc) IOHIDEventSetSenderIDFunc(u, kIOHIDEventDigitizerSenderID); dispatchHIDEvent(u); }
+    resetIdleTimer();
 }
 
 // ==================== v5.0: IOHIDUserDevice虚拟触摸设备 ====================
@@ -508,195 +702,6 @@ static void handleTextInput(NSString *text) {
         handleKeyPress(charStr);
         usleep(30000);
     }
-}
-
-// ==================== 旧方案函数（保留作为回退） ====================
-
-static uint32_t getContextIDFromCAWindowServer() {
-    Class wsClass = objc_getClass("CAWindowServer");
-    if (!wsClass) {
-        wsClass = NSClassFromString(@"CAWindowServer");
-    }
-    
-    if (!wsClass) {
-        return 0;
-    }
-    
-    SEL serverSel = NSSelectorFromString(@"serverIfRunning");
-    if (![wsClass respondsToSelector:serverSel]) {
-        return 0;
-    }
-    
-    id ws = [wsClass performSelector:serverSel];
-    if (!ws) {
-        return 0;
-    }
-    
-    SEL contextsSel = NSSelectorFromString(@"contexts");
-    NSArray *contexts = nil;
-    
-    if ([ws respondsToSelector:contextsSel]) {
-        contexts = [ws performSelector:contextsSel];
-    }
-    
-    if (!contexts || contexts.count == 0) {
-        return 0;
-    }
-    
-    uint32_t bestCID = 0;
-    
-    for (id ctx in contexts) {
-        if (![ctx respondsToSelector:@selector(pid)]) continue;
-        pid_t pid = [[ctx performSelector:@selector(pid)] intValue];
-        
-        if (pid == getpid()) continue;
-        
-        if (pid == 0) {
-            if ([ctx respondsToSelector:@selector(contextID)]) {
-                uint32_t cid = [[ctx performSelector:@selector(contextID)] unsignedIntValue];
-                if (cid != 0) {
-                    bestCID = cid;
-                    break;
-                }
-            }
-        }
-    }
-    
-    return bestCID;
-}
-
-static uint32_t getKeyWindowContextID() {
-    @try {
-        id frontApp = nil;
-        Class uiApp = [UIApplication class];
-        if ([uiApp respondsToSelector:@selector(sharedApplication)]) {
-            frontApp = [uiApp performSelector:@selector(sharedApplication)];
-        }
-        
-        if (frontApp && [frontApp respondsToSelector:@selector(keyWindow)]) {
-            id keyWin = [frontApp performSelector:@selector(keyWindow)];
-            if (keyWin && [keyWin respondsToSelector:@selector(_contextId)]) {
-                uint32_t cid = [[keyWin performSelector:@selector(_contextId)] unsignedIntValue];
-                if (cid != 0) {
-                    g_contextSource = @"keyWindow";
-                    return cid;
-                }
-            }
-        }
-    } @catch (NSException *e) {}
-    
-    return 0;
-}
-
-static uint32_t getTargetContextID() {
-    uint32_t cid = getKeyWindowContextID();
-    if (cid != 0) {
-        @try {
-            Class uiApp = [UIApplication class];
-            if ([uiApp respondsToSelector:@selector(sharedApplication)]) {
-                id app = [uiApp performSelector:@selector(sharedApplication)];
-                if (app && [app respondsToSelector:@selector(frontmostApplication)]) {
-                    id frontApp = [app performSelector:@selector(frontmostApplication)];
-                    if (frontApp && [frontApp respondsToSelector:@selector(bundleIdentifier)]) {
-                        g_frontmostApp = [frontApp performSelector:@selector(bundleIdentifier)];
-                    }
-                }
-            }
-        } @catch (NSException *e) {}
-        return cid;
-    }
-    
-    cid = getContextIDFromCAWindowServer();
-    if (cid != 0) {
-        g_contextSource = @"CAWindowServer";
-        return cid;
-    }
-    
-    g_contextSource = @"fallback";
-    g_springBoardContextID = 2939785827;
-    return g_springBoardContextID;
-}
-
-static void resetIdleTimer() {
-    @try {
-        Class uiApp = [UIApplication class];
-        if ([uiApp respondsToSelector:@selector(sharedApplication)]) {
-            id app = [uiApp performSelector:@selector(sharedApplication)];
-            if (app && [app respondsToSelector:@selector(setIdleTimerDisabled:)]) {
-                ((void(*)(id, SEL, BOOL))objc_msgSend)(app, @selector(setIdleTimerDisabled:), YES);
-                ((void(*)(id, SEL, BOOL))objc_msgSend)(app, @selector(setIdleTimerDisabled:), NO);
-            }
-        }
-    } @catch (NSException *e) {}
-}
-
-static void dispatchHIDEvent(IOHIDEventRef event) {
-    if (!event) return;
-    
-    if (IOHIDEventSystemClientDispatchEventFunc) {
-        static IOHIDEventSystemClientRef client = NULL;
-        static dispatch_once_t onceToken;
-        dispatch_once(&onceToken, ^{
-            client = IOHIDEventSystemClientCreateFunc(kCFAllocatorDefault);
-        });
-        if (client) {
-            IOHIDEventSystemClientDispatchEventFunc(client, event);
-        }
-    }
-}
-
-static void simulateTouchEx(int type, float x, float y, int fingerId, uint32_t cid, bool setDigitizerInfo) {
-    if (!loadFunctions()) return;
-    
-    int touch_ = (type == TOUCH_DOWN) ? 1 : 0;
-    int range_ = (type == TOUCH_UP) ? 0 : 1;
-    uint32_t hem = (touch_ << 0) | (range_ << 1);
-    uint64_t ts = mach_absolute_time();
-    
-    IOHIDEventRef hand = IOHIDEventCreateDigitizerEventFunc(
-        kCFAllocatorDefault, ts, 0, 0, kIOHIDTransducerTypeHand,
-        fingerId, 0, 0, x, y, 0, 0, touch_ ? true : false,
-        touch_ ? true : false, kIOHIDDigitizerEventTouch);
-    
-    if (!hand) return;
-    
-    if (IOHIDEventSetSenderIDFunc) IOHIDEventSetSenderIDFunc(hand, kIOHIDEventDigitizerSenderID);
-    
-    if (setDigitizerInfo && BKSHIDEventSetDigitizerInfoFunc) {
-        BKSHIDEventSetDigitizerInfoFunc(hand, cid, 1, 1, NULL, 0, touch_ ? 0.2f : 0.0f);
-    }
-    
-    IOHIDEventSetIntegerValueWithOptionsFunc(hand, kIOHIDEventFieldDigitizerEventMask, hem, (unsigned int)-268435456);
-    IOHIDEventSetIntegerValueWithOptionsFunc(hand, kIOHIDEventFieldDigitizerRange, range_, (unsigned int)-268435456);
-    IOHIDEventSetIntegerValueWithOptionsFunc(hand, kIOHIDEventFieldDigitizerTouch, touch_, (unsigned int)-268435456);
-    
-    resetIdleTimer();
-    dispatchHIDEvent(hand);
-}
-
-static void simulateTouch(int type, float x, float y, int fingerId) {
-    uint32_t cid = getTargetContextID();
-    simulateTouchEx(type, x, y, fingerId, cid, cid != 0);
-}
-
-// 旧方案触摸函数（用于回退）
-static void simulateTap_old(float x, float y) { simulateTouch(TOUCH_DOWN, x, y, 1); usleep(50000); simulateTouch(TOUCH_UP, x, y, 1); }
-static void simulateSwipe_old(float fX, float fY, float tX, float tY, float dur) {
-    int steps = (int)(dur * 120); if (steps < 2) steps = 2;
-    simulateTouch(TOUCH_DOWN, fX, fY, 1);
-    for (int i = 1; i <= steps; i++) { float t = (float)i/steps; simulateTouch(TOUCH_MOVE, fX+(tX-fX)*t, fY+(tY-fY)*t, 1); usleep((useconds_t)(dur*1000000/steps)); }
-    simulateTouch(TOUCH_UP, tX, tY, 1);
-}
-static void simulateLongPress_old(float x, float y, float d) { simulateTouch(TOUCH_DOWN, x, y, 1); usleep((useconds_t)(d*1000000)); simulateTouch(TOUCH_UP, x, y, 1); }
-static void simulateHomeButton() {
-    if (!loadFunctions()) return;
-    uint64_t ts = mach_absolute_time();
-    IOHIDEventRef d = IOHIDEventCreateKeyboardEventFunc(kCFAllocatorDefault, ts, kHIDPage_Consumer, kHIDUsage_Csmr_Menu, true, 0);
-    if (d) { if (IOHIDEventSetSenderIDFunc) IOHIDEventSetSenderIDFunc(d, kIOHIDEventDigitizerSenderID); dispatchHIDEvent(d); }
-    usleep(50000); ts = mach_absolute_time();
-    IOHIDEventRef u = IOHIDEventCreateKeyboardEventFunc(kCFAllocatorDefault, ts, kHIDPage_Consumer, kHIDUsage_Csmr_Menu, false, 0);
-    if (u) { if (IOHIDEventSetSenderIDFunc) IOHIDEventSetSenderIDFunc(u, kIOHIDEventDigitizerSenderID); dispatchHIDEvent(u); }
-    resetIdleTimer();
 }
 
 // ==================== TCP服务器 ====================
