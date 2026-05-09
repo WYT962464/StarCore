@@ -1,19 +1,15 @@
 /**
- * StarCoreTweak.xm v3.0 - backboardd注入版
+ * StarCoreTweak.xm v3.1 - SpringBoard + BKHIDSystemInterface
  * 
- * 核心变更（v2.0 → v3.0）：
- * 1. 注入目标从SpringBoard改为backboardd（与SimulateTouch一致）
- * 2. 移除UIKit/SpringBoard依赖
- * 3. 用CAWindowServer获取屏幕尺寸
- * 4. 用IOHIDEventCreateKeyboardEvent实现Home键
- * 5. 坐标统一为归一化(0.0-1.0)
+ * 核心变更（v3.0 → v3.1）：
+ * 1. 回退到SpringBoard注入（backboardd在dopamine下不被注入）
+ * 2. 触摸事件发送改用 BKHIDSystemInterface.injectHIDEvent
+ * 3. 坐标用归一化0.0-1.0 + SimulateTouch转换
  * 
  * 协议：JSON over TCP 127.0.0.1:6000，每条消息以\n结尾
- * 
- * 参考: SimulateTouch (kr.iolate.simulatetouch)
  */
 
-#import <Foundation/Foundation.h>
+#import <UIKit/UIKit.h>
 #import <objc/runtime.h>
 #import <objc/message.h>
 #import <dlfcn.h>
@@ -22,7 +18,6 @@
 #import <arpa/inet.h>
 #import <unistd.h>
 #import <mach/mach_time.h>
-#import <CoreGraphics/CoreGraphics.h>
 
 // ==================== 私有IOHIDEvent类型 ====================
 typedef struct __IOHIDEvent *IOHIDEventRef;
@@ -30,7 +25,7 @@ typedef struct __IOHIDEventSystemClient *IOHIDEventSystemClientRef;
 typedef uint32_t IOHIDDigitizerEventMask;
 
 // IOHIDEvent常量
-#define kIOHIDTransducerTypeHand 3  // iOS7+
+#define kIOHIDTransducerTypeHand 3
 #define kIOHIDEventFieldDigitizerDisplayIntegrated 0x00040001
 #define kIOHIDEventFieldBuiltIn 0x00040010
 #define kIOHIDEventFieldDigitizerEventMask 0x00040002
@@ -48,8 +43,29 @@ typedef uint32_t IOHIDDigitizerEventMask;
 
 // HID Usage Tables
 #define kHIDPage_Consumer 0x0C
-#define kHIDUsage_Csmr_Menu 0x40     // Home button
-#define kHIDUsage_Csmr_Power 0x30    // Power button
+#define kHIDUsage_Csmr_Menu 0x40
+
+// ==================== 私有类声明 ====================
+
+@interface BKHIDSystemInterface : NSObject
++ (id)sharedInstance;
+- (void)injectHIDEvent:(IOHIDEventRef)arg1;
+@end
+
+@interface BKUserEventTimer : NSObject
++ (id)sharedInstance;
+- (void)userEventOccurredOnDisplay:(id)arg1;
+@end
+
+@interface CAWindowServer : NSObject
++ (id)serverIfRunning;
+- (id)displayWithName:(id)name;
+- (NSArray *)displays;
+@end
+
+@interface CAWindowServerDisplay : NSObject
+- (CGRect)bounds;
+@end
 
 // ==================== 函数指针 ====================
 static IOHIDEventRef (*IOHIDEventCreateDigitizerEventFunc)(
@@ -73,32 +89,8 @@ static void (*IOHIDEventSetFloatValueFunc)(IOHIDEventRef, uint32_t, float) = NUL
 static void (*IOHIDEventSetSenderIDFunc)(IOHIDEventRef, uint64_t) = NULL;
 static void (*IOHIDEventAppendEventFunc)(IOHIDEventRef, IOHIDEventRef) = NULL;
 
-static IOHIDEventSystemClientRef (*IOHIDEventSystemClientCreateFunc)(CFAllocatorRef) = NULL;
-static void (*IOHIDEventSystemClientDispatchEventFunc)(IOHIDEventSystemClientRef, IOHIDEventRef) = NULL;
-
-// 全局EventSystemClient
-static IOHIDEventSystemClientRef eventSystemClient = NULL;
-
-// SenderID - 与SimulateTouch一致
+// SenderID
 static const uint64_t kStarCoreSenderID = 0x000000010000027FULL;
-
-// ==================== CAWindowServer（backboardd可用）====================
-
-@interface CAWindowServer
-+ (id)serverIfRunning;
-- (id)displayWithName:(id)name;
-- (NSArray *)displays;
-@end
-
-@interface CAWindowServerDisplay
-- (CGRect)bounds;
-@end
-
-// ==================== BKUserEventTimer ====================
-@interface BKUserEventTimer : NSObject
-+ (id)sharedInstance;
-- (void)userEventOccurredOnDisplay:(id)arg1;
-@end
 
 // ==================== 函数加载 ====================
 
@@ -115,8 +107,6 @@ static bool loadFunctions() {
     IOHIDEventSetFloatValueFunc = (typeof(IOHIDEventSetFloatValueFunc))dlsym(RTLD_DEFAULT, "IOHIDEventSetFloatValue");
     IOHIDEventSetSenderIDFunc = (typeof(IOHIDEventSetSenderIDFunc))dlsym(RTLD_DEFAULT, "IOHIDEventSetSenderID");
     IOHIDEventAppendEventFunc = (typeof(IOHIDEventAppendEventFunc))dlsym(RTLD_DEFAULT, "IOHIDEventAppendEvent");
-    IOHIDEventSystemClientCreateFunc = (typeof(IOHIDEventSystemClientCreateFunc))dlsym(RTLD_DEFAULT, "IOHIDEventSystemClientCreate");
-    IOHIDEventSystemClientDispatchEventFunc = (typeof(IOHIDEventSystemClientDispatchEventFunc))dlsym(RTLD_DEFAULT, "IOHIDEventSystemClientDispatchEvent");
     
     NSLog(@"[StarCoreTweak] === 函数加载状态 ===");
     NSLog(@"[StarCoreTweak]   CreateDigitizerEvent: %p", IOHIDEventCreateDigitizerEventFunc);
@@ -125,24 +115,23 @@ static bool loadFunctions() {
     NSLog(@"[StarCoreTweak]   SetIntegerValueWithOptions: %p", IOHIDEventSetIntegerValueWithOptionsFunc);
     NSLog(@"[StarCoreTweak]   SetSenderID: %p", IOHIDEventSetSenderIDFunc);
     NSLog(@"[StarCoreTweak]   AppendEvent: %p", IOHIDEventAppendEventFunc);
-    NSLog(@"[StarCoreTweak]   SystemClientCreate: %p", IOHIDEventSystemClientCreateFunc);
-    NSLog(@"[StarCoreTweak]   DispatchEvent: %p", IOHIDEventSystemClientDispatchEventFunc);
     
-    if (!IOHIDEventCreateDigitizerEventFunc || !IOHIDEventCreateDigitizerFingerEventWithQualityFunc ||
-        !IOHIDEventSystemClientCreateFunc || !IOHIDEventSystemClientDispatchEventFunc) {
+    // 检查BKHIDSystemInterface
+    Class bksClass = objc_getClass("BKHIDSystemInterface");
+    NSLog(@"[StarCoreTweak]   BKHIDSystemInterface: %@", bksClass ? @"OK" : @"NULL");
+    
+    if (!IOHIDEventCreateDigitizerEventFunc || !IOHIDEventCreateDigitizerFingerEventWithQualityFunc) {
         NSLog(@"[StarCoreTweak] ❌ 核心函数加载失败");
         return false;
     }
     
-    // 创建EventSystemClient（SimulateTouch在iOS7+也是这么做的）
-    eventSystemClient = IOHIDEventSystemClientCreateFunc(kCFAllocatorDefault);
-    if (!eventSystemClient) {
-        NSLog(@"[StarCoreTweak] ❌ 创建EventSystemClient失败");
+    if (!bksClass) {
+        NSLog(@"[StarCoreTweak] ❌ BKHIDSystemInterface不可用");
         return false;
     }
     
     success = true;
-    NSLog(@"[StarCoreTweak] ✅ 触摸注入模块初始化成功");
+    NSLog(@"[StarCoreTweak] ✅ 触摸注入模块初始化成功 (BKHIDSystemInterface模式)");
     return true;
 }
 
@@ -162,23 +151,35 @@ static CGSize getScreenSize() {
             return bounds.size;
         }
     }
-    NSLog(@"[StarCoreTweak] CAWindowServer不可用，使用默认屏幕尺寸");
-    return CGSizeMake(1125, 2436);
+    // 备选：用UIScreen
+    CGRect bounds = [UIScreen mainScreen].bounds;
+    CGFloat scale = [UIScreen mainScreen].scale;
+    return CGSizeMake(bounds.size.width * scale, bounds.size.height * scale);
 }
 
-// ==================== 发送HID事件 ====================
+// ==================== 通过BKHIDSystemInterface注入事件 ====================
 
-static void SendHIDEvent(IOHIDEventRef event) {
+static void injectHIDEvent(IOHIDEventRef event) {
     if (!event) return;
-    if (!eventSystemClient || !IOHIDEventSystemClientDispatchEventFunc) {
-        NSLog(@"[StarCoreTweak] ❌ EventSystemClient不可用");
-        CFRelease(event);
-        return;
+    
+    // 设置SenderID
+    if (IOHIDEventSetSenderIDFunc) {
+        IOHIDEventSetSenderIDFunc(event, kStarCoreSenderID);
     }
     
-    IOHIDEventSetSenderIDFunc(event, kStarCoreSenderID);
-    IOHIDEventSystemClientDispatchEventFunc(eventSystemClient, event);
-    CFRelease(event);
+    // 使用BKHIDSystemInterface.injectHIDEvent（SpringBoard中可用）
+    BKHIDSystemInterface *interface = [objc_getClass("BKHIDSystemInterface") sharedInstance];
+    if (interface) {
+        @try {
+            [interface injectHIDEvent:event];
+        } @catch (NSException *e) {
+            NSLog(@"[StarCoreTweak] injectHIDEvent异常: %@", e);
+        }
+        CFRelease(event);
+    } else {
+        NSLog(@"[StarCoreTweak] ❌ BKHIDSystemInterface sharedInstance为nil");
+        CFRelease(event);
+    }
 }
 
 // ==================== 重置空闲计时器 ====================
@@ -200,7 +201,7 @@ static void simulateTouch(int type, float x, float y, int fingerId) {
     
     uint64_t timeStamp = mach_absolute_time();
     
-    // 事件掩码 - 与SimulateTouch完全一致
+    // 事件掩码
     int eventM = (type == TOUCH_MOVE) ? kIOHIDDigitizerEventPosition : (kIOHIDDigitizerEventRange | kIOHIDDigitizerEventTouch);
     int touch_ = (type == TOUCH_UP) ? 0 : 1;
     
@@ -209,17 +210,9 @@ static void simulateTouch(int type, float x, float y, int fingerId) {
         kCFAllocatorDefault,
         timeStamp,
         kIOHIDTransducerTypeHand,
-        0,    // index
-        1,    // identity
-        0,    // eventMask - 后面用SetIntegerValueWithOptions设置
-        0,    // buttonMask
-        0, 0, // x, y
-        0, 0, // z, tipPressure
-        0,    // barrelPressure
-        0,    
-        false, // range
-        false, // touch
-        0      // options
+        0, 1, 0, 0,
+        0, 0, 0, 0, 0,
+        0, false, false, 0
     );
     
     if (!handEvent) {
@@ -227,7 +220,7 @@ static void simulateTouch(int type, float x, float y, int fingerId) {
         return;
     }
     
-    // 关键设置 - 与SimulateTouch完全一致
+    // 关键设置 - 与SimulateTouch一致
     IOHIDEventSetIntegerValueWithOptionsFunc(handEvent, kIOHIDEventFieldDigitizerDisplayIntegrated, 1, (unsigned int)-268435456);
     IOHIDEventSetIntegerValueWithOptionsFunc(handEvent, kIOHIDEventFieldBuiltIn, 1, (unsigned int)-268435456);
     IOHIDEventSetSenderIDFunc(handEvent, kStarCoreSenderID);
@@ -236,21 +229,13 @@ static void simulateTouch(int type, float x, float y, int fingerId) {
     IOHIDEventRef fingerEvent = IOHIDEventCreateDigitizerFingerEventWithQualityFunc(
         kCFAllocatorDefault,
         timeStamp,
-        fingerId,     // index
-        fingerId + 2, // identity (SimulateTouch用 i+2)
+        fingerId, fingerId + 2,
         eventM,
-        x, y,         // 归一化坐标 0.0-1.0
-        0,            // z
-        touch_ ? 1.0f : 0.0f, // tipPressure
-        0,            // twist
-        0,            // minorRadius
-        0,            // majorRadius
-        0,            // quality
-        0,            // density
-        0,            // irregularity
-        touch_,       // range
-        touch_,       // touch
-        0             // options
+        x, y,
+        0,
+        touch_ ? 1.0f : 0.0f,
+        0, 0, 0, 0, 0, 0,
+        touch_, touch_, 0
     );
     
     if (!fingerEvent) {
@@ -263,7 +248,7 @@ static void simulateTouch(int type, float x, float y, int fingerId) {
     IOHIDEventAppendEventFunc(handEvent, fingerEvent);
     CFRelease(fingerEvent);
     
-    // 4. 设置Hand事件的掩码 - 与SimulateTouch一致
+    // 4. 设置Hand事件掩码
     int handEventMask = 0;
     int handEventTouch = 0;
     
@@ -285,8 +270,8 @@ static void simulateTouch(int type, float x, float y, int fingerId) {
     // 5. 重置空闲计时器
     resetIdleTimer();
     
-    // 6. 发送事件
-    SendHIDEvent(handEvent);
+    // 6. 通过BKHIDSystemInterface注入
+    injectHIDEvent(handEvent);
 }
 
 // ==================== 高级触摸操作 ====================
@@ -331,7 +316,7 @@ static void simulateHomeButton() {
         kCFAllocatorDefault, timeStamp,
         kHIDPage_Consumer, kHIDUsage_Csmr_Menu,
         true, 0);
-    if (downEvent) SendHIDEvent(downEvent);
+    if (downEvent) injectHIDEvent(downEvent);
     
     usleep(50000);
     
@@ -340,7 +325,7 @@ static void simulateHomeButton() {
         kCFAllocatorDefault, timeStamp,
         kHIDPage_Consumer, kHIDUsage_Csmr_Menu,
         false, 0);
-    if (upEvent) SendHIDEvent(upEvent);
+    if (upEvent) injectHIDEvent(upEvent);
     
     resetIdleTimer();
 }
@@ -369,10 +354,7 @@ static StarCoreTCPServer *_server = nil;
 
 - (void)start {
     _serverSock = socket(AF_INET, SOCK_STREAM, 0);
-    if (_serverSock < 0) {
-        NSLog(@"[StarCoreTweak] 创建socket失败");
-        return;
-    }
+    if (_serverSock < 0) { NSLog(@"[StarCoreTweak] 创建socket失败"); return; }
     
     int yes = 1;
     setsockopt((int)_serverSock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
@@ -385,74 +367,44 @@ static StarCoreTCPServer *_server = nil;
     addr.sin_addr.s_addr = inet_addr("127.0.0.1");
     
     if (bind((int)_serverSock, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-        NSLog(@"[StarCoreTweak] 绑定端口失败");
-        close((int)_serverSock);
-        _serverSock = -1;
-        return;
+        NSLog(@"[StarCoreTweak] 绑定端口失败"); close((int)_serverSock); _serverSock = -1; return;
     }
-    
     if (listen((int)_serverSock, 5) < 0) {
-        NSLog(@"[StarCoreTweak] listen失败");
-        close((int)_serverSock);
-        _serverSock = -1;
-        return;
+        NSLog(@"[StarCoreTweak] listen失败"); close((int)_serverSock); _serverSock = -1; return;
     }
     
-    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-        [self acceptLoop];
-    });
-    
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{ [self acceptLoop]; });
     NSLog(@"[StarCoreTweak] TCP服务器已启动 127.0.0.1:6000");
 }
 
 - (void)acceptLoop {
     while (_serverSock >= 0) {
-        struct sockaddr_in clientAddr;
-        socklen_t clientLen = sizeof(clientAddr);
+        struct sockaddr_in clientAddr; socklen_t clientLen = sizeof(clientAddr);
         int clientFd = accept((int)_serverSock, (struct sockaddr *)&clientAddr, &clientLen);
-        
         if (clientFd < 0) continue;
-        
         NSLog(@"[StarCoreTweak] 新连接 fd=%d", clientFd);
-        @synchronized (_clientFds) {
-            [_clientFds addObject:@(clientFd)];
-        }
-        
-        dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-            [self handleClient:clientFd];
-        });
+        @synchronized (_clientFds) { [_clientFds addObject:@(clientFd)]; }
+        dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{ [self handleClient:clientFd]; });
     }
 }
 
 - (void)handleClient:(int)fd {
-    NSMutableData *buffer = [NSMutableData new];
-    uint8_t buf[4096];
-    
+    NSMutableData *buffer = [NSMutableData new]; uint8_t buf[4096];
     while (YES) {
         ssize_t len = read(fd, buf, sizeof(buf));
         if (len <= 0) break;
-        
         [buffer appendBytes:buf length:len];
-        
         while (buffer.length > 0) {
             const uint8_t *bytes = (const uint8_t *)buffer.bytes;
             NSInteger nlPos = -1;
-            for (NSInteger i = 0; i < buffer.length; i++) {
-                if (bytes[i] == '\n') { nlPos = i; break; }
-            }
+            for (NSInteger i = 0; i < buffer.length; i++) { if (bytes[i] == '\n') { nlPos = i; break; } }
             if (nlPos < 0) break;
-            
             NSData *lineData = [buffer subdataWithRange:NSMakeRange(0, nlPos)];
             [buffer replaceBytesInRange:NSMakeRange(0, nlPos + 1) withBytes:"" length:0];
-            
             NSString *jsonStr = [[NSString alloc] initWithData:lineData encoding:NSUTF8StringEncoding];
-            if (jsonStr) {
-                NSDictionary *response = [self processMessage:jsonStr];
-                if (response) [self sendResponse:response toFd:fd];
-            }
+            if (jsonStr) { NSDictionary *response = [self processMessage:jsonStr]; if (response) [self sendResponse:response toFd:fd]; }
         }
     }
-    
     @synchronized (_clientFds) { [_clientFds removeObject:@(fd)]; }
     close(fd);
 }
@@ -460,56 +412,39 @@ static StarCoreTCPServer *_server = nil;
 - (NSDictionary *)processMessage:(NSString *)jsonStr {
     NSData *data = [jsonStr dataUsingEncoding:NSUTF8StringEncoding];
     if (!data) return @{@"success": @NO, @"error": @"invalid JSON"};
-    
     NSError *error;
     NSDictionary *request = [NSJSONSerialization JSONObjectWithData:data options:0 error:&error];
-    if (!request || ![request isKindOfClass:[NSDictionary class]]) {
-        return @{@"success": @NO, @"error": @"invalid JSON"};
-    }
+    if (!request || ![request isKindOfClass:[NSDictionary class]]) return @{@"success": @NO, @"error": @"invalid JSON"};
     
     NSString *action = request[@"action"];
     NSNumber *msgId = request[@"id"] ?: @0;
     NSMutableDictionary *response = [@{@"id": msgId} mutableCopy];
     
     if ([action isEqualToString:@"ping"]) {
-        response[@"success"] = @YES;
-        response[@"message"] = @"pong";
+        response[@"success"] = @YES; response[@"message"] = @"pong";
     }
     else if ([action isEqualToString:@"tap"]) {
         float x = [request[@"x"] floatValue];
         float y = [request[@"y"] floatValue];
-        
-        // 如果坐标>1，自动转换为归一化坐标
+        // 逻辑像素转归一化
         if (x > 1.0f || y > 1.0f) {
-            CGSize screenSize = getScreenSize();
-            float width = MIN(screenSize.width, screenSize.height);
-            float height = MAX(screenSize.width, screenSize.height);
-            float factor = 1.0f;
-            if (width == 640 || width == 1536) factor = 2.0f;
-            else if (width == 750) factor = 2.0f;
-            else if (width >= 1080) factor = 3.0f;
-            
-            x = x / (width / factor);
-            y = y / (height / factor);
-            if (x > 1.0f) x = 1.0f;
-            if (y > 1.0f) y = 1.0f;
+            CGRect bounds = [UIScreen mainScreen].bounds;
+            x = x / bounds.size.width;
+            y = y / bounds.size.height;
+            if (x > 1.0f) x = 1.0f; if (y > 1.0f) y = 1.0f;
         }
-        
         simulateTap(x, y);
         response[@"success"] = @YES;
     }
     else if ([action isEqualToString:@"swipe"]) {
-        float fromX = [request[@"fromX"] floatValue];
-        float fromY = [request[@"fromY"] floatValue];
-        float toX = [request[@"toX"] floatValue];
-        float toY = [request[@"toY"] floatValue];
+        float fromX = [request[@"fromX"] floatValue], fromY = [request[@"fromY"] floatValue];
+        float toX = [request[@"toX"] floatValue], toY = [request[@"toY"] floatValue];
         double duration = [request[@"duration"] doubleValue] ?: 0.5;
         simulateSwipe(fromX, fromY, toX, toY, (float)duration);
         response[@"success"] = @YES;
     }
     else if ([action isEqualToString:@"longPress"]) {
-        float x = [request[@"x"] floatValue];
-        float y = [request[@"y"] floatValue];
+        float x = [request[@"x"] floatValue], y = [request[@"y"] floatValue];
         double duration = [request[@"duration"] doubleValue] ?: 1.0;
         simulateLongPress(x, y, (float)duration);
         response[@"success"] = @YES;
@@ -519,94 +454,74 @@ static StarCoreTCPServer *_server = nil;
         response[@"success"] = @YES;
     }
     else if ([action isEqualToString:@"openApp"]) {
-        response[@"success"] = @NO;
-        response[@"error"] = @"openApp not available in backboardd, use url scheme instead";
+        NSString *bundleId = request[@"bundleId"];
+        if (!bundleId) { response[@"success"] = @NO; response[@"error"] = @"bundleId required"; }
+        else {
+            Class workspaceClass = objc_getClass("LSApplicationWorkspace");
+            if (workspaceClass) {
+                id workspace = [workspaceClass performSelector:@selector(defaultWorkspace)];
+                BOOL ok = (BOOL)((BOOL (*)(id, SEL, NSString *))objc_msgSend)(workspace, @selector(openApplicationWithBundleID:), bundleId);
+                response[@"success"] = @(ok);
+            } else { response[@"success"] = @NO; response[@"error"] = @"workspace not found"; }
+        }
     }
     else if ([action isEqualToString:@"getScreenSize"]) {
-        CGSize screenSize = getScreenSize();
-        float width = MIN(screenSize.width, screenSize.height);
-        float height = MAX(screenSize.width, screenSize.height);
-        float factor = 1.0f;
-        if (width == 640 || width == 1536) factor = 2.0f;
-        else if (width == 750) factor = 2.0f;
-        else if (width >= 1080) factor = 3.0f;
-        
+        CGRect bounds = [UIScreen mainScreen].bounds;
         response[@"success"] = @YES;
-        response[@"width"] = @(width / factor);
-        response[@"height"] = @(height / factor);
-        response[@"scale"] = @(factor);
-        response[@"physicalWidth"] = @(width);
-        response[@"physicalHeight"] = @(height);
-    }
-    else if ([action isEqualToString:@"getCurrentApp"]) {
-        response[@"success"] = @NO;
-        response[@"error"] = @"not available in backboardd";
+        response[@"width"] = @(bounds.size.width);
+        response[@"height"] = @(bounds.size.height);
+        response[@"scale"] = @([UIScreen mainScreen].scale);
     }
     else if ([action isEqualToString:@"diagnose"]) {
         NSMutableDictionary *diag = [@{
-            @"eventClient": (eventSystemClient ? @"OK" : @"NULL"),
             @"createDigitizerEvent": (IOHIDEventCreateDigitizerEventFunc ? @"OK" : @"NULL"),
             @"fingerEventWithQuality": (IOHIDEventCreateDigitizerFingerEventWithQualityFunc ? @"OK" : @"NULL"),
             @"createKeyboardEvent": (IOHIDEventCreateKeyboardEventFunc ? @"OK" : @"NULL"),
             @"setIntegerValueWithOptions": (IOHIDEventSetIntegerValueWithOptionsFunc ? @"OK" : @"NULL"),
             @"setSenderID": (IOHIDEventSetSenderIDFunc ? @"OK" : @"NULL"),
             @"appendEvent": (IOHIDEventAppendEventFunc ? @"OK" : @"NULL"),
-            @"dispatchEvent": (IOHIDEventSystemClientDispatchEventFunc ? @"OK" : @"NULL"),
+            @"BKHIDSystemInterface": (objc_getClass("BKHIDSystemInterface") ? @"OK" : @"NULL"),
         } mutableCopy];
-        
-        CAWindowServer *server = [objc_getClass("CAWindowServer") serverIfRunning];
-        diag[@"windowServer"] = (server ? @"OK" : @"NULL");
-        
-        response[@"success"] = @YES;
-        response[@"diagnostics"] = diag;
+        response[@"success"] = @YES; response[@"diagnostics"] = diag;
     }
-    else {
-        response[@"success"] = @NO;
-        response[@"error"] = [NSString stringWithFormat:@"unknown action: %@", action];
-    }
+    else { response[@"success"] = @NO; response[@"error"] = [NSString stringWithFormat:@"unknown action: %@", action]; }
     
     return response;
 }
 
 - (void)sendResponse:(NSDictionary *)response toFd:(int)fd {
-    NSError *error;
-    NSData *jsonData = [NSJSONSerialization dataWithJSONObject:response options:0 error:&error];
+    NSError *error; NSData *jsonData = [NSJSONSerialization dataWithJSONObject:response options:0 error:&error];
     if (!jsonData) return;
-    
-    NSMutableData *sendData = [jsonData mutableCopy];
-    uint8_t nl = '\n';
-    [sendData appendBytes:&nl length:1];
-    
-    const uint8_t *bytes = (const uint8_t *)sendData.bytes;
-    size_t totalLen = sendData.length;
-    size_t sent = 0;
-    while (sent < totalLen) {
-        ssize_t n = write(fd, bytes + sent, totalLen - sent);
-        if (n <= 0) break;
-        sent += n;
-    }
+    NSMutableData *sendData = [jsonData mutableCopy]; uint8_t nl = '\n'; [sendData appendBytes:&nl length:1];
+    const uint8_t *bytes = (const uint8_t *)sendData.bytes; size_t totalLen = sendData.length; size_t sent = 0;
+    while (sent < totalLen) { ssize_t n = write(fd, bytes + sent, totalLen - sent); if (n <= 0) break; sent += n; }
 }
 
 - (void)stop {
     if (_serverSock >= 0) { close((int)_serverSock); _serverSock = -1; }
-    @synchronized (_clientFds) {
-        for (NSNumber *fdNum in _clientFds) close([fdNum intValue]);
-        [_clientFds removeAllObjects];
-    }
+    @synchronized (_clientFds) { for (NSNumber *fdNum in _clientFds) close([fdNum intValue]); [_clientFds removeAllObjects]; }
 }
-
 @end
 
-// ==================== 初始化 ====================
+// ==================== SpringBoard Hook ====================
 
-%ctor {
-    NSLog(@"[StarCoreTweak] v3.0 加载中... (backboardd注入)");
+%hook SpringBoard
+
+- (void)applicationDidFinishLaunching:(id)application {
+    %orig;
+    NSLog(@"[StarCoreTweak] SpringBoard启动完成 v3.1");
     
     // 启动TCP服务器
     _server = [[StarCoreTCPServer alloc] init];
     [_server start];
     
-    NSLog(@"[StarCoreTweak] v3.0 初始化完成 ✅");
+    NSLog(@"[StarCoreTweak] v3.1 初始化完成 ✅");
+}
+
+%end
+
+%ctor {
+    NSLog(@"[StarCoreTweak] v3.1 加载中... (SpringBoard + BKHIDSystemInterface)");
 }
 
 %dtor {
