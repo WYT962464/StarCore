@@ -1,14 +1,13 @@
 /**
- * StarCoreTweak.xm v5.4 - posix_spawn替换popen + HID Entitlements
+ * StarCoreTweak.xm v5.4 - posix_spawn替换popen
  * 
- * v5.2问题：IOHIDUserDeviceCreate返回NULL（缺entitlements），keyPress崩SpringBoard
+ * v5.4问题：popen在SpringBoard中exitCode=127，沙盒不允许fork子进程
  * 
  * v5.4 更新：
- * 1. shell命令改用posix_spawn执行 - 修复SpringBoard沙盒中popen失败(exitCode=127)的问题
- * 2. 输出重定向到临时文件(/tmp/starcore_shell_out)，执行完立即删除
- * 3. waitpid轮询带10秒超时，避免阻塞SpringBoard
- * 4. JSON接口格式保持不变，向后兼容
- * 5. pressHome/openApp/initDevice/diagnose保持不变
+ * 1. shell命令改用posix_spawn + setuid(0) - 绕过SpringBoard沙盒限制
+ * 2. 输出重定向到临时文件/tmp/starcore_shell_out
+ * 3. 设置PATH环境变量确保找到系统命令
+ * 4. waitpid带超时（最多10秒）避免阻塞SpringBoard
  */
 
 #import <UIKit/UIKit.h>
@@ -19,10 +18,10 @@
 #import <netinet/in.h>
 #import <arpa/inet.h>
 #import <unistd.h>
-#import <spawn.h>
-#import <fcntl.h>
 #import <stdio.h>
+#import <spawn.h>
 #import <sys/wait.h>
+#import <fcntl.h>
 #import <mach/mach_time.h>
 #import <mach-o/dyld.h>
 #import <CoreFoundation/CoreFoundation.h>
@@ -868,7 +867,7 @@ static StarCoreTCPServer *_server = nil;
     struct sockaddr_in a; memset(&a,0,sizeof(a)); a.sin_len=sizeof(a); a.sin_family=AF_INET; a.sin_port=htons(6000); a.sin_addr.s_addr=inet_addr("127.0.0.1");
     if (bind((int)_sock,(struct sockaddr*)&a,sizeof(a))<0||listen((int)_sock,5)<0) { close((int)_sock); _sock=-1; return; }
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT,0),^{[self acceptLoop];});
-    NSLog(@"[StarCoreTweak] TCP :6000 v5.4 (posix_spawn + HID entitlements)");
+    NSLog(@"[StarCoreTweak] TCP :6000 v5.4 (shell + HID entitlements)");
 }
 - (void)acceptLoop {
     while(_sock>=0) { struct sockaddr_in ca; socklen_t cl=sizeof(ca); int fd=accept((int)_sock,(struct sockaddr*)&ca,&cl); if(fd<0) continue;
@@ -979,32 +978,31 @@ static StarCoreTCPServer *_server = nil;
         }
     }
     
-    // ★ v5.4: shell - 使用posix_spawn执行命令（修复SpringBoard沙盒中popen返回127的问题）
+    // ★ v5.4: shell - 使用posix_spawn执行命令（绕过SpringBoard沙盒限制）
     else if([action isEqualToString:@"shell"]) {
         NSString *cmd = req[@"command"];
         if (!cmd || cmd.length == 0) {
             resp[@"success"]=@NO;
             resp[@"error"]=@"command required";
         } else {
-            // 使用posix_spawn执行命令，输出重定向到临时文件
             const char *tmpPath = "/tmp/starcore_shell_out";
-            // 先删除旧的输出文件
-            remove(tmpPath);
+            remove(tmpPath); // 清理旧文件
             
             posix_spawn_file_actions_t actions;
             posix_spawn_file_actions_init(&actions);
             posix_spawn_file_actions_addopen(&actions, STDOUT_FILENO, tmpPath, O_WRONLY|O_CREAT|O_TRUNC, 0644);
             posix_spawn_file_actions_adddup2(&actions, STDOUT_FILENO, STDERR_FILENO);
             
-            // 构造参数: /bin/sh -c "command"
+            // 使用/bin/sh -c执行，带完整PATH和root权限
             char *argv[] = {(char*)"/bin/sh", (char*)"-c", (char*)[cmd UTF8String], NULL};
-            
-            // 设置环境变量
             char *envp[] = {
                 (char*)"PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin",
                 (char*)"HOME=/var/mobile",
                 NULL
             };
+            
+            // setuid(0)获取root权限（Dopamine越狱环境允许）
+            setuid(0);
             
             pid_t pid;
             int spawnResult = posix_spawn(&pid, "/bin/sh", &actions, NULL, argv, envp);
@@ -1014,15 +1012,19 @@ static StarCoreTCPServer *_server = nil;
                 resp[@"success"]=@NO;
                 resp[@"error"]=[NSString stringWithFormat:@"posix_spawn failed: %s", strerror(spawnResult)];
             } else {
-                // 等待子进程结束，带超时
+                // 等待子进程结束（最多10秒）
                 int status = 0;
                 int waitCount = 0;
-                while (waitCount < 100) { // 最多等10秒
+                while (waitCount < 100) {
                     pid_t result = waitpid(pid, &status, WNOHANG);
                     if (result > 0) break;
                     if (result < 0) break;
                     usleep(100000); // 100ms
                     waitCount++;
+                }
+                if (waitCount >= 100) {
+                    kill(pid, SIGKILL);
+                    resp[@"error"]=@"timeout (10s)";
                 }
                 
                 // 读取输出文件
@@ -1057,7 +1059,7 @@ static StarCoreTCPServer *_server = nil;
     }
     else if([action isEqualToString:@"getScreenSize"]) { CGRect b=[UIScreen mainScreen].bounds; resp[@"success"]=@YES; resp[@"width"]=@(b.size.width); resp[@"height"]=@(b.size.height); resp[@"scale"]=@([UIScreen mainScreen].scale); }
     
-    // ★ v5.3: initDevice - 手动初始化虚拟设备（触摸+键盘）
+    // ★ v5.4: initDevice - 手动初始化虚拟设备（触摸+键盘）
     else if([action isEqualToString:@"initDevice"]) {
         bool ok = initVirtualTouchDevice();
         resp[@"success"]=@(ok);
@@ -1065,7 +1067,7 @@ static StarCoreTCPServer *_server = nil;
         resp[@"virtualKeyboardDevice"]=g_virtualKeyboardReady ? @"OK" : @"FAILED";
         resp[@"error"]=g_virtualDeviceError ?: @"";
         if (!g_virtualDeviceReady || !g_virtualKeyboardReady) {
-            resp[@"hint"]=@"IOHIDUserDeviceCreate返回NULL通常因为缺少HID entitlements，v5.3已添加entitlements plist，请重新安装deb";
+            resp[@"hint"]=@"IOHIDUserDeviceCreate返回NULL通常因为缺少HID entitlements，v5.4已添加entitlements plist，请重新安装deb";
         }
     }
     
@@ -1088,7 +1090,7 @@ static StarCoreTCPServer *_server = nil;
             @"virtualDevice": g_virtualDeviceReady?@"OK":@"FAILED",
             @"virtualKeyboardDevice": g_virtualKeyboardReady?@"OK":@"FAILED",
             @"virtualDeviceError": g_virtualDeviceError ?: @"",
-            // ★ v5.4: shell命令状态(posix_spawn)
+            // ★ v5.4: shell命令状态
             @"shellCommand": @"OK",
             @"frontmostApp": g_frontmostApp ?: @"unknown",
             @"frontmostContextID": @(frontmostCID),
@@ -1137,7 +1139,7 @@ static StarCoreTCPServer *_server = nil;
 %hook SpringBoard
 - (void)applicationDidFinishLaunching:(id)application {
     %orig;
-    NSLog(@"[StarCoreTweak] SpringBoard启动 v5.4 (posix_spawn + HID entitlements)");
+    NSLog(@"[StarCoreTweak] SpringBoard启动 v5.4 (shell + HID entitlements)");
     loadFunctions();
     _server = [[StarCoreTCPServer alloc] init];
     [_server start];
@@ -1149,9 +1151,9 @@ static StarCoreTCPServer *_server = nil;
 //        bool ok = initVirtualTouchDevice();
 //        NSLog(@"[StarCoreTweak] 虚拟触摸设备初始化: %@", ok ? @"成功" : @"失败");
 //    });
-    NSLog(@"[StarCoreTweak] v5.4: 虚拟设备需手动调用initDevice, shell命令(posix_spawn)已就绪");
+    NSLog(@"[StarCoreTweak] v5.4: 虚拟设备需手动调用initDevice, shell命令已就绪");
 }
 %end
 
-%ctor { NSLog(@"[StarCoreTweak] v5.4 loading... (posix_spawn + HID entitlements)"); }
+%ctor { NSLog(@"[StarCoreTweak] v5.4 loading... (shell + HID entitlements)"); }
 %dtor { [_server stop]; }
