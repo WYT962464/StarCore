@@ -1,10 +1,11 @@
 /**
- * StarCoreTweak.xm v3.1 - SpringBoard + BKHIDSystemInterface
+ * StarCoreTweak.xm v4.0 - Aligned with SimulateTouch
  * 
- * 核心变更（v3.0 → v3.1）：
- * 1. 回退到SpringBoard注入（backboardd在dopamine下不被注入）
- * 2. 触摸事件发送改用 BKHIDSystemInterface.injectHIDEvent
- * 3. 坐标用归一化0.0-1.0 + SimulateTouch转换
+ * 核心修复（v3.1 → v4.0）：
+ * 1. IOHIDEventCreateDigitizerEvent 参数从16改为15（匹配SimulateTouch源码）
+ * 2. 坐标系统从物理像素改为 rX = x_norm × scaleFactor（SimulateTouch公式）
+ * 3. 事件分发改用 IOHIDEventSystemClientDispatchEvent（SimulateTouch验证方案）
+ * 4. BKHIDSystemInterface.injectHIDEvent 作为备选方案
  * 
  * 协议：JSON over TCP 127.0.0.1:6000，每条消息以\n结尾
  */
@@ -22,7 +23,6 @@
 // ==================== 私有IOHIDEvent类型 ====================
 typedef struct __IOHIDEvent *IOHIDEventRef;
 typedef struct __IOHIDEventSystemClient *IOHIDEventSystemClientRef;
-typedef uint32_t IOHIDDigitizerEventMask;
 
 // IOHIDEvent常量
 #define kIOHIDTransducerTypeHand 3
@@ -31,6 +31,7 @@ typedef uint32_t IOHIDDigitizerEventMask;
 #define kIOHIDEventFieldDigitizerEventMask 0x00040002
 #define kIOHIDEventFieldDigitizerRange 0x00040004
 #define kIOHIDEventFieldDigitizerTouch 0x00040005
+
 #define kIOHIDDigitizerEventTouch    0x00000001
 #define kIOHIDDigitizerEventRange    0x00000004
 #define kIOHIDDigitizerEventPosition 0x00000002
@@ -44,6 +45,9 @@ typedef uint32_t IOHIDDigitizerEventMask;
 // HID Usage Tables
 #define kHIDPage_Consumer 0x0C
 #define kHIDUsage_Csmr_Menu 0x40
+
+// SenderID（与SimulateTouch一致）
+#define kIOHIDEventDigitizerSenderID 0x000000010000027FULL
 
 // ==================== 私有类声明 ====================
 
@@ -67,18 +71,25 @@ typedef uint32_t IOHIDDigitizerEventMask;
 - (CGRect)bounds;
 @end
 
-// ==================== 函数指针 ====================
+// ==================== 函数指针（对齐SimulateTouch源码）====================
+
+// IOHIDEventCreateDigitizerEvent - 15个参数（SimulateTouch MSHook验证）
+// 参数: allocator, timestamp, type, index, identity, eventMask, buttonMask,
+//       x, y, z, tipPressure, barrelPressure, range, touch, options
 static IOHIDEventRef (*IOHIDEventCreateDigitizerEventFunc)(
     CFAllocatorRef, uint64_t, uint32_t, uint32_t, uint32_t,
-    uint32_t, uint32_t, float, float, float, float, float,
-    uint32_t, bool, bool, uint32_t) = NULL;
+    uint32_t, uint32_t,
+    float, float, float, float, float,
+    bool, bool, uint32_t) = NULL;
 
+// IOHIDEventCreateDigitizerFingerEventWithQuality - 18个参数（SimulateTouch MSHook验证）
+// 参数: allocator, timestamp, index, identity, eventMask,
+//       x, y, z, tipPressure, twist, minorRadius, majorRadius,
+//       quality, density, irregularity, range, touch, options
 static IOHIDEventRef (*IOHIDEventCreateDigitizerFingerEventWithQualityFunc)(
-    CFAllocatorRef, uint64_t, uint32_t, uint32_t,
-    uint32_t, float, float,
-    float, float, float,
-    float, float, float,
-    float, float,
+    CFAllocatorRef, uint64_t, uint32_t, uint32_t, uint32_t,
+    float, float, float, float, float,
+    float, float, float, float, float,
     bool, bool, uint32_t) = NULL;
 
 static IOHIDEventRef (*IOHIDEventCreateKeyboardEventFunc)(
@@ -89,8 +100,9 @@ static void (*IOHIDEventSetFloatValueFunc)(IOHIDEventRef, uint32_t, float) = NUL
 static void (*IOHIDEventSetSenderIDFunc)(IOHIDEventRef, uint64_t) = NULL;
 static void (*IOHIDEventAppendEventFunc)(IOHIDEventRef, IOHIDEventRef) = NULL;
 
-// SenderID
-static const uint64_t kStarCoreSenderID = 0x000000010000027FULL;
+// DispatchEvent（SimulateTouch方案）
+static IOHIDEventSystemClientRef (*IOHIDEventSystemClientCreateFunc)(CFAllocatorRef) = NULL;
+static void (*IOHIDEventSystemClientDispatchEventFunc)(IOHIDEventSystemClientRef, IOHIDEventRef) = NULL;
 
 // ==================== 函数加载 ====================
 
@@ -100,6 +112,12 @@ static bool loadFunctions() {
     if (loaded) return success;
     loaded = true;
     
+    // 显式dlopen IOKit（DeepSeek建议，更稳妥）
+    void *iokit = dlopen("/System/Library/Frameworks/IOKit.framework/IOKit", RTLD_NOW);
+    if (!iokit) {
+        NSLog(@"[StarCoreTweak] ⚠️ dlopen IOKit失败，尝试RTLD_DEFAULT");
+    }
+    
     IOHIDEventCreateDigitizerEventFunc = (typeof(IOHIDEventCreateDigitizerEventFunc))dlsym(RTLD_DEFAULT, "IOHIDEventCreateDigitizerEvent");
     IOHIDEventCreateDigitizerFingerEventWithQualityFunc = (typeof(IOHIDEventCreateDigitizerFingerEventWithQualityFunc))dlsym(RTLD_DEFAULT, "IOHIDEventCreateDigitizerFingerEventWithQuality");
     IOHIDEventCreateKeyboardEventFunc = (typeof(IOHIDEventCreateKeyboardEventFunc))dlsym(RTLD_DEFAULT, "IOHIDEventCreateKeyboardEvent");
@@ -108,15 +126,21 @@ static bool loadFunctions() {
     IOHIDEventSetSenderIDFunc = (typeof(IOHIDEventSetSenderIDFunc))dlsym(RTLD_DEFAULT, "IOHIDEventSetSenderID");
     IOHIDEventAppendEventFunc = (typeof(IOHIDEventAppendEventFunc))dlsym(RTLD_DEFAULT, "IOHIDEventAppendEvent");
     
-    NSLog(@"[StarCoreTweak] === 函数加载状态 ===");
+    // DispatchEvent函数
+    IOHIDEventSystemClientCreateFunc = (typeof(IOHIDEventSystemClientCreateFunc))dlsym(RTLD_DEFAULT, "IOHIDEventSystemClientCreate");
+    IOHIDEventSystemClientDispatchEventFunc = (typeof(IOHIDEventSystemClientDispatchEventFunc))dlsym(RTLD_DEFAULT, "IOHIDEventSystemClientDispatchEvent");
+    
+    NSLog(@"[StarCoreTweak] === 函数加载状态 v4.0 ===");
     NSLog(@"[StarCoreTweak]   CreateDigitizerEvent: %p", IOHIDEventCreateDigitizerEventFunc);
     NSLog(@"[StarCoreTweak]   FingerEventWithQuality: %p", IOHIDEventCreateDigitizerFingerEventWithQualityFunc);
     NSLog(@"[StarCoreTweak]   CreateKeyboardEvent: %p", IOHIDEventCreateKeyboardEventFunc);
     NSLog(@"[StarCoreTweak]   SetIntegerValueWithOptions: %p", IOHIDEventSetIntegerValueWithOptionsFunc);
     NSLog(@"[StarCoreTweak]   SetSenderID: %p", IOHIDEventSetSenderIDFunc);
     NSLog(@"[StarCoreTweak]   AppendEvent: %p", IOHIDEventAppendEventFunc);
+    NSLog(@"[StarCoreTweak]   EventSystemClientCreate: %p", IOHIDEventSystemClientCreateFunc);
+    NSLog(@"[StarCoreTweak]   EventSystemClientDispatchEvent: %p", IOHIDEventSystemClientDispatchEventFunc);
     
-    // 检查BKHIDSystemInterface
+    // 检查BKHIDSystemInterface（备选方案）
     Class bksClass = objc_getClass("BKHIDSystemInterface");
     NSLog(@"[StarCoreTweak]   BKHIDSystemInterface: %@", bksClass ? @"OK" : @"NULL");
     
@@ -125,49 +149,41 @@ static bool loadFunctions() {
         return false;
     }
     
-    if (!bksClass) {
-        NSLog(@"[StarCoreTweak] ❌ BKHIDSystemInterface不可用");
-        return false;
+    if (!IOHIDEventSystemClientCreateFunc || !IOHIDEventSystemClientDispatchEventFunc) {
+        NSLog(@"[StarCoreTweak] ⚠️ DispatchEvent不可用，将使用BKHIDSystemInterface");
     }
     
     success = true;
-    NSLog(@"[StarCoreTweak] ✅ 触摸注入模块初始化成功 (BKHIDSystemInterface模式)");
+    NSLog(@"[StarCoreTweak] ✅ 触摸注入模块初始化成功 v4.0");
     return true;
 }
 
 // ==================== 屏幕尺寸获取 ====================
 
-static CGSize getScreenSize() {
-    CAWindowServer *server = [objc_getClass("CAWindowServer") serverIfRunning];
-    if (server) {
-        id display = [server displayWithName:@"LCD"];
-        if (display) {
-            CGRect bounds = [(CAWindowServerDisplay *)display bounds];
-            return bounds.size;
-        }
-        NSArray *displays = [server displays];
-        if (displays.count > 0) {
-            CGRect bounds = [(CAWindowServerDisplay *)displays[0] bounds];
-            return bounds.size;
-        }
-    }
-    // 备选：用UIScreen
-    CGRect bounds = [UIScreen mainScreen].bounds;
-    CGFloat scale = [UIScreen mainScreen].scale;
-    return CGSizeMake(bounds.size.width * scale, bounds.size.height * scale);
+static float getScreenScaleFactor() {
+    // iPhone X: scale=3.0, 其他设备按实际scale
+    return [UIScreen mainScreen].scale;
 }
 
-// ==================== 通过BKHIDSystemInterface注入事件 ====================
+// ==================== 事件分发 ====================
 
-static void injectHIDEvent(IOHIDEventRef event) {
-    if (!event) return;
-    
-    // 设置SenderID
-    if (IOHIDEventSetSenderIDFunc) {
-        IOHIDEventSetSenderIDFunc(event, kStarCoreSenderID);
+// 方案1: IOHIDEventSystemClientDispatchEvent（SimulateTouch方案）
+static IOHIDEventSystemClientRef _dispatchClient = NULL;
+
+static void dispatchEventViaClient(IOHIDEventRef event) {
+    if (!_dispatchClient && IOHIDEventSystemClientCreateFunc) {
+        _dispatchClient = IOHIDEventSystemClientCreateFunc(kCFAllocatorDefault);
+        NSLog(@"[StarCoreTweak] EventSystemClient创建: %@", _dispatchClient ? @"OK" : @"FAIL");
     }
-    
-    // 使用BKHIDSystemInterface.injectHIDEvent（SpringBoard中可用）
+    if (_dispatchClient && IOHIDEventSystemClientDispatchEventFunc) {
+        IOHIDEventSystemClientDispatchEventFunc(_dispatchClient, event);
+    } else {
+        NSLog(@"[StarCoreTweak] ❌ DispatchEvent不可用");
+    }
+}
+
+// 方案2: BKHIDSystemInterface.injectHIDEvent（备选）
+static void dispatchEventViaBKS(IOHIDEventRef event) {
     BKHIDSystemInterface *interface = [objc_getClass("BKHIDSystemInterface") sharedInstance];
     if (interface) {
         @try {
@@ -175,11 +191,29 @@ static void injectHIDEvent(IOHIDEventRef event) {
         } @catch (NSException *e) {
             NSLog(@"[StarCoreTweak] injectHIDEvent异常: %@", e);
         }
-        CFRelease(event);
     } else {
-        NSLog(@"[StarCoreTweak] ❌ BKHIDSystemInterface sharedInstance为nil");
-        CFRelease(event);
+        NSLog(@"[StarCoreTweak] ❌ BKHIDSystemInterface不可用");
     }
+}
+
+// 统一分发入口：优先DispatchEvent，失败则用BKS
+static void dispatchHIDEvent(IOHIDEventRef event) {
+    if (!event) return;
+    
+    // 设置SenderID（SimulateTouch使用0xDEFACEDBEEFFECE5，我们用标准SenderID）
+    if (IOHIDEventSetSenderIDFunc) {
+        IOHIDEventSetSenderIDFunc(event, kIOHIDEventDigitizerSenderID);
+    }
+    
+    // 优先使用DispatchEvent（SimulateTouch验证方案）
+    if (_dispatchClient || IOHIDEventSystemClientCreateFunc) {
+        dispatchEventViaClient(event);
+    } else {
+        // 备选：BKHIDSystemInterface
+        dispatchEventViaBKS(event);
+    }
+    
+    CFRelease(event);
 }
 
 // ==================== 重置空闲计时器 ====================
@@ -191,28 +225,42 @@ static void resetIdleTimer() {
     }
 }
 
-// ==================== 触摸事件发送 ====================
+// ==================== 触摸事件发送（对齐SimulateTouch）====================
 
 static void simulateTouch(int type, float x, float y, int fingerId) {
-    if (!loadFunctions()) {
-        NSLog(@"[StarCoreTweak] ❌ 触摸函数未加载");
-        return;
-    }
+    if (!loadFunctions()) return;
     
-    uint64_t timeStamp = mach_absolute_time();
+    // 坐标转换：归一化0.0-1.0 → SimulateTouch坐标系统
+    // SimulateTouch公式: rX = x_pixel / screenWidth * scaleFactor
+    // 对于归一化输入: rX = x_norm * scaleFactor
+    float scaleFactor = getScreenScaleFactor();
+    float rX = x * scaleFactor;
+    float rY = y * scaleFactor;
     
-    // 事件掩码
+    // 事件掩码（与SimulateTouch一致）
     int eventM = (type == TOUCH_MOVE) ? kIOHIDDigitizerEventPosition : (kIOHIDDigitizerEventRange | kIOHIDDigitizerEventTouch);
     int touch_ = (type == TOUCH_UP) ? 0 : 1;
     
-    // 1. 创建Parent事件（Hand类型）
+    uint64_t timeStamp = mach_absolute_time();
+    
+    NSLog(@"[StarCoreTweak] simulateTouch type=%d rX=%.4f rY=%.4f scale=%.1f", type, rX, rY, scaleFactor);
+    
+    // 1. 创建Hand事件（完全对齐SimulateTouch）
+    //    参数: allocator, timestamp, type=3(Hand), index=0, identity=1,
+    //          eventMask=0, buttonMask=0, x=0, y=0, z=0, tip=0, barrel=0,
+    //          range=false, touch=false, options=0
     IOHIDEventRef handEvent = IOHIDEventCreateDigitizerEventFunc(
         kCFAllocatorDefault,
         timeStamp,
-        kIOHIDTransducerTypeHand,
-        0, 1, 0, 0,
-        0, 0, 0, 0, 0,
-        0, false, false, 0
+        kIOHIDTransducerTypeHand,  // type = 3
+        0,                         // index = 0
+        1,                         // identity = 1
+        0,                         // eventMask = 0
+        0,                         // buttonMask = 0
+        0, 0, 0,                   // x, y, z = 0
+        0, 0,                      // tipPressure, barrelPressure = 0
+        false, false,              // range, touch = false
+        0                          // options = 0
     );
     
     if (!handEvent) {
@@ -220,22 +268,29 @@ static void simulateTouch(int type, float x, float y, int fingerId) {
         return;
     }
     
-    // 关键设置 - 与SimulateTouch一致
+    // 关键设置 - 与SimulateTouch完全一致
     IOHIDEventSetIntegerValueWithOptionsFunc(handEvent, kIOHIDEventFieldDigitizerDisplayIntegrated, 1, (unsigned int)-268435456);
     IOHIDEventSetIntegerValueWithOptionsFunc(handEvent, kIOHIDEventFieldBuiltIn, 1, (unsigned int)-268435456);
-    IOHIDEventSetSenderIDFunc(handEvent, kStarCoreSenderID);
+    IOHIDEventSetSenderIDFunc(handEvent, kIOHIDEventDigitizerSenderID);
     
-    // 2. 创建Finger事件
+    // 2. 创建Finger事件（完全对齐SimulateTouch）
+    //    参数: allocator, timestamp, index=fingerId, identity=i+2, eventMask,
+    //          x=rX, y=rY, z=0, tipPressure=0, twist=0, minorRadius=0,
+    //          majorRadius=0, quality=0, density=0, irregularity=0,
+    //          range=touch_, touch=touch_, options=0
     IOHIDEventRef fingerEvent = IOHIDEventCreateDigitizerFingerEventWithQualityFunc(
         kCFAllocatorDefault,
         timeStamp,
-        fingerId, fingerId + 2,
-        eventM,
-        x, y,
-        0,
-        touch_ ? 1.0f : 0.0f,
-        0, 0, 0, 0, 0, 0,
-        touch_, touch_, 0
+        fingerId,           // index
+        fingerId + 2,       // identity (SimulateTouch用 i+2)
+        eventM,             // eventMask
+        rX, rY,             // x, y (SimulateTouch坐标系统)
+        0,                  // z
+        0,                  // tipPressure
+        0, 0, 0, 0, 0, 0,  // twist, minorRadius, majorRadius, quality, density, irregularity
+        touch_,             // range
+        touch_,             // touch
+        0                   // options
     );
     
     if (!fingerEvent) {
@@ -248,7 +303,7 @@ static void simulateTouch(int type, float x, float y, int fingerId) {
     IOHIDEventAppendEventFunc(handEvent, fingerEvent);
     CFRelease(fingerEvent);
     
-    // 4. 设置Hand事件掩码
+    // 4. 设置Hand事件掩码（与SimulateTouch一致）
     int handEventMask = 0;
     int handEventTouch = 0;
     
@@ -270,8 +325,8 @@ static void simulateTouch(int type, float x, float y, int fingerId) {
     // 5. 重置空闲计时器
     resetIdleTimer();
     
-    // 6. 通过BKHIDSystemInterface注入
-    injectHIDEvent(handEvent);
+    // 6. 分发事件
+    dispatchHIDEvent(handEvent);
 }
 
 // ==================== 高级触摸操作 ====================
@@ -300,7 +355,7 @@ static void simulateSwipe(float fromX, float fromY, float toX, float toY, float 
 }
 
 static void simulateLongPress(float x, float y, float duration) {
-    NSLog(@"[StarCoreTweak] longPress: (%.4f,%.4f) dur=%.2f", x, y, duration);
+    NSLog(@"[StarCoreTweak] longPress: (%.4f, %.4f) dur=%.2f", x, y, duration);
     simulateTouch(TOUCH_DOWN, x, y, 1);
     usleep((useconds_t)(duration * 1000000));
     simulateTouch(TOUCH_UP, x, y, 1);
@@ -316,7 +371,7 @@ static void simulateHomeButton() {
         kCFAllocatorDefault, timeStamp,
         kHIDPage_Consumer, kHIDUsage_Csmr_Menu,
         true, 0);
-    if (downEvent) injectHIDEvent(downEvent);
+    if (downEvent) dispatchHIDEvent(downEvent);
     
     usleep(50000);
     
@@ -325,7 +380,7 @@ static void simulateHomeButton() {
         kCFAllocatorDefault, timeStamp,
         kHIDPage_Consumer, kHIDUsage_Csmr_Menu,
         false, 0);
-    if (upEvent) injectHIDEvent(upEvent);
+    if (upEvent) dispatchHIDEvent(upEvent);
     
     resetIdleTimer();
 }
@@ -374,7 +429,7 @@ static StarCoreTCPServer *_server = nil;
     }
     
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{ [self acceptLoop]; });
-    NSLog(@"[StarCoreTweak] TCP服务器已启动 127.0.0.1:6000");
+    NSLog(@"[StarCoreTweak] TCP服务器已启动 127.0.0.1:6000 v4.0");
 }
 
 - (void)acceptLoop {
@@ -426,7 +481,7 @@ static StarCoreTCPServer *_server = nil;
     else if ([action isEqualToString:@"tap"]) {
         float x = [request[@"x"] floatValue];
         float y = [request[@"y"] floatValue];
-        // 逻辑像素转归一化
+        // 支持两种坐标：归一化0-1 或 逻辑像素
         if (x > 1.0f || y > 1.0f) {
             CGRect bounds = [UIScreen mainScreen].bounds;
             x = x / bounds.size.width;
@@ -474,13 +529,17 @@ static StarCoreTCPServer *_server = nil;
     }
     else if ([action isEqualToString:@"diagnose"]) {
         NSMutableDictionary *diag = [@{
+            @"version": @"4.0",
             @"createDigitizerEvent": (IOHIDEventCreateDigitizerEventFunc ? @"OK" : @"NULL"),
             @"fingerEventWithQuality": (IOHIDEventCreateDigitizerFingerEventWithQualityFunc ? @"OK" : @"NULL"),
             @"createKeyboardEvent": (IOHIDEventCreateKeyboardEventFunc ? @"OK" : @"NULL"),
             @"setIntegerValueWithOptions": (IOHIDEventSetIntegerValueWithOptionsFunc ? @"OK" : @"NULL"),
             @"setSenderID": (IOHIDEventSetSenderIDFunc ? @"OK" : @"NULL"),
             @"appendEvent": (IOHIDEventAppendEventFunc ? @"OK" : @"NULL"),
+            @"eventSystemClientCreate": (IOHIDEventSystemClientCreateFunc ? @"OK" : @"NULL"),
+            @"eventSystemClientDispatchEvent": (IOHIDEventSystemClientDispatchEventFunc ? @"OK" : @"NULL"),
             @"BKHIDSystemInterface": (objc_getClass("BKHIDSystemInterface") ? @"OK" : @"NULL"),
+            @"dispatchClient": (_dispatchClient ? @"OK" : @"NULL"),
         } mutableCopy];
         response[@"success"] = @YES; response[@"diagnostics"] = diag;
     }
@@ -509,19 +568,19 @@ static StarCoreTCPServer *_server = nil;
 
 - (void)applicationDidFinishLaunching:(id)application {
     %orig;
-    NSLog(@"[StarCoreTweak] SpringBoard启动完成 v3.1");
+    NSLog(@"[StarCoreTweak] SpringBoard启动完成 v4.0");
     
     // 启动TCP服务器
     _server = [[StarCoreTCPServer alloc] init];
     [_server start];
     
-    NSLog(@"[StarCoreTweak] v3.1 初始化完成 ✅");
+    NSLog(@"[StarCoreTweak] v4.0 初始化完成 ✅ (SimulateTouch对齐版)");
 }
 
 %end
 
 %ctor {
-    NSLog(@"[StarCoreTweak] v3.1 加载中... (SpringBoard + BKHIDSystemInterface)");
+    NSLog(@"[StarCoreTweak] v4.0 加载中... (SimulateTouch对齐 + DispatchEvent)");
 }
 
 %dtor {

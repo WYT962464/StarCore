@@ -1,9 +1,9 @@
 Package: com.starcore.tweak
 Name: StarCoreTweak
-Version: 3.1.0
-Architecture: iphoneos-arm
-Description: StarCore触摸注入Tweak v3.1 (SpringBoard + BKHIDSystemInterface)
-Maintainer: StarCore <starcore@example.com>
+Version: 4.0.0
+Architecture: iphoneos-arm64
+Description: StarCore Tweak - Touch Injection v4.0 (SimulateTouch aligned)
+Maintainer: StarCore
 Author: StarCore
 Section: Tweaks
-Depends: mobilesubstrate (>= 0.9.5000)
+Depends: mobilesubstrate
