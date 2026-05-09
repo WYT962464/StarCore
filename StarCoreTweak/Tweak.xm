@@ -208,7 +208,7 @@ static void resetIdleTimer() {
     if (timerClass) {
         id timer = [timerClass sharedInstance];
         if ([timer respondsToSelector:@selector(userEventOccurredOnDisplay:)]) {
-            [timer userEventOccurredOnDisplay:nil];
+            [timer performSelector:@selector(userEventOccurredOnDisplay:) withObject:nil];
         }
     }
 }
@@ -349,7 +349,7 @@ static StarCoreTCPServer *_server = nil;
             @"eventSystemClientCreate": IOHIDEventSystemClientCreateFunc?@"OK":@"NULL",
             @"eventSystemClientDispatchEvent": IOHIDEventSystemClientDispatchEventFunc?@"OK":@"NULL",
             @"BKSHIDEventSetDigitizerInfo": BKSHIDEventSetDigitizerInfoFunc?@"OK":@"NULL",
-            @"contextID": @([[[[UIApplication sharedApplication] keyWindow] _contextId] unsignedIntValue]),
+            @"contextID": @(((uint32_t)([[[UIApplication sharedApplication] keyWindow] _contextId]))),
         };
     }
     else { resp[@"success"]=@NO; resp[@"error"]=[NSString stringWithFormat:@"unknown: %@",action]; }
