@@ -1,6 +1,6 @@
 Package: com.starcore.tweak
 Name: StarCoreTweak
-Version: 4.2.0
+Version: 4.3.0
 Architecture: iphoneos-arm64
 Description: StarCore Tweak - Touch Injection v4.0 (SimulateTouch aligned)
 Maintainer: StarCore
