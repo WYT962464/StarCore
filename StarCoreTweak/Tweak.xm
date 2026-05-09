@@ -20,7 +20,12 @@
 #import <unistd.h>
 #import <mach/mach_time.h>
 #import <mach-o/dyld.h>
-#import <IOKit/IOKitLib.h>
+#import <CoreFoundation/CoreFoundation.h>
+
+// ==================== IOKit类型定义（避免模块冲突）====================
+#define kIOReturnSuccess 0
+typedef int IOReturn;
+typedef UInt32 IOOptionBits;
 
 // ==================== 私有类型 ====================
 typedef struct __IOHIDEvent *IOHIDEventRef;
