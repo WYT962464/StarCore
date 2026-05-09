@@ -1,15 +1,14 @@
 /**
- * StarCoreTweak.xm v5.3 - Shell命令 + HID Entitlements
+ * StarCoreTweak.xm v5.4 - posix_spawn替换popen + HID Entitlements
  * 
  * v5.2问题：IOHIDUserDeviceCreate返回NULL（缺entitlements），keyPress崩SpringBoard
  * 
- * v5.3 更新：
- * 1. 新增shell命令 - 通过popen()执行shell命令并返回结果（64KB限制）
- * 2. 添加HID entitlements - 尝试让IOHIDUserDeviceCreate成功
- * 3. 改进initDevice - 失败时返回更详细错误信息（含entitlements检查提示）
- * 4. 改进diagnose - 添加shellCommand状态
- * 5. keyPress仍只在虚拟键盘设备就绪时工作
- * 6. pressHome/openApp保持不变
+ * v5.4 更新：
+ * 1. shell命令改用posix_spawn执行 - 修复SpringBoard沙盒中popen失败(exitCode=127)的问题
+ * 2. 输出重定向到临时文件(/tmp/starcore_shell_out)，执行完立即删除
+ * 3. waitpid轮询带10秒超时，避免阻塞SpringBoard
+ * 4. JSON接口格式保持不变，向后兼容
+ * 5. pressHome/openApp/initDevice/diagnose保持不变
  */
 
 #import <UIKit/UIKit.h>
@@ -20,7 +19,10 @@
 #import <netinet/in.h>
 #import <arpa/inet.h>
 #import <unistd.h>
+#import <spawn.h>
+#import <fcntl.h>
 #import <stdio.h>
+#import <sys/wait.h>
 #import <mach/mach_time.h>
 #import <mach-o/dyld.h>
 #import <CoreFoundation/CoreFoundation.h>
@@ -256,7 +258,7 @@ static bool loadFunctions() {
     if (!IOHIDEventCreateDigitizerEventFunc) { NSLog(@"[StarCoreTweak] ❌ 核心函数缺失"); return false; }
     
     success = true;
-    NSLog(@"[StarCoreTweak] ✅ v5.3 函数加载成功");
+    NSLog(@"[StarCoreTweak] ✅ v5.4 函数加载成功");
     return true;
 }
 
@@ -866,7 +868,7 @@ static StarCoreTCPServer *_server = nil;
     struct sockaddr_in a; memset(&a,0,sizeof(a)); a.sin_len=sizeof(a); a.sin_family=AF_INET; a.sin_port=htons(6000); a.sin_addr.s_addr=inet_addr("127.0.0.1");
     if (bind((int)_sock,(struct sockaddr*)&a,sizeof(a))<0||listen((int)_sock,5)<0) { close((int)_sock); _sock=-1; return; }
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT,0),^{[self acceptLoop];});
-    NSLog(@"[StarCoreTweak] TCP :6000 v5.3 (shell + HID entitlements)");
+    NSLog(@"[StarCoreTweak] TCP :6000 v5.4 (posix_spawn + HID entitlements)");
 }
 - (void)acceptLoop {
     while(_sock>=0) { struct sockaddr_in ca; socklen_t cl=sizeof(ca); int fd=accept((int)_sock,(struct sockaddr*)&ca,&cl); if(fd<0) continue;
@@ -977,38 +979,75 @@ static StarCoreTCPServer *_server = nil;
         }
     }
     
-    // ★ v5.3: shell - 执行shell命令
+    // ★ v5.4: shell - 使用posix_spawn执行命令（修复SpringBoard沙盒中popen返回127的问题）
     else if([action isEqualToString:@"shell"]) {
         NSString *cmd = req[@"command"];
         if (!cmd || cmd.length == 0) {
             resp[@"success"]=@NO;
             resp[@"error"]=@"command required";
         } else {
-            FILE *fp = popen([cmd UTF8String], "r");
-            if (fp) {
-                NSMutableData *output = [NSMutableData data];
-                char buf[4096];
-                while (fgets(buf, sizeof(buf), fp)) {
-                    [output appendBytes:buf length:strlen(buf)];
-                }
-                int status = pclose(fp);
-                // 限制输出长度到64KB
-                if (output.length > 65536) {
-                    [output replaceBytesInRange:NSMakeRange(65536, output.length - 65536) withBytes:"" length:0];
-                    NSString *result = [[NSString alloc] initWithData:output encoding:NSUTF8StringEncoding];
-                    result = [result stringByAppendingString:@"\n... [truncated]"];
-                    resp[@"success"]=@(status == 0);
-                    resp[@"output"]=result ?: @"";
-                    resp[@"exitCode"]=@(WEXITSTATUS(status));
-                } else {
-                    NSString *result = [[NSString alloc] initWithData:output encoding:NSUTF8StringEncoding];
-                    resp[@"success"]=@(status == 0);
-                    resp[@"output"]=result ?: @"";
-                    resp[@"exitCode"]=@(WEXITSTATUS(status));
-                }
-            } else {
+            // 使用posix_spawn执行命令，输出重定向到临时文件
+            const char *tmpPath = "/tmp/starcore_shell_out";
+            // 先删除旧的输出文件
+            remove(tmpPath);
+            
+            posix_spawn_file_actions_t actions;
+            posix_spawn_file_actions_init(&actions);
+            posix_spawn_file_actions_addopen(&actions, STDOUT_FILENO, tmpPath, O_WRONLY|O_CREAT|O_TRUNC, 0644);
+            posix_spawn_file_actions_adddup2(&actions, STDOUT_FILENO, STDERR_FILENO);
+            
+            // 构造参数: /bin/sh -c "command"
+            char *argv[] = {(char*)"/bin/sh", (char*)"-c", (char*)[cmd UTF8String], NULL};
+            
+            // 设置环境变量
+            char *envp[] = {
+                (char*)"PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin",
+                (char*)"HOME=/var/mobile",
+                NULL
+            };
+            
+            pid_t pid;
+            int spawnResult = posix_spawn(&pid, "/bin/sh", &actions, NULL, argv, envp);
+            posix_spawn_file_actions_destroy(&actions);
+            
+            if (spawnResult != 0) {
                 resp[@"success"]=@NO;
-                resp[@"error"]=@"popen failed";
+                resp[@"error"]=[NSString stringWithFormat:@"posix_spawn failed: %s", strerror(spawnResult)];
+            } else {
+                // 等待子进程结束，带超时
+                int status = 0;
+                int waitCount = 0;
+                while (waitCount < 100) { // 最多等10秒
+                    pid_t result = waitpid(pid, &status, WNOHANG);
+                    if (result > 0) break;
+                    if (result < 0) break;
+                    usleep(100000); // 100ms
+                    waitCount++;
+                }
+                
+                // 读取输出文件
+                NSString *output = @"";
+                FILE *fp = fopen(tmpPath, "r");
+                if (fp) {
+                    NSMutableData *outData = [NSMutableData data];
+                    char buf[4096];
+                    while (fgets(buf, sizeof(buf), fp)) {
+                        [outData appendBytes:buf length:strlen(buf)];
+                    }
+                    fclose(fp);
+                    if (outData.length > 65536) {
+                        [outData replaceBytesInRange:NSMakeRange(65536, outData.length - 65536) withBytes:"" length:0];
+                        output = [[NSString alloc] initWithData:outData encoding:NSUTF8StringEncoding];
+                        output = [output stringByAppendingString:@"\n... [truncated]"];
+                    } else {
+                        output = [[NSString alloc] initWithData:outData encoding:NSUTF8StringEncoding] ?: @"";
+                    }
+                }
+                remove(tmpPath); // 清理临时文件
+                
+                resp[@"success"] = @(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+                resp[@"output"] = output;
+                resp[@"exitCode"] = @(WIFEXITED(status) ? WEXITSTATUS(status) : -1);
             }
         }
     }
@@ -1036,7 +1075,7 @@ static StarCoreTCPServer *_server = nil;
         
         resp[@"success"]=@YES; 
         resp[@"diagnostics"]=@{
-            @"version": @"5.3",
+            @"version": @"5.4",
             @"iokitHandle": g_iokitHandle?@"OK":@"NULL",
             @"bbsHandle": g_bbsHandle?@"OK":@"NULL",
             @"createDigitizerEvent": IOHIDEventCreateDigitizerEventFunc?@"OK":@"NULL",
@@ -1049,7 +1088,7 @@ static StarCoreTCPServer *_server = nil;
             @"virtualDevice": g_virtualDeviceReady?@"OK":@"FAILED",
             @"virtualKeyboardDevice": g_virtualKeyboardReady?@"OK":@"FAILED",
             @"virtualDeviceError": g_virtualDeviceError ?: @"",
-            // ★ v5.3: shell命令状态
+            // ★ v5.4: shell命令状态(posix_spawn)
             @"shellCommand": @"OK",
             @"frontmostApp": g_frontmostApp ?: @"unknown",
             @"frontmostContextID": @(frontmostCID),
@@ -1098,7 +1137,7 @@ static StarCoreTCPServer *_server = nil;
 %hook SpringBoard
 - (void)applicationDidFinishLaunching:(id)application {
     %orig;
-    NSLog(@"[StarCoreTweak] SpringBoard启动 v5.3 (shell + HID entitlements)");
+    NSLog(@"[StarCoreTweak] SpringBoard启动 v5.4 (posix_spawn + HID entitlements)");
     loadFunctions();
     _server = [[StarCoreTCPServer alloc] init];
     [_server start];
@@ -1110,9 +1149,9 @@ static StarCoreTCPServer *_server = nil;
 //        bool ok = initVirtualTouchDevice();
 //        NSLog(@"[StarCoreTweak] 虚拟触摸设备初始化: %@", ok ? @"成功" : @"失败");
 //    });
-    NSLog(@"[StarCoreTweak] v5.3: 虚拟设备需手动调用initDevice, shell命令已就绪");
+    NSLog(@"[StarCoreTweak] v5.4: 虚拟设备需手动调用initDevice, shell命令(posix_spawn)已就绪");
 }
 %end
 
-%ctor { NSLog(@"[StarCoreTweak] v5.3 loading... (shell + HID entitlements)"); }
+%ctor { NSLog(@"[StarCoreTweak] v5.4 loading... (posix_spawn + HID entitlements)"); }
 %dtor { [_server stop]; }

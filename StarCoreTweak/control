@@ -1,8 +1,8 @@
 Package: com.starcore.tweak
 Name: StarCoreTweak
-Version: 5.3.0
+Version: 5.4.0
 Architecture: iphoneos-arm64
-Description: StarCore Tweak v5.3 - Shell命令 + HID Entitlements（新增shell命令执行，添加HID entitlements尝试修复虚拟设备创建）
+Description: StarCore Tweak v5.4 - posix_spawn替换popen + HID Entitlements（修复SpringBoard沙盒中shell命令无法执行的问题，使用posix_spawn替代popen）
 Maintainer: StarCore
 Author: StarCore
 Section: Tweaks
