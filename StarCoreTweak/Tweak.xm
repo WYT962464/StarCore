@@ -1,13 +1,13 @@
 /**
- * StarCoreTweak.xm v5.0 - IOHIDUserDevice虚拟触摸 + 键盘输入
+ * StarCoreTweak.xm v5.1 - 安全修复版
  * 
- * v4.3问题：tap/swipe无效，因为IOHIDEventSystemClientDispatchEvent无法跨越SpringBoard进程边界
- * 解决方案：使用IOHIDUserDevice创建虚拟HID设备，事件走内核输入管线，自动路由到前台app
+ * v5.0问题：IOHIDUserDeviceCreate在SpringBoard启动1秒后自动调用，导致SpringBoard崩溃（Safe Mode）
  * 
- * v5.0新增：
- * 1. IOHIDUserDevice虚拟触摸设备 - 支持tap/swipe/longPress
- * 2. keyPress命令 - 键盘字符输入
- * 3. 保留旧IOHIDEventSystemClient方案作为回退（pressHome依赖它）
+ * v5.1 安全修复：
+ * 1. 禁用虚拟设备自动创建 - 用户需手动调用initDevice
+ * 2. 修复HID Report打包问题 - 所有字段字节对齐
+ * 3. keyPress功能独立可用 - 使用IOHIDEventSystemClient路径
+ * 4. tap/swipe/longPress在虚拟设备不可用时回退到IOHIDEventSystemClient
  */
 
 #import <UIKit/UIKit.h>
@@ -79,7 +79,7 @@ static IOHIDEventSystemClientRef (*IOHIDEventSystemClientCreateFunc)(CFAllocator
 static void (*IOHIDEventSystemClientDispatchEventFunc)(IOHIDEventSystemClientRef, IOHIDEventRef) = NULL;
 static void (*BKSHIDEventSetDigitizerInfoFunc)(IOHIDEventRef, uint32_t, uint8_t, uint8_t, CFStringRef, CFTimeInterval, float) = NULL;
 
-// ★ v5.0: IOHIDUserDevice函数（虚拟触摸设备）
+// ★ v5.1: IOHIDUserDevice函数（虚拟触摸设备）
 static IOHIDUserDeviceRef (*IOHIDUserDeviceCreateFunc)(CFAllocatorRef, CFDictionaryRef, IOOptionBits) = NULL;
 static IOReturn (*IOHIDUserDeviceHandleReportFunc)(IOHIDUserDeviceRef, const uint8_t *, CFIndex) = NULL;
 
@@ -91,12 +91,13 @@ static uint32_t g_springBoardContextID = 2939785827;
 static NSString *g_contextSource = @"none";
 static NSString *g_frontmostApp = @"";
 
-// ★ v5.0: 虚拟触摸设备
+// ★ v5.1: 虚拟触摸设备
 static IOHIDUserDeviceRef g_virtualDevice = NULL;
 static bool g_virtualDeviceReady = false;
 static NSString *g_virtualDeviceError = @"";
 
-// ==================== HID Report Descriptor (多点触摸屏) ====================
+// ★ v5.1 修复：HID Report Descriptor - 所有字段字节对齐
+// 修复：Tip Switch 从 1 bit 改为 8 bits (1字节)，添加 padding 使后续字段正确对齐
 static const uint8_t g_multitouch_descriptor[] = {
     0x05, 0x0D,        // Usage Page (Digitizer)
     0x09, 0x04,        // Usage (Touch Screen)
@@ -107,9 +108,13 @@ static const uint8_t g_multitouch_descriptor[] = {
     0x09, 0x42,        //     Usage (Tip Switch)
     0x15, 0x00,        //     Logical Minimum (0)
     0x25, 0x01,        //     Logical Maximum (1)
-    0x75, 0x01,        //     Report Size (1)
+    0x75, 0x08,        //     Report Size (8) ← 改为8位字节对齐
     0x95, 0x01,        //     Report Count (1)
     0x81, 0x02,        //     Input (Data, Variable, Absolute)
+    // 添加padding让后续字段字节对齐
+    0x75, 0x08,        //     Report Size (8)
+    0x95, 0x07,        //     Report Count (7) ← 7字节padding
+    0x81, 0x03,        //     Input (Constant) ← padding
     0x09, 0x51,        //     Usage (Contact Identifier)
     0x75, 0x08,        //     Report Size (8)
     0x95, 0x01,        //     Report Count (1)
@@ -138,11 +143,7 @@ static const uint8_t g_multitouch_descriptor[] = {
     0x15, 0x00,        //     Logical Minimum (0)
     0x25, 0x0A,        //     Logical Maximum (10)
     0x81, 0x02,        //   Input (Data, Variable, Absolute)
-    0x09, 0x55,        //   Usage (Contact Count Maximum)
-    0x75, 0x08,        //     Report Size (8)
-    0x95, 0x01,        //     Report Count (1)
-    0x25, 0x0A,        //     Logical Maximum (10)
-    0xB1, 0x02,        //   Feature (Data, Variable, Absolute)
+    // Contact Count Maximum 作为 Feature Report 已移除（非必需）
     0xC0               // End Collection
 };
 
@@ -208,7 +209,7 @@ static bool loadFunctions() {
     LOAD_SYM(IOHIDEventSystemClientDispatchEventFunc, "IOHIDEventSystemClientDispatchEvent");
     LOAD_SYM(BKSHIDEventSetDigitizerInfoFunc, "BKSHIDEventSetDigitizerInfo");
     
-    // ★ v5.0: IOHIDUserDevice函数
+    // ★ v5.1: IOHIDUserDevice函数
     LOAD_SYM(IOHIDUserDeviceCreateFunc, "IOHIDUserDeviceCreate");
     LOAD_SYM(IOHIDUserDeviceHandleReportFunc, "IOHIDUserDeviceHandleReport");
     
@@ -217,7 +218,7 @@ static bool loadFunctions() {
     if (!IOHIDEventCreateDigitizerEventFunc) { NSLog(@"[StarCoreTweak] ❌ 核心函数缺失"); return false; }
     
     success = true;
-    NSLog(@"[StarCoreTweak] ✅ v5.0 函数加载成功");
+    NSLog(@"[StarCoreTweak] ✅ v5.1 函数加载成功");
     return true;
 }
 
@@ -410,7 +411,7 @@ static void simulateHomeButton() {
     resetIdleTimer();
 }
 
-// ==================== v5.0: IOHIDUserDevice虚拟触摸设备 ====================
+// ==================== v5.1: IOHIDUserDevice虚拟触摸设备 ====================
 
 // 创建虚拟触摸设备
 static bool initVirtualTouchDevice() {
@@ -464,28 +465,38 @@ static bool initVirtualTouchDevice() {
     return true;
 }
 
-// 发送HID触摸报告
+// ★ v5.1 修复：HID触摸报告 - 字节对齐版本
+// Report格式（17字节 = 1 Report ID + 16 data）：
+// Byte 0: Report ID = 1
+// Byte 1: Tip Switch (1字节，0或1)
+// Byte 2-8: Padding (7字节常量)
+// Byte 9: Contact Identifier
+// Byte 10-11: Tip Pressure (uint16 LE)
+// Byte 12-13: X (uint16 LE, 0-32767)
+// Byte 14-15: Y (uint16 LE, 0-32767)
+// Byte 16: Contact Count
 static bool sendTouchReport(bool tipSwitch, uint8_t contactId, uint16_t pressure, uint16_t xNorm, uint16_t yNorm, uint8_t contactCount) {
     if (!g_virtualDeviceReady || !IOHIDUserDeviceHandleReportFunc) {
         return false;
     }
     
-    // Report buffer (11字节: 1 byte report ID + 10 bytes data)
-    uint8_t report[11] = {0};
+    // Report buffer (17字节: 1 byte report ID + 16 bytes data)
+    uint8_t report[17] = {0};
     report[0] = 0x01;  // Report ID
-    report[1] = tipSwitch ? 0x01 : 0x00;  // Tip Switch
-    report[2] = contactId;  // Contact Identifier
+    report[1] = tipSwitch ? 0x01 : 0x00;  // Tip Switch (8-bit aligned)
+    // Bytes 2-8: Padding (已初始化为0)
+    report[9] = contactId;  // Contact Identifier
     // Tip Pressure (uint16_t LE)
-    report[3] = pressure & 0xFF;
-    report[4] = (pressure >> 8) & 0xFF;
+    report[10] = pressure & 0xFF;
+    report[11] = (pressure >> 8) & 0xFF;
     // X (uint16_t LE, 0-32767)
-    report[5] = xNorm & 0xFF;
-    report[6] = (xNorm >> 8) & 0xFF;
+    report[12] = xNorm & 0xFF;
+    report[13] = (xNorm >> 8) & 0xFF;
     // Y (uint16_t LE, 0-32767)
-    report[7] = yNorm & 0xFF;
-    report[8] = (yNorm >> 8) & 0xFF;
+    report[14] = yNorm & 0xFF;
+    report[15] = (yNorm >> 8) & 0xFF;
     // Contact Count
-    report[9] = contactCount;
+    report[16] = contactCount;
     
     IOReturn result = IOHIDUserDeviceHandleReportFunc(g_virtualDevice, report, sizeof(report));
     
@@ -504,7 +515,7 @@ static inline uint16_t normalizeCoord(float coord) {
     return (uint16_t)(coord * 32767.0f);
 }
 
-// ★ v5.0: 虚拟设备tap
+// ★ v5.1: 虚拟设备tap
 static void virtualTap(float x, float y) {
     if (!g_virtualDeviceReady) {
         NSLog(@"[StarCoreTweak] ⚠️ 虚拟设备未就绪，使用旧方案");
@@ -521,7 +532,7 @@ static void virtualTap(float x, float y) {
     sendTouchReport(false, 0, 0, xN, yN, 0);
 }
 
-// ★ v5.0: 虚拟设备swipe
+// ★ v5.1: 虚拟设备swipe
 static void virtualSwipe(float startX, float startY, float endX, float endY, float duration) {
     if (!g_virtualDeviceReady) {
         NSLog(@"[StarCoreTweak] ⚠️ 虚拟设备未就绪，使用旧方案");
@@ -552,7 +563,7 @@ static void virtualSwipe(float startX, float startY, float endX, float endY, flo
     sendTouchReport(false, 0, 0, endXN, endYN, 0);
 }
 
-// ★ v5.0: 虚拟设备longPress
+// ★ v5.1: 虚拟设备longPress
 static void virtualLongPress(float x, float y, float duration) {
     if (!g_virtualDeviceReady) {
         NSLog(@"[StarCoreTweak] ⚠️ 虚拟设备未就绪，使用旧方案");
@@ -581,7 +592,7 @@ static void virtualLongPress(float x, float y, float duration) {
     sendTouchReport(false, 0, 0, xN, yN, 0);
 }
 
-// ==================== v5.0: 键盘字符输入 ====================
+// ==================== v5.1: 键盘字符输入 ====================
 
 // 键名到HID Usage映射
 static bool keyToUsage(NSString *key, uint32_t *page, uint32_t *usage) {
@@ -657,7 +668,7 @@ static bool keyToUsage(NSString *key, uint32_t *page, uint32_t *usage) {
     return true;
 }
 
-// ★ v5.0: 键盘字符输入
+// ★ v5.1: 键盘字符输入
 static void handleKeyPress(NSString *key) {
     if (!loadFunctions() || !IOHIDEventCreateKeyboardEventFunc) {
         NSLog(@"[StarCoreTweak] ⚠️ 键盘函数未加载");
@@ -697,7 +708,7 @@ static void handleKeyPress(NSString *key) {
     resetIdleTimer();
 }
 
-// ★ v5.0: 带文本输入的键盘输入
+// ★ v5.1: 带文本输入的键盘输入
 static void handleTextInput(NSString *text) {
     if (!text || text.length == 0) return;
     
@@ -725,7 +736,7 @@ static StarCoreTCPServer *_server = nil;
     struct sockaddr_in a; memset(&a,0,sizeof(a)); a.sin_len=sizeof(a); a.sin_family=AF_INET; a.sin_port=htons(6000); a.sin_addr.s_addr=inet_addr("127.0.0.1");
     if (bind((int)_sock,(struct sockaddr*)&a,sizeof(a))<0||listen((int)_sock,5)<0) { close((int)_sock); _sock=-1; return; }
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT,0),^{[self acceptLoop];});
-    NSLog(@"[StarCoreTweak] TCP :6000 v5.0 (IOHIDUserDevice + keyPress)");
+    NSLog(@"[StarCoreTweak] TCP :6000 v5.1 (IOHIDUserDevice + keyPress)");
 }
 - (void)acceptLoop {
     while(_sock>=0) { struct sockaddr_in ca; socklen_t cl=sizeof(ca); int fd=accept((int)_sock,(struct sockaddr*)&ca,&cl); if(fd<0) continue;
@@ -749,7 +760,7 @@ static StarCoreTCPServer *_server = nil;
     
     if([action isEqualToString:@"ping"]) { resp[@"success"]=@YES; resp[@"message"]=@"pong"; }
     
-    // ★ v5.0: tap - 优先使用虚拟设备
+    // ★ v5.1: tap - 优先使用虚拟设备
     else if([action isEqualToString:@"tap"]) {
         float x=[req[@"x"] floatValue],y=[req[@"y"] floatValue];
         if(x>1.0f||y>1.0f){CGRect b=[UIScreen mainScreen].bounds;x/=b.size.width;y/=b.size.height;if(x>1)x=1;if(y>1)y=1;}
@@ -765,7 +776,7 @@ static StarCoreTCPServer *_server = nil;
         }
     }
     
-    // ★ v5.0: swipe - 优先使用虚拟设备
+    // ★ v5.1: swipe - 优先使用虚拟设备
     else if([action isEqualToString:@"swipe"]) {
         float fX=[req[@"fromX"] floatValue], fY=[req[@"fromY"] floatValue];
         float tX=[req[@"toX"] floatValue], tY=[req[@"toY"] floatValue];
@@ -782,7 +793,7 @@ static StarCoreTCPServer *_server = nil;
         }
     }
     
-    // ★ v5.0: longPress - 优先使用虚拟设备
+    // ★ v5.1: longPress - 优先使用虚拟设备
     else if([action isEqualToString:@"longPress"]) {
         float x=[req[@"x"] floatValue], y=[req[@"y"] floatValue];
         float d=[req[@"duration"] floatValue] ?: 1.0f;
@@ -800,7 +811,7 @@ static StarCoreTCPServer *_server = nil;
     
     else if([action isEqualToString:@"pressHome"]) { simulateHomeButton(); resp[@"success"]=@YES; }
     
-    // ★ v5.0: keyPress - 键盘字符输入
+    // ★ v5.1: keyPress - 键盘字符输入
     else if([action isEqualToString:@"keyPress"]) {
         NSString *key = req[@"key"];
         if (!key || key.length == 0) {
@@ -812,7 +823,7 @@ static StarCoreTCPServer *_server = nil;
         }
     }
     
-    // ★ v5.0: textInput - 文本输入
+    // ★ v5.1: textInput - 文本输入
     else if([action isEqualToString:@"textInput"]) {
         NSString *text = req[@"text"];
         if (!text || text.length == 0) {
@@ -830,7 +841,7 @@ static StarCoreTCPServer *_server = nil;
     }
     else if([action isEqualToString:@"getScreenSize"]) { CGRect b=[UIScreen mainScreen].bounds; resp[@"success"]=@YES; resp[@"width"]=@(b.size.width); resp[@"height"]=@(b.size.height); resp[@"scale"]=@([UIScreen mainScreen].scale); }
     
-    // ★ v5.0: initDevice - 手动初始化虚拟设备
+    // ★ v5.1: initDevice - 手动初始化虚拟设备
     else if([action isEqualToString:@"initDevice"]) {
         bool ok = initVirtualTouchDevice();
         resp[@"success"]=@(ok);
@@ -844,14 +855,14 @@ static StarCoreTCPServer *_server = nil;
         
         resp[@"success"]=@YES; 
         resp[@"diagnostics"]=@{
-            @"version": @"5.0",
+            @"version": @"5.1",
             @"iokitHandle": g_iokitHandle?@"OK":@"NULL",
             @"bbsHandle": g_bbsHandle?@"OK":@"NULL",
             @"createDigitizerEvent": IOHIDEventCreateDigitizerEventFunc?@"OK":@"NULL",
             @"createKeyboardEvent": IOHIDEventCreateKeyboardEventFunc?@"OK":@"NULL",
             @"eventSystemClientDispatchEvent": IOHIDEventSystemClientDispatchEventFunc?@"OK":@"NULL",
             @"BKSHIDEventSetDigitizerInfo": BKSHIDEventSetDigitizerInfoFunc?@"OK":@"NULL",
-            // ★ v5.0: IOHIDUserDevice
+            // ★ v5.1: IOHIDUserDevice
             @"IOHIDUserDeviceCreate": IOHIDUserDeviceCreateFunc?@"OK":@"NULL",
             @"IOHIDUserDeviceHandleReport": IOHIDUserDeviceHandleReportFunc?@"OK":@"NULL",
             @"virtualDevice": g_virtualDeviceReady?@"OK":@"FAILED",
@@ -875,7 +886,7 @@ static StarCoreTCPServer *_server = nil;
             @"functionIOHIDEventCreateDigitizerEvent": IOHIDEventCreateDigitizerEventFunc?@YES:@NO,
             @"functionIOHIDEventSystemClientDispatchEvent": IOHIDEventSystemClientDispatchEventFunc?@YES:@NO,
             @"functionBKSHIDEventSetDigitizerInfo": BKSHIDEventSetDigitizerInfoFunc?@YES:@NO,
-            // ★ v5.0: IOHIDUserDevice
+            // ★ v5.1: IOHIDUserDevice
             @"functionIOHIDUserDeviceCreate": IOHIDUserDeviceCreateFunc?@YES:@NO,
             @"functionIOHIDUserDeviceHandleReport": IOHIDUserDeviceHandleReportFunc?@YES:@NO,
             @"canInjectTouch": @(canInjectTouch),
@@ -902,18 +913,20 @@ static StarCoreTCPServer *_server = nil;
 %hook SpringBoard
 - (void)applicationDidFinishLaunching:(id)application {
     %orig;
-    NSLog(@"[StarCoreTweak] SpringBoard启动 v5.0 (IOHIDUserDevice + keyPress)");
+    NSLog(@"[StarCoreTweak] SpringBoard启动 v5.1 (安全修复版)");
     loadFunctions();
     _server = [[StarCoreTCPServer alloc] init];
     [_server start];
     
-    // ★ v5.0: 初始化虚拟触摸设备
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        bool ok = initVirtualTouchDevice();
-        NSLog(@"[StarCoreTweak] 虚拟触摸设备初始化: %@", ok ? @"成功" : @"失败");
-    });
+// ★ v5.1 安全修复：禁用自动创建虚拟设备（防止SpringBoard崩溃）
+// 用户需要手动调用 initDevice 命令来初始化虚拟设备
+//    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+//        bool ok = initVirtualTouchDevice();
+//        NSLog(@"[StarCoreTweak] 虚拟触摸设备初始化: %@", ok ? @"成功" : @"失败");
+//    });
+    NSLog(@"[StarCoreTweak] v5.1 安全模式: 虚拟设备未自动创建，需手动调用initDevice");
 }
 %end
 
-%ctor { NSLog(@"[StarCoreTweak] v5.0 loading... (IOHIDUserDevice virtual touch + keyPress)"); }
+%ctor { NSLog(@"[StarCoreTweak] v5.1 loading... (安全修复版)"); }
 %dtor { [_server stop]; }
