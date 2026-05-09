@@ -1,12 +1,13 @@
 /**
- * StarCoreTweak.xm v4.2 - Add BKSHIDEventSetDigitizerInfo + contextID
+ * StarCoreTweak.xm v4.3 - 动态contextID修复触摸注入
  * 
- * v4.1发现：
- * - pressHome有效 → IOHIDEventSystemClientDispatchEvent能工作
- * - tap无效 → 触摸事件缺少contextID路由信息
+ * v4.2问题：tap/swipe无效，因为BKSHIDEventSetDigitizerInfo用的是SpringBoard的contextID
+ * 修复：动态获取前台app的contextID，而不是使用SpringBoard的contextID
  * 
- * 修复：调用BKSHIDEventSetDigitizerInfo设置目标窗口contextID
- * 参考：SpringBoard注入触摸的标准做法（GitHub社区代码验证）
+ * v4.3修改：
+ * 1. 添加getTargetContextID()动态获取前台app contextID
+ * 2. 添加testTouch诊断命令
+ * 3. 更新diagnose命令显示更多contextID信息
  */
 
 #import <UIKit/UIKit.h>
@@ -66,12 +67,17 @@ static void (*IOHIDEventAppendEventFunc)(IOHIDEventRef, IOHIDEventRef) = NULL;
 static IOHIDEventSystemClientRef (*IOHIDEventSystemClientCreateFunc)(CFAllocatorRef) = NULL;
 static void (*IOHIDEventSystemClientDispatchEventFunc)(IOHIDEventSystemClientRef, IOHIDEventRef) = NULL;
 
-// ★ 新增：BKSHIDEventSetDigitizerInfo（SpringBoard触摸路由必需）
+// ★ v4.3: BKSHIDEventSetDigitizerInfo（触摸路由必需）
 // 签名：void BKSHIDEventSetDigitizerInfo(IOHIDEventRef event, uint32_t contextID, uint8_t defaultDigitizer, uint8_t systemGestureisPossible, CFStringRef context, CFTimeInterval timestamp, float initialPressure)
 static void (*BKSHIDEventSetDigitizerInfoFunc)(IOHIDEventRef, uint32_t, uint8_t, uint8_t, CFStringRef, CFTimeInterval, float) = NULL;
 
 static void *g_iokitHandle = NULL;
 static void *g_bbsHandle = NULL;
+
+// ★ v4.3: 全局存储contextID来源信息
+static uint32_t g_springBoardContextID = 2939785827; // 已验证的SpringBoard contextID
+static NSString *g_contextSource = @"none";
+static NSString *g_frontmostApp = @"";
 
 // ==================== 框架加载 ====================
 
@@ -136,11 +142,247 @@ static bool loadFunctions() {
     if (!IOHIDEventCreateDigitizerEventFunc) { NSLog(@"[StarCoreTweak] ❌ 核心函数缺失"); return false; }
     
     success = true;
-    NSLog(@"[StarCoreTweak] ✅ v4.2 函数加载成功 (BKSHIDEventSetDigitizerInfo=%@)", BKSHIDEventSetDigitizerInfoFunc ? @"OK" : @"NULL");
+    NSLog(@"[StarCoreTweak] ✅ v4.3 函数加载成功 (BKSHIDEventSetDigitizerInfo=%@)", BKSHIDEventSetDigitizerInfoFunc ? @"OK" : @"NULL");
     return true;
 }
 
-// ==================== 获取contextID ====================
+// ==================== v4.3: 动态获取前台app的contextID ====================
+
+// 方法1: 通过CAWindowServer枚举获取contextID
+static uint32_t getContextIDFromCAWindowServer() {
+    // 尝试获取CAWindowServer类
+    Class wsClass = objc_getClass("CAWindowServer");
+    if (!wsClass) {
+        wsClass = NSClassFromString(@"CAWindowServer");
+    }
+    
+    if (!wsClass) {
+        NSLog(@"[StarCoreTweak] ⚠️ CAWindowServer class not found");
+        return 0;
+    }
+    
+    // 获取CAWindowServer单例
+    SEL serverSel = NSSelectorFromString(@"serverIfRunning");
+    if (![wsClass respondsToSelector:serverSel]) {
+        NSLog(@"[StarCoreTweak] ⚠️ CAWindowServer serverIfRunning not available");
+        return 0;
+    }
+    
+    id ws = [wsClass performSelector:serverSel];
+    if (!ws) {
+        NSLog(@"[StarCoreTweak] ⚠️ CAWindowServer instance is nil");
+        return 0;
+    }
+    
+    // 获取context列表
+    SEL contextsSel = NSSelectorFromString(@"contexts");
+    NSArray *contexts = nil;
+    
+    if ([ws respondsToSelector:contextsSel]) {
+        contexts = [ws performSelector:contextsSel];
+    } else {
+        // 尝试其他可能的选择器
+        NSLog(@"[StarCoreTweak] contexts selector not available, trying alternatives");
+        
+        // 尝试通过实例变量或其他方法获取
+        unsigned int ivarCount = 0;
+        Ivar *ivars = class_copyIvarList(object_getClass(ws), &ivarCount);
+        for (unsigned int i = 0; i < ivarCount; i++) {
+            NSLog(@"[StarCoreTweak] CAWindowServer ivar: %s", ivar_getName(ivars[i]));
+        }
+        if (ivars) free(ivars);
+        
+        return 0;
+    }
+    
+    if (!contexts || contexts.count == 0) {
+        NSLog(@"[StarCoreTweak] ⚠️ No contexts found in CAWindowServer");
+        return 0;
+    }
+    
+    pid_t myPid = getpid();
+    pid_t springBoardPid = 0;
+    uint32_t bestCID = 0;
+    int bestLayer = -1;
+    
+    for (id ctx in contexts) {
+        pid_t ctxPid = 0;
+        uint32_t cid = 0;
+        int layer = 0;
+        
+        // 获取pid
+        if ([ctx respondsToSelector:@selector(pid)]) {
+            ctxPid = (pid_t)(long)[ctx performSelector:@selector(pid)];
+        }
+        
+        // 获取contextId
+        if ([ctx respondsToSelector:@selector(contextId)]) {
+            cid = (uint32_t)(long)[ctx performSelector:@selector(contextId)];
+        }
+        
+        // 获取layer（用于判断是否是前台窗口）
+        if ([ctx respondsToSelector:@selector(layer)]) {
+            layer = (int)(long)[ctx performSelector:@selector(layer)];
+        }
+        
+        // 跳过SpringBoard进程和无效contextID
+        if (cid == 0) continue;
+        
+        // 记录SpringBoard的PID
+        if (cid == g_springBoardContextID) {
+            NSLog(@"[StarCoreTweak] Found SpringBoard contextID=%u", cid);
+            continue;
+        }
+        
+        // 找非SpringBoard进程且layer最大的contextID
+        if (ctxPid != myPid && layer > bestLayer) {
+            bestLayer = layer;
+            bestCID = cid;
+            NSLog(@"[StarCoreTweak] Found frontmost contextID=%u pid=%d layer=%d", cid, ctxPid, layer);
+        }
+    }
+    
+    return bestCID;
+}
+
+// 方法2: 通过SBS获取前台app
+static uint32_t getContextIDFromSBS() {
+    // 尝试获取前台app的bundleID
+    Class sbAppClass = objc_getClass("SBApplication");
+    if (!sbAppClass) {
+        NSLog(@"[StarCoreTweak] ⚠️ SBApplication class not found");
+        return 0;
+    }
+    
+    // 获取前台应用
+    Class sbCtrlClass = objc_getClass("SBApplicationController");
+    if (!sbCtrlClass) {
+        NSLog(@"[StarCoreTweak] ⚠️ SBApplicationController class not found");
+        return 0;
+    }
+    
+    id ctrl = [sbCtrlClass performSelector:@selector(sharedInstance)];
+    if (!ctrl) {
+        NSLog(@"[StarCoreTweak] ⚠️ SBApplicationController sharedInstance is nil");
+        return 0;
+    }
+    
+    // 尝试获取frontmostApplication
+    id frontApp = nil;
+    if ([ctrl respondsToSelector:@selector(frontmostApplication)]) {
+        frontApp = [ctrl performSelector:@selector(frontmostApplication)];
+    }
+    
+    if (!frontApp) {
+        NSLog(@"[StarCoreTweak] ⚠️ frontmostApplication is nil");
+        return 0;
+    }
+    
+    NSString *bundleID = nil;
+    if ([frontApp respondsToSelector:@selector(bundleIdentifier)]) {
+        bundleID = [frontApp performSelector:@selector(bundleIdentifier)];
+        g_frontmostApp = bundleID ?: @"";
+        NSLog(@"[StarCoreTweak] frontmost app: %@", bundleID);
+    }
+    
+    // 尝试从frontApp获取contextID
+    if ([frontApp respondsToSelector:@selector(contextIdentifier)]) {
+        uint32_t cid = (uint32_t)(long)[frontApp performSelector:@selector(contextIdentifier)];
+        if (cid != 0) {
+            NSLog(@"[StarCoreTweak] contextID from SBApplication.contextIdentifier: %u", cid);
+            return cid;
+        }
+    }
+    
+    // 尝试获取mainScene
+    if ([frontApp respondsToSelector:@selector(mainScene)]) {
+        id scene = [frontApp performSelector:@selector(mainScene)];
+        if (scene && [scene respondsToSelector:@selector(contextIdentifier)]) {
+            uint32_t cid = (uint32_t)(long)[scene performSelector:@selector(contextIdentifier)];
+            if (cid != 0) {
+                NSLog(@"[StarCoreTweak] contextID from mainScene: %u", cid);
+                return cid;
+            }
+        }
+    }
+    
+    return 0;
+}
+
+// 方法3: 通过UIWindow获取（备选）
+static uint32_t getContextIDFromUIWindow() {
+    UIApplication *app = [UIApplication sharedApplication];
+    if (!app) return 0;
+    
+    // 遍历所有window找前台app的window
+    for (UIWindow *window in app.windows) {
+        // 跳过keyWindow（通常是SpringBoard的）
+        // 尝试找非keyWindow
+        if (window.isKeyWindow) continue;
+        
+        uint32_t ctxId = 0;
+        @try { 
+            if ([window respondsToSelector:@selector(_contextId)]) {
+                ctxId = (uint32_t)(long)[window performSelector:@selector(_contextId)];
+            }
+        } @catch (NSException *e) {}
+        
+        if (ctxId && ctxId != g_springBoardContextID) {
+            NSLog(@"[StarCoreTweak] contextID=%u from non-keyWindow", ctxId);
+            return ctxId;
+        }
+    }
+    
+    // 如果没找到，返回keyWindow的contextID
+    UIWindow *keyWindow = [app keyWindow];
+    if (keyWindow) {
+        uint32_t ctxId = 0;
+        @try {
+            if ([keyWindow respondsToSelector:@selector(_contextId)]) {
+                ctxId = (uint32_t)(long)[keyWindow performSelector:@selector(_contextId)];
+            }
+        } @catch (NSException *e) {}
+        
+        if (ctxId) {
+            NSLog(@"[StarCoreTweak] contextID=%u from keyWindow (fallback)", ctxId);
+            return ctxId;
+        }
+    }
+    
+    NSLog(@"[StarCoreTweak] ⚠️ contextID=0 (no window found)");
+    return 0;
+}
+
+// ★ v4.3核心: 动态获取目标contextID
+static uint32_t getTargetContextID() {
+    // 方法1: CAWindowServer枚举（优先）
+    uint32_t cid = getContextIDFromCAWindowServer();
+    if (cid != 0) {
+        g_contextSource = @"CAWindowServer";
+        return cid;
+    }
+    
+    // 方法2: SBS API
+    cid = getContextIDFromSBS();
+    if (cid != 0) {
+        g_contextSource = @"SBS";
+        return cid;
+    }
+    
+    // 方法3: UIWindow（备选）
+    cid = getContextIDFromUIWindow();
+    if (cid != 0) {
+        g_contextSource = @"UIWindow";
+        return cid;
+    }
+    
+    // 最终fallback: 返回0，让触摸事件自己路由
+    g_contextSource = @"none";
+    NSLog(@"[StarCoreTweak] ⚠️ getTargetContextID=0, touch may auto-route");
+    return 0;
+}
+
+// ==================== 获取SpringBoard的contextID ====================
 
 static uint32_t getKeyWindowContextID() {
     UIApplication *app = [UIApplication sharedApplication];
@@ -149,21 +391,16 @@ static uint32_t getKeyWindowContextID() {
     for (UIWindow *window in app.windows) {
         if (window.isKeyWindow) {
             uint32_t ctxId = 0;
-            @try { ctxId = window._contextId; } @catch (NSException *e) {}
+            @try { 
+                if ([window respondsToSelector:@selector(_contextId)]) {
+                    ctxId = (uint32_t)(long)[window performSelector:@selector(_contextId)];
+                }
+            } @catch (NSException *e) {}
             if (ctxId) {
-                NSLog(@"[StarCoreTweak] contextID=%u from keyWindow", ctxId);
+                NSLog(@"[StarCoreTweak] SpringBoard contextID=%u from keyWindow", ctxId);
+                g_springBoardContextID = ctxId;
                 return ctxId;
             }
-        }
-    }
-    
-    // 备选：取第一个window
-    for (UIWindow *window in app.windows) {
-        uint32_t ctxId = 0;
-        @try { ctxId = window._contextId; } @catch (NSException *e) {}
-        if (ctxId) {
-            NSLog(@"[StarCoreTweak] contextID=%u from firstWindow", ctxId);
-            return ctxId;
         }
     }
     
@@ -213,9 +450,10 @@ static void resetIdleTimer() {
     }
 }
 
-// ==================== 触摸模拟 ====================
+// ==================== v4.3: 触摸模拟（使用动态contextID） ====================
 
-static void simulateTouch(int type, float x, float y, int fingerId) {
+// ★ v4.3: 创建触摸事件，指定是否设置digitizerInfo
+static void simulateTouchEx(int type, float x, float y, int fingerId, uint32_t targetContextID, bool setDigitizerInfo) {
     if (!loadFunctions()) { NSLog(@"[StarCoreTweak] ❌ 函数未加载"); return; }
     
     float sf = getScreenScaleFactor();
@@ -224,7 +462,8 @@ static void simulateTouch(int type, float x, float y, int fingerId) {
     int touch_ = (type == TOUCH_UP) ? 0 : 1;
     uint64_t ts = mach_absolute_time();
     
-    NSLog(@"[StarCoreTweak] touch type=%d rX=%.4f rY=%.4f sf=%.1f", type, rX, rY, sf);
+    NSLog(@"[StarCoreTweak] touch type=%d rX=%.4f rY=%.4f sf=%.1f contextID=%u setDigitizer=%d", 
+          type, rX, rY, sf, targetContextID, setDigitizerInfo);
     
     // Hand事件
     IOHIDEventRef hand = IOHIDEventCreateDigitizerEventFunc(kCFAllocatorDefault, ts, kIOHIDTransducerTypeHand, 0, 1, 0, 0, 0, 0, 0, 0, 0, false, false, 0);
@@ -234,13 +473,12 @@ static void simulateTouch(int type, float x, float y, int fingerId) {
     IOHIDEventSetIntegerValueWithOptionsFunc(hand, kIOHIDEventFieldBuiltIn, 1, (unsigned int)-268435456);
     IOHIDEventSetSenderIDFunc(hand, kIOHIDEventDigitizerSenderID);
     
-    // ★ 设置contextID（SpringBoard路由必需）
-    uint32_t contextID = getKeyWindowContextID();
-    if (BKSHIDEventSetDigitizerInfoFunc && contextID) {
-        BKSHIDEventSetDigitizerInfoFunc(hand, contextID, false, false, NULL, 0, 0);
-        NSLog(@"[StarCoreTweak] ✅ BKSHIDEventSetDigitizerInfo contextID=%u", contextID);
-    } else if (contextID == 0) {
-        NSLog(@"[StarCoreTweak] ⚠️ contextID=0, touch may not route");
+    // ★ v4.3: 根据参数决定是否设置contextID
+    if (setDigitizerInfo && BKSHIDEventSetDigitizerInfoFunc && targetContextID) {
+        BKSHIDEventSetDigitizerInfoFunc(hand, targetContextID, false, false, NULL, 0, 0);
+        NSLog(@"[StarCoreTweak] ✅ BKSHIDEventSetDigitizerInfo contextID=%u", targetContextID);
+    } else if (targetContextID == 0) {
+        NSLog(@"[StarCoreTweak] ⚠️ contextID=0, skipping BKSHIDEventSetDigitizerInfo");
     }
     
     // Finger事件
@@ -262,6 +500,39 @@ static void simulateTouch(int type, float x, float y, int fingerId) {
     
     resetIdleTimer();
     dispatchHIDEvent(hand);
+}
+
+// 标准触摸（使用动态contextID）
+static void simulateTouch(int type, float x, float y, int fingerId) {
+    uint32_t cid = getTargetContextID();
+    simulateTouchEx(type, x, y, fingerId, cid, cid != 0);
+}
+
+// ★ v4.3: 测试触摸（用不同方式注入）
+static NSArray *testTouchVariations(float x, float y, int fingerId) {
+    NSMutableArray *results = [NSMutableArray new];
+    
+    // 方式1: 不设置digitizerInfo
+    uint32_t cid0 = 0;
+    @try { simulateTouchEx(TOUCH_DOWN, x, y, fingerId, cid0, false); } @catch (NSException *e) {}
+    usleep(50000);
+    @try { simulateTouchEx(TOUCH_UP, x, y, fingerId, cid0, false); } @catch (NSException *e) {}
+    [results addObject:@{@"method": @"noDigitizerInfo", @"contextID": @(cid0), @"sent": @YES}];
+    
+    // 方式2: contextID=0 但设置digitizerInfo
+    @try { simulateTouchEx(TOUCH_DOWN, x, y, fingerId, 0, true); } @catch (NSException *e) {}
+    usleep(50000);
+    @try { simulateTouchEx(TOUCH_UP, x, y, fingerId, 0, true); } @catch (NSException *e) {}
+    [results addObject:@{@"method": @"contextID_zero", @"contextID": @(0), @"sent": @YES}];
+    
+    // 方式3: 使用动态获取的contextID
+    uint32_t cid = getTargetContextID();
+    @try { simulateTouchEx(TOUCH_DOWN, x, y, fingerId, cid, cid != 0); } @catch (NSException *e) {}
+    usleep(50000);
+    @try { simulateTouchEx(TOUCH_UP, x, y, fingerId, cid, cid != 0); } @catch (NSException *e) {}
+    [results addObject:@{@"method": @"frontmostApp", @"contextID": @(cid), @"sent": @(cid != 0)}];
+    
+    return results;
 }
 
 static void simulateTap(float x, float y) { simulateTouch(TOUCH_DOWN, x, y, 1); usleep(50000); simulateTouch(TOUCH_UP, x, y, 1); }
@@ -299,7 +570,7 @@ static StarCoreTCPServer *_server = nil;
     struct sockaddr_in a; memset(&a,0,sizeof(a)); a.sin_len=sizeof(a); a.sin_family=AF_INET; a.sin_port=htons(6000); a.sin_addr.s_addr=inet_addr("127.0.0.1");
     if (bind((int)_sock,(struct sockaddr*)&a,sizeof(a))<0||listen((int)_sock,5)<0) { close((int)_sock); _sock=-1; return; }
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT,0),^{[self acceptLoop];});
-    NSLog(@"[StarCoreTweak] TCP :6000 v4.2");
+    NSLog(@"[StarCoreTweak] TCP :6000 v4.3 (dynamic contextID)");
 }
 - (void)acceptLoop {
     while(_sock>=0) { struct sockaddr_in ca; socklen_t cl=sizeof(ca); int fd=accept((int)_sock,(struct sockaddr*)&ca,&cl); if(fd<0) continue;
@@ -335,9 +606,39 @@ static StarCoreTCPServer *_server = nil;
         else { Class wc=objc_getClass("LSApplicationWorkspace"); if(wc){id ws=[wc performSelector:@selector(defaultWorkspace)];BOOL ok=(BOOL)((BOOL(*)(id,SEL,NSString*))objc_msgSend)(ws,@selector(openApplicationWithBundleID:),bid);resp[@"success"]=@(ok);}else{resp[@"success"]=@NO;resp[@"error"]=@"no workspace";} }
     }
     else if([action isEqualToString:@"getScreenSize"]) { CGRect b=[UIScreen mainScreen].bounds; resp[@"success"]=@YES; resp[@"width"]=@(b.size.width); resp[@"height"]=@(b.size.height); resp[@"scale"]=@([UIScreen mainScreen].scale); }
+    
+    // ★ v4.3: testTouch诊断命令
+    else if ([action isEqualToString:@"testTouch"]) {
+        float x=[req[@"x"] floatValue] ?: 0.5f;
+        float y=[req[@"y"] floatValue] ?: 0.5f;
+        int fingerId=[req[@"id"] intValue] ?: 1;
+        
+        // 标准化坐标
+        if(x>1.0f||y>1.0f){CGRect b=[UIScreen mainScreen].bounds;x/=b.size.width;y/=b.size.height;if(x>1)x=1;if(y>1)y=1;}
+        
+        // 获取当前contextID信息
+        uint32_t frontmostCID = getTargetContextID();
+        uint32_t springCID = getKeyWindowContextID();
+        
+        // 执行3种测试
+        NSArray *results = testTouchVariations(x, y, fingerId);
+        
+        resp[@"success"]=@YES;
+        resp[@"results"]=results;
+        resp[@"frontmostApp"]=g_frontmostApp ?: @"unknown";
+        resp[@"springBoardContextID"]=@(springCID);
+        resp[@"detectedFrontmostContextID"]=@(frontmostCID);
+        resp[@"contextSource"]=g_contextSource ?: @"none";
+    }
+    
     else if([action isEqualToString:@"diagnose"]) {
-        resp[@"success"]=@YES; resp[@"diagnostics"]=@{
-            @"version": @"4.2",
+        // 获取当前contextID信息
+        uint32_t frontmostCID = getTargetContextID();
+        uint32_t springCID = getKeyWindowContextID();
+        
+        resp[@"success"]=@YES; 
+        resp[@"diagnostics"]=@{
+            @"version": @"4.3",
             @"iokitHandle": g_iokitHandle?@"OK":@"NULL",
             @"bbsHandle": g_bbsHandle?@"OK":@"NULL",
             @"createDigitizerEvent": IOHIDEventCreateDigitizerEventFunc?@"OK":@"NULL",
@@ -349,9 +650,34 @@ static StarCoreTCPServer *_server = nil;
             @"eventSystemClientCreate": IOHIDEventSystemClientCreateFunc?@"OK":@"NULL",
             @"eventSystemClientDispatchEvent": IOHIDEventSystemClientDispatchEventFunc?@"OK":@"NULL",
             @"BKSHIDEventSetDigitizerInfo": BKSHIDEventSetDigitizerInfoFunc?@"OK":@"NULL",
-            @"contextID": @(((uint32_t)([[[UIApplication sharedApplication] keyWindow] _contextId]))),
+            // ★ v4.3 新增
+            @"frontmostApp": g_frontmostApp ?: @"unknown",
+            @"frontmostContextID": @(frontmostCID),
+            @"springBoardContextID": @(springCID),
+            @"contextSource": g_contextSource ?: @"none",
         };
     }
+    
+    // v4.3: validate命令（保持向后兼容）
+    else if([action isEqualToString:@"validate"]) {
+        uint32_t frontmostCID = getTargetContextID();
+        uint32_t springCID = getKeyWindowContextID();
+        bool canInjectTouch = (BKSHIDEventSetDigitizerInfoFunc != NULL) && (frontmostCID != 0 || springCID != 0);
+        
+        resp[@"success"]=@YES;
+        resp[@"validation"]=@{
+            @"frameworkIOKit": g_iokitHandle?@YES:@NO,
+            @"frameworkBBS": g_bbsHandle?@YES:@NO,
+            @"functionIOHIDEventCreateDigitizerEvent": IOHIDEventCreateDigitizerEventFunc?@YES:@NO,
+            @"functionIOHIDEventCreateDigitizerFingerEventWithQuality": IOHIDEventCreateDigitizerFingerEventWithQualityFunc?@YES:@NO,
+            @"functionIOHIDEventSystemClientDispatchEvent": IOHIDEventSystemClientDispatchEventFunc?@YES:@NO,
+            @"functionBKSHIDEventSetDigitizerInfo": BKSHIDEventSetDigitizerInfoFunc?@YES:@NO,
+            @"canInjectTouch": @(canInjectTouch),
+            @"frontmostContextID": @(frontmostCID),
+            @"springBoardContextID": @(springCID),
+        };
+    }
+    
     else { resp[@"success"]=@NO; resp[@"error"]=[NSString stringWithFormat:@"unknown: %@",action]; }
     return resp;
 }
@@ -369,12 +695,12 @@ static StarCoreTCPServer *_server = nil;
 %hook SpringBoard
 - (void)applicationDidFinishLaunching:(id)application {
     %orig;
-    NSLog(@"[StarCoreTweak] SpringBoard启动 v4.2");
+    NSLog(@"[StarCoreTweak] SpringBoard启动 v4.3 (dynamic contextID)");
     loadFunctions();
     _server = [[StarCoreTCPServer alloc] init];
     [_server start];
 }
 %end
 
-%ctor { NSLog(@"[StarCoreTweak] v4.2 loading... (BKSHIDEventSetDigitizerInfo)"); }
+%ctor { NSLog(@"[StarCoreTweak] v4.3 loading... (dynamic contextID for touch injection)"); }
 %dtor { [_server stop]; }
