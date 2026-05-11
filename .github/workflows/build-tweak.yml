@@ -11,16 +11,25 @@ on:
 
 jobs:
   build-tweak:
-    runs-on: macos-13
+    runs-on: ubuntu-latest
     
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
       
-      - name: Setup Theos
-        uses: beer-psi/theos-action@v1
-        with:
-          cache: false
+      - name: Setup Theos (Linux)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fakeroot dpkg-dev ldid perl git curl
+          export THEOS=/opt/theos
+          git clone --recursive https://github.com/theos/theos.git $THEOS
+          git clone https://github.com/theos/sdks.git $THEOS/sdks
+          mkdir -p $THEOS/toolchain/linux/iphone/bin
+          curl -sL "https://github.com/nicklama/theos-toolchain-linux/releases/download/latest/theos-toolchain-linux.tar.gz" -o /tmp/toolchain.tar.gz
+          tar -xzf /tmp/toolchain.tar.gz -C /tmp/
+          cp /tmp/theos-toolchain-linux/bin/* $THEOS/toolchain/linux/iphone/bin/ 2>/dev/null || true
+          ls $THEOS/toolchain/linux/iphone/bin/
+          echo "THEOS=/opt/theos" >> $GITHUB_ENV
       
       - name: Build Tweak (rootless)
         working-directory: ./StarCoreTweak
