@@ -26,8 +26,10 @@ struct DashboardView: View {
                             .tag(0)
                         EmotionView()
                             .tag(1)
-                        SystemLogsView()
+                        ControlView()
                             .tag(2)
+                        SystemLogsView()
+                            .tag(3)
                     }
                     .tabViewStyle(.page(indexDisplayMode: .never))
                 }
@@ -35,6 +37,8 @@ struct DashboardView: View {
             .navigationBarHidden(true)
             .onAppear {
                 startUpdateTimer()
+                // 启动时自动检测操控服务连接
+                ActionCoordinator.shared.connectAll()
             }
         }
         .preferredColorScheme(.dark)
@@ -51,6 +55,16 @@ struct DashboardView: View {
                     .foregroundColor(.secondary)
             }
             Spacer()
+            // 操控状态指示
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(ActionCoordinator.shared.isAnyControlAvailable ? Color.cyan : Color.gray.opacity(0.5))
+                    .frame(width: 6, height: 6)
+                Text(ActionCoordinator.shared.isAnyControlAvailable ? "操控可用" : "操控离线")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+            Spacer()
             Text(currentTime)
                 .font(.caption)
                 .foregroundColor(.secondary)
@@ -63,7 +77,8 @@ struct DashboardView: View {
         HStack(spacing: 0) {
             tabButton("生命体征", index: 0)
             tabButton("情绪", index: 1)
-            tabButton("系统日志", index: 2)
+            tabButton("操控", index: 2)
+            tabButton("日志", index: 3)
         }
         .padding(.horizontal)
         .padding(.bottom, 10)
