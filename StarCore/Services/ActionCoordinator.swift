@@ -123,7 +123,7 @@ class ActionCoordinator: ObservableObject {
 
     @Published private(set) var actionLog: [ActionLogEntry] = []
 
-    private let logQueue = DispatchQueue(label: "com.starcore.action.log")
+    // 日志通过主线程更新（@Published线程安全）
 
     // MARK: - 初始化
 
@@ -175,7 +175,8 @@ class ActionCoordinator: ObservableObject {
 
     private func logAction(command: ActionCommand, result: ActionResult) {
         let entry = ActionLogEntry(command: command, result: result, timestamp: Date())
-        logQueue.async {
+        // @Published属性必须在主线程修改（ObservableObject要求）
+        DispatchQueue.main.async {
             self.actionLog.append(entry)
             // 保持最近200条
             if self.actionLog.count > 200 {
