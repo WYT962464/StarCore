@@ -8,10 +8,16 @@ on:
 jobs:
   build:
     name: Build IPA
-    runs-on: macos-13
+    runs-on: macos-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
 
       - name: Install xcodegen
         run: brew install xcodegen
@@ -29,9 +35,17 @@ jobs:
             -archivePath ${{ runner.temp }}/StarCore.xcarchive \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | tee build.log
+
+      - name: Check Build Errors
+        if: failure()
+        run: |
+          echo "=== Build Errors ==="
+          grep -A2 "error:" build.log || echo "No error lines found"
 
       - name: Package IPA
+        if: success()
         run: |
           mkdir -p ${{ runner.temp }}/IPA/Payload
           cp -R ${{ runner.temp }}/StarCore.xcarchive/Products/Applications/*.app ${{ runner.temp }}/IPA/Payload/
@@ -41,6 +55,7 @@ jobs:
           ls -lh
 
       - name: Upload IPA artifact
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: StarCore-unsigned
