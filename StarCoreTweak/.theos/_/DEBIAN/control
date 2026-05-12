@@ -1,9 +1,10 @@
 Package: com.starcore.tweak
 Name: StarCoreTweak
-Version: 5.5.0
-Architecture: iphoneos-arm64
 Description: StarCore Tweak v5.5 - 修复_contextId野指针崩溃
 Maintainer: StarCore
 Author: StarCore
 Section: Tweaks
 Depends: mobilesubstrate
+Architecture: iphoneos-arm64
+Version: 5.5.0-1+debug
+Installed-Size: 135

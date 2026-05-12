@@ -1,5 +1,5 @@
 /**
- * StarCoreTweak.xm v5.4 - posix_spawn替换popen
+ * StarCoreTweak.xm v5.5 - 修复_contextId野指针崩溃
  * 
  * v5.4问题：popen在SpringBoard中exitCode=127，沙盒不允许fork子进程
  * 
@@ -257,7 +257,7 @@ static bool loadFunctions() {
     if (!IOHIDEventCreateDigitizerEventFunc) { NSLog(@"[StarCoreTweak] ❌ 核心函数缺失"); return false; }
     
     success = true;
-    NSLog(@"[StarCoreTweak] ✅ v5.4 函数加载成功");
+    NSLog(@"[StarCoreTweak] ✅ v5.5 函数加载成功");
     return true;
 }
 
@@ -327,14 +327,17 @@ static uint32_t getKeyWindowContextID() {
         if (frontApp && [frontApp respondsToSelector:@selector(keyWindow)]) {
             id keyWin = [frontApp performSelector:@selector(keyWindow)];
             if (keyWin && [keyWin respondsToSelector:@selector(_contextId)]) {
-                uint32_t cid = [[keyWin performSelector:@selector(_contextId)] unsignedIntValue];
+                // ★ v5.5修复：_contextId返回uint32_t，不能用performSelector（会把整数当地址→野指针）
+                uint32_t cid = ((uint32_t(*)(id, SEL))objc_msgSend)(keyWin, @selector(_contextId));
                 if (cid != 0) {
                     g_contextSource = @"keyWindow";
                     return cid;
                 }
             }
         }
-    } @catch (NSException *e) {}
+    } @catch (NSException *e) {
+        NSLog(@"[StarCoreTweak] getKeyWindowContextID exception: %@", e);
+    }
     
     return 0;
 }
@@ -1077,7 +1080,7 @@ static StarCoreTCPServer *_server = nil;
         
         resp[@"success"]=@YES; 
         resp[@"diagnostics"]=@{
-            @"version": @"5.4",
+            @"version": @"5.5",
             @"iokitHandle": g_iokitHandle?@"OK":@"NULL",
             @"bbsHandle": g_bbsHandle?@"OK":@"NULL",
             @"createDigitizerEvent": IOHIDEventCreateDigitizerEventFunc?@"OK":@"NULL",
@@ -1139,7 +1142,7 @@ static StarCoreTCPServer *_server = nil;
 %hook SpringBoard
 - (void)applicationDidFinishLaunching:(id)application {
     %orig;
-    NSLog(@"[StarCoreTweak] SpringBoard启动 v5.4 (shell + HID entitlements)");
+    NSLog(@"[StarCoreTweak] SpringBoard启动 v5.5 (修复_contextId崩溃)");
     loadFunctions();
     _server = [[StarCoreTCPServer alloc] init];
     [_server start];
@@ -1151,9 +1154,9 @@ static StarCoreTCPServer *_server = nil;
 //        bool ok = initVirtualTouchDevice();
 //        NSLog(@"[StarCoreTweak] 虚拟触摸设备初始化: %@", ok ? @"成功" : @"失败");
 //    });
-    NSLog(@"[StarCoreTweak] v5.4: 虚拟设备需手动调用initDevice, shell命令已就绪");
+    NSLog(@"[StarCoreTweak] v5.5: 虚拟设备需手动调用initDevice, shell命令已就绪");
 }
 %end
 
-%ctor { NSLog(@"[StarCoreTweak] v5.4 loading... (shell + HID entitlements)"); }
+%ctor { NSLog(@"[StarCoreTweak] v5.5 loading... (修复_contextId崩溃)"); }
 %dtor { [_server stop]; }
