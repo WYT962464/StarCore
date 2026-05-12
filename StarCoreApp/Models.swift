@@ -27,7 +27,7 @@ struct ChatMessage: Codable {
 struct LLMProvider: Codable {
     let name: String
     let url: String
-    let model: String
+    var model: String
     var apiKey: String
 
     static let siliconflow = LLMProvider(

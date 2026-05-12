@@ -24,7 +24,8 @@ class MemoryManager {
 
         func fullPath(relativeTo root: String) -> String {
             if let sub = subdirectory {
-                return (root as NSString).appendingPathComponent(sub).appendingPathComponent(name)
+                let withSub = (root as NSString).appendingPathComponent(sub)
+                return (withSub as NSString).appendingPathComponent(name)
             } else {
                 return (root as NSString).appendingPathComponent(name)
             }
@@ -41,7 +42,8 @@ class MemoryManager {
     // MARK: - Load Memory Content
 
     func loadSOULContent() -> String {
-        let soulPath = (memoryPath as NSString).appendingPathComponent("基础设定").appendingPathComponent("SOUL.md")
+        let withSub = (memoryPath as NSString).appendingPathComponent("基础设定")
+        let soulPath = (withSub as NSString).appendingPathComponent("SOUL.md")
         return readFile(at: soulPath, maxChars: 2000)
     }
 
@@ -56,7 +58,8 @@ class MemoryManager {
     }
 
     func loadToolsContent() -> String {
-        let toolsPath = (memoryPath as NSString).appendingPathComponent("基础设定").appendingPathComponent("TOOLS.md")
+        let withSub = (memoryPath as NSString).appendingPathComponent("基础设定")
+        let toolsPath = (withSub as NSString).appendingPathComponent("TOOLS.md")
         return readFile(at: toolsPath, maxChars: 2000)
     }
 
