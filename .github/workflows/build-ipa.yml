@@ -1,0 +1,47 @@
+name: Build iOS App
+
+on:
+  push:
+    branches: [ main, v1.0-dual-layer ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build IPA
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install xcodegen
+        run: brew install xcodegen
+
+      - name: Generate Xcode Project
+        run: xcodegen generate
+
+      - name: Build Archive
+        run: |
+          xcodebuild archive \
+            -project StarCore.xcodeproj \
+            -scheme StarCore \
+            -sdk iphoneos \
+            -configuration Release \
+            -archivePath ${{ runner.temp }}/StarCore.xcarchive \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Package IPA
+        run: |
+          mkdir -p ${{ runner.temp }}/IPA/Payload
+          cp -R ${{ runner.temp }}/StarCore.xcarchive/Products/Applications/*.app ${{ runner.temp }}/IPA/Payload/
+          cd ${{ runner.temp }}/IPA
+          zip -r StarCore-unsigned.ipa Payload/
+          echo "IPA created!"
+          ls -lh
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: StarCore-unsigned
+          path: ${{ runner.temp }}/IPA/*.ipa
