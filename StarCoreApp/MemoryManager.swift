@@ -9,31 +9,54 @@ class MemoryManager {
     private let defaults = UserDefaults.standard
 
     private var memoryPath: String {
-        return defaults.string(forKey: "memoryPath") ?? "/var/mobile/StarCoreAgent/memory/files"
+        return defaults.string(forKey: "memoryPath") ?? "/var/mobile/StarCoreAgent"
     }
 
     private init() {}
 
-    // MARK: - SOUL.md Content
+    // MARK: - Memory File Definitions
+
+    /// 记忆文件定义：文件名 + 是否在子目录下
+    private struct MemoryFile {
+        let name: String        // 显示名（也是文件名）
+        let subdirectory: String? // 子目录，nil 表示根目录
+        let displayName: String // 在设置页显示的名称
+
+        func fullPath(relativeTo root: String) -> String {
+            if let sub = subdirectory {
+                return (root as NSString).appendingPathComponent(sub).appendingPathComponent(name)
+            } else {
+                return (root as NSString).appendingPathComponent(name)
+            }
+        }
+    }
+
+    private let memoryFiles: [MemoryFile] = [
+        MemoryFile(name: "SOUL.md",   subdirectory: "基础设定", displayName: "SOUL.md"),
+        MemoryFile(name: "USER.md",   subdirectory: nil,       displayName: "USER.md"),
+        MemoryFile(name: "MEMORY.md", subdirectory: nil,       displayName: "MEMORY.md"),
+        MemoryFile(name: "TOOLS.md",  subdirectory: "基础设定", displayName: "TOOLS.md"),
+    ]
+
+    // MARK: - Load Memory Content
 
     func loadSOULContent() -> String {
-        let soulPath = (memoryPath as NSString).appendingPathComponent("SOUL.md")
-        let content = readFile(at: soulPath, maxChars: 2000)
-        return content
+        let soulPath = (memoryPath as NSString).appendingPathComponent("基础设定").appendingPathComponent("SOUL.md")
+        return readFile(at: soulPath, maxChars: 2000)
     }
 
     func loadUserContent() -> String {
-        let userPath = (memoryPath as NSString).appendingPathComponent("user.md")
+        let userPath = (memoryPath as NSString).appendingPathComponent("USER.md")
         return readFile(at: userPath, maxChars: 2000)
     }
 
-    func loadContextContent() -> String {
-        let contextPath = (memoryPath as NSString).appendingPathComponent("context.md")
-        return readFile(at: contextPath, maxChars: 3000)
+    func loadMemoryContent() -> String {
+        let memoryPathFile = (memoryPath as NSString).appendingPathComponent("MEMORY.md")
+        return readFile(at: memoryPathFile, maxChars: 3000)
     }
 
     func loadToolsContent() -> String {
-        let toolsPath = (memoryPath as NSString).appendingPathComponent("tools.md")
+        let toolsPath = (memoryPath as NSString).appendingPathComponent("基础设定").appendingPathComponent("TOOLS.md")
         return readFile(at: toolsPath, maxChars: 2000)
     }
 
@@ -52,9 +75,9 @@ class MemoryManager {
             parts.append("\n\n【阿腾】\n" + user)
         }
 
-        let context = loadContextContent()
-        if !context.isEmpty {
-            parts.append("\n\n【当前状态】\n" + context)
+        let memory = loadMemoryContent()
+        if !memory.isEmpty {
+            parts.append("\n\n【当前状态】\n" + memory)
         }
 
         let tools = loadToolsContent()
@@ -72,15 +95,14 @@ class MemoryManager {
     }
 
     func memoryFilesInfo() -> [(name: String, exists: Bool, size: Int)] {
-        let files = ["SOUL.md", "user.md", "context.md", "tools.md"]
-        return files.map { name in
-            let path = (memoryPath as NSString).appendingPathComponent(name)
+        return memoryFiles.map { file in
+            let path = file.fullPath(relativeTo: memoryPath)
             let exists = fileManager.fileExists(atPath: path)
             var size = 0
             if exists {
                 size = readFile(at: path).count
             }
-            return (name, exists, size)
+            return (file.displayName, exists, size)
         }
     }
 

@@ -6,6 +6,12 @@ class SettingsViewController: UIViewController {
     private var scrollView: UIScrollView!
     private var contentView: UIView!
 
+    // MARK: - Section spacing constants
+    private let sectionGap: CGFloat = 24      // section之间的间距
+    private let rowGap: CGFloat = 10           // 同一section内行间距
+    private let sectionPadding: CGFloat = 16   // section header到第一个row的间距
+    private let bottomPadding: CGFloat = 60    // 底部留白
+
     // MARK: - Lifecycle
 
     override func viewDidLoad() {
@@ -31,6 +37,8 @@ class SettingsViewController: UIViewController {
         scrollView = UIScrollView()
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.backgroundColor = .clear
+        scrollView.alwaysBounceVertical = true
+        scrollView.keyboardDismissMode = .interactive
         view.addSubview(scrollView)
 
         contentView = UIView()
@@ -55,10 +63,10 @@ class SettingsViewController: UIViewController {
         // Section: LLM Provider
         lastView = addSectionHeader("🤖 LLM Provider", below: lastView, isFirst: true)
         lastView = addProviderPicker(below: lastView)
-
-        // Section: API Key
-        lastView = addSectionHeader("🔑 API Key", below: lastView)
         lastView = addAPIKeyField(below: lastView)
+
+        // Divider
+        lastView = addDivider(below: lastView)
 
         // Section: Cloud Brain
         lastView = addSectionHeader("☁️ 云端超脑", below: lastView)
@@ -66,27 +74,39 @@ class SettingsViewController: UIViewController {
         lastView = addCloudAPIUrlField(below: lastView)
         lastView = addCloudTokenField(below: lastView)
 
+        // Divider
+        lastView = addDivider(below: lastView)
+
         // Section: Tweak Connection
         lastView = addSectionHeader("🔧 Tweak连接", below: lastView)
         lastView = addTweakStatus(below: lastView)
         lastView = addReconnectButton(below: lastView)
+
+        // Divider
+        lastView = addDivider(below: lastView)
 
         // Section: Memory
         lastView = addSectionHeader("🧠 本地记忆包", below: lastView)
         lastView = addMemoryPathField(below: lastView)
         lastView = addMemoryInfo(below: lastView)
 
+        // Divider
+        lastView = addDivider(below: lastView)
+
         // Section: Chat
         lastView = addSectionHeader("💬 对话", below: lastView)
         lastView = addModeSwitch(below: lastView)
         lastView = addClearHistoryButton(below: lastView)
+
+        // Divider
+        lastView = addDivider(below: lastView)
 
         // Section: About
         lastView = addSectionHeader("ℹ️ 关于", below: lastView)
         lastView = addVersionInfo(below: lastView)
 
         // Bottom spacing
-        contentView.bottomAnchor.constraint(equalTo: lastView.bottomAnchor, constant: 40).isActive = true
+        contentView.bottomAnchor.constraint(equalTo: lastView.bottomAnchor, constant: bottomPadding).isActive = true
     }
 
     // MARK: - Section Builder Helpers
@@ -95,18 +115,36 @@ class SettingsViewController: UIViewController {
     private func addSectionHeader(_ title: String, below aboveView: UIView, isFirst: Bool = false) -> UIView {
         let label = UILabel()
         label.text = title
-        label.font = UIFont.systemFont(ofSize: 14, weight: .semibold)
+        label.font = UIFont.systemFont(ofSize: 15, weight: .bold)
         label.textColor = UIColor(red: 0x60/255, green: 0xa5/255, blue: 0xfa/255, alpha: 1.0)
         label.translatesAutoresizingMaskIntoConstraints = false
         contentView.addSubview(label)
 
+        let topOffset: CGFloat = isFirst ? 20 : 0  // 第一个section不需要额外上方间距（divider已提供）
         NSLayoutConstraint.activate([
-            label.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
-            label.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
-            label.topAnchor.constraint(equalTo: aboveView.topAnchor, constant: isFirst ? 16 : 28)
+            label.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+            label.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
+            label.topAnchor.constraint(equalTo: aboveView.topAnchor, constant: topOffset)
         ])
 
         return label
+    }
+
+    @discardableResult
+    private func addDivider(below aboveView: UIView) -> UIView {
+        let divider = UIView()
+        divider.backgroundColor = UIColor(white: 1, alpha: 0.08)
+        divider.translatesAutoresizingMaskIntoConstraints = false
+        contentView.addSubview(divider)
+
+        NSLayoutConstraint.activate([
+            divider.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+            divider.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
+            divider.topAnchor.constraint(equalTo: aboveView.bottomAnchor, constant: sectionGap),
+            divider.heightAnchor.constraint(equalToConstant: 1)
+        ])
+
+        return divider
     }
 
     @discardableResult
@@ -125,10 +163,10 @@ class SettingsViewController: UIViewController {
         rowView.addSubview(label)
 
         NSLayoutConstraint.activate([
-            rowView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
-            rowView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
-            rowView.topAnchor.constraint(equalTo: aboveView.bottomAnchor, constant: 8),
-            rowView.heightAnchor.constraint(equalToConstant: 44),
+            rowView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+            rowView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
+            rowView.topAnchor.constraint(equalTo: aboveView.bottomAnchor, constant: rowGap),
+            rowView.heightAnchor.constraint(equalToConstant: 46),
 
             label.leadingAnchor.constraint(equalTo: rowView.leadingAnchor, constant: 16),
             label.centerYAnchor.constraint(equalTo: rowView.centerYAnchor)
@@ -155,7 +193,7 @@ class SettingsViewController: UIViewController {
         NSLayoutConstraint.activate([
             segment.trailingAnchor.constraint(equalTo: rowView.trailingAnchor, constant: -12),
             segment.centerYAnchor.constraint(equalTo: rowView.centerYAnchor),
-            segment.leadingAnchor.constraint(equalTo: label.trailingAnchor, constant: 8)
+            segment.leadingAnchor.constraint(equalTo: label.trailingAnchor, constant: 12)
         ])
 
         return rowView
@@ -206,15 +244,15 @@ class SettingsViewController: UIViewController {
         rowView.addSubview(textField)
 
         NSLayoutConstraint.activate([
-            rowView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
-            rowView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
-            rowView.topAnchor.constraint(equalTo: aboveView.bottomAnchor, constant: 8),
-            rowView.heightAnchor.constraint(equalToConstant: 44),
+            rowView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+            rowView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
+            rowView.topAnchor.constraint(equalTo: aboveView.bottomAnchor, constant: rowGap),
+            rowView.heightAnchor.constraint(equalToConstant: 46),
 
             label.leadingAnchor.constraint(equalTo: rowView.leadingAnchor, constant: 16),
             label.centerYAnchor.constraint(equalTo: rowView.centerYAnchor),
 
-            textField.leadingAnchor.constraint(equalTo: label.trailingAnchor, constant: 8),
+            textField.leadingAnchor.constraint(equalTo: label.trailingAnchor, constant: 12),
             textField.trailingAnchor.constraint(equalTo: rowView.trailingAnchor, constant: -12),
             textField.centerYAnchor.constraint(equalTo: rowView.centerYAnchor),
             textField.heightAnchor.constraint(equalToConstant: 32)
@@ -300,10 +338,10 @@ class SettingsViewController: UIViewController {
         contentView.addSubview(button)
 
         NSLayoutConstraint.activate([
-            button.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
-            button.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
-            button.topAnchor.constraint(equalTo: aboveView.bottomAnchor, constant: 8),
-            button.heightAnchor.constraint(equalToConstant: 44)
+            button.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+            button.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
+            button.topAnchor.constraint(equalTo: aboveView.bottomAnchor, constant: rowGap),
+            button.heightAnchor.constraint(equalToConstant: 46)
         ])
 
         return button
@@ -321,9 +359,9 @@ class SettingsViewController: UIViewController {
     // MARK: - Memory
 
     private func addMemoryPathField(below aboveView: UIView) -> UIView {
-        let rowView = makeInputRow(placeholder: "记忆文件路径", tag: 103, below: aboveView)
+        let rowView = makeInputRow(placeholder: "记忆包路径", tag: 103, below: aboveView)
         (rowView.viewWithTag(103) as? UITextField)?.text = MemoryManager.shared.memoryDirectoryExists()
-            ? UserDefaults.standard.string(forKey: "memoryPath") ?? "/var/mobile/StarCoreAgent/memory/files"
+            ? UserDefaults.standard.string(forKey: "memoryPath") ?? "/var/mobile/StarCoreAgent"
             : ""
         return rowView
     }
@@ -351,9 +389,9 @@ class SettingsViewController: UIViewController {
         rowView.addSubview(memoryInfoLabel)
 
         NSLayoutConstraint.activate([
-            rowView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
-            rowView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
-            rowView.topAnchor.constraint(equalTo: aboveView.bottomAnchor, constant: 8),
+            rowView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+            rowView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
+            rowView.topAnchor.constraint(equalTo: aboveView.bottomAnchor, constant: rowGap),
 
             memoryInfoLabel.topAnchor.constraint(equalTo: rowView.topAnchor, constant: 12),
             memoryInfoLabel.bottomAnchor.constraint(equalTo: rowView.bottomAnchor, constant: -12),
@@ -369,7 +407,7 @@ class SettingsViewController: UIViewController {
     private func updateMemoryInfo() {
         let dirExists = MemoryManager.shared.memoryDirectoryExists()
         if !dirExists {
-            memoryInfoLabel?.text = "⚠️ 记忆目录不存在\n路径: \(UserDefaults.standard.string(forKey: "memoryPath") ?? "/var/mobile/StarCoreAgent/memory/files")"
+            memoryInfoLabel?.text = "⚠️ 记忆目录不存在\n路径: \(UserDefaults.standard.string(forKey: "memoryPath") ?? "/var/mobile/StarCoreAgent")"
             return
         }
         let info = MemoryManager.shared.memoryFilesInfo()
@@ -401,7 +439,7 @@ class SettingsViewController: UIViewController {
         NSLayoutConstraint.activate([
             modeSegment.trailingAnchor.constraint(equalTo: rowView.trailingAnchor, constant: -12),
             modeSegment.centerYAnchor.constraint(equalTo: rowView.centerYAnchor),
-            modeSegment.leadingAnchor.constraint(equalTo: label.trailingAnchor, constant: 8)
+            modeSegment.leadingAnchor.constraint(equalTo: label.trailingAnchor, constant: 12)
         ])
 
         return rowView
@@ -425,10 +463,10 @@ class SettingsViewController: UIViewController {
         contentView.addSubview(button)
 
         NSLayoutConstraint.activate([
-            button.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
-            button.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
-            button.topAnchor.constraint(equalTo: aboveView.bottomAnchor, constant: 8),
-            button.heightAnchor.constraint(equalToConstant: 44)
+            button.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+            button.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
+            button.topAnchor.constraint(equalTo: aboveView.bottomAnchor, constant: rowGap),
+            button.heightAnchor.constraint(equalToConstant: 46)
         ])
 
         return button
@@ -456,8 +494,8 @@ class SettingsViewController: UIViewController {
         contentView.addSubview(label)
 
         NSLayoutConstraint.activate([
-            label.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
-            label.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
+            label.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+            label.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
             label.topAnchor.constraint(equalTo: aboveView.bottomAnchor, constant: 16)
         ])
 
@@ -487,23 +525,23 @@ class SettingsViewController: UIViewController {
         textField.layer.borderColor = UIColor(white: 1, alpha: 0.08).cgColor
         textField.tag = tag
         textField.translatesAutoresizingMaskIntoConstraints = false
-        textField.leftView = UIView(frame: CGRect(x: 0, y: 0, width: 8, height: 1))
+        textField.leftView = UIView(frame: CGRect(x: 0, y: 0, width: 10, height: 1))
         textField.leftViewMode = .always
-        textField.rightView = UIView(frame: CGRect(x: 0, y: 0, width: 8, height: 1))
+        textField.rightView = UIView(frame: CGRect(x: 0, y: 0, width: 10, height: 1))
         textField.rightViewMode = .always
         textField.addTarget(self, action: #selector(inputFieldChanged(_:)), for: .editingDidEnd)
         rowView.addSubview(textField)
 
         NSLayoutConstraint.activate([
-            rowView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
-            rowView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
-            rowView.topAnchor.constraint(equalTo: aboveView.bottomAnchor, constant: 8),
-            rowView.heightAnchor.constraint(equalToConstant: 44),
+            rowView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+            rowView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
+            rowView.topAnchor.constraint(equalTo: aboveView.bottomAnchor, constant: rowGap),
+            rowView.heightAnchor.constraint(equalToConstant: 46),
 
             textField.leadingAnchor.constraint(equalTo: rowView.leadingAnchor, constant: 12),
             textField.trailingAnchor.constraint(equalTo: rowView.trailingAnchor, constant: -12),
             textField.centerYAnchor.constraint(equalTo: rowView.centerYAnchor),
-            textField.heightAnchor.constraint(equalToConstant: 32)
+            textField.heightAnchor.constraint(equalToConstant: 34)
         ])
 
         return rowView
