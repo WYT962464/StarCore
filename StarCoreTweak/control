@@ -6,4 +6,4 @@ Description: StarCore Tweak v5.7 - plist改Bundles格式(ElleKit兼容)
 Maintainer: StarCore
 Author: StarCore
 Section: Tweaks
-Depends: mobilesubstrate
+Depends: ellekit
