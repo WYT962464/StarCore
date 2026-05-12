@@ -15,7 +15,6 @@ targets:
         excludes:
           - "Makefile"
           - "README.md"
-          - "resources"
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.starcore.app
@@ -28,6 +27,8 @@ targets:
         CODE_SIGN_IDENTITY: ""
         CODE_SIGNING_REQUIRED: NO
         CODE_SIGNING_ALLOWED: NO
+        ARCHS: "arm64"
+        VALID_ARCHS: "arm64"
       configs:
         Release:
           SWIFT_OPTIMIZATION_LEVEL: "-O"
