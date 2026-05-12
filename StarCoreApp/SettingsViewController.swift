@@ -64,6 +64,7 @@ class SettingsViewController: UIViewController {
         lastView = addSectionHeader("🤖 LLM Provider", below: lastView, isFirst: true)
         lastView = addProviderPicker(below: lastView)
         lastView = addAPIKeyField(below: lastView)
+        lastView = addModelField(below: lastView)
 
         // Divider
         lastView = addDivider(below: lastView)
@@ -266,6 +267,60 @@ class SettingsViewController: UIViewController {
         let idx = StarCoreAgent.shared.currentProviderIndex
         guard idx >= 0 && idx < providers.count else { return }
         providers[idx].apiKey = sender.text ?? ""
+        StarCoreAgent.shared.providers = providers
+    }
+
+    private func addModelField(below aboveView: UIView) -> UIView {
+        let label = UILabel()
+        label.text = "Model"
+        label.font = UIFont.systemFont(ofSize: 14)
+        label.textColor = UIColor(white: 1, alpha: 0.5)
+        label.translatesAutoresizingMaskIntoConstraints = false
+
+        let rowView = UIView()
+        rowView.translatesAutoresizingMaskIntoConstraints = false
+        contentView.addSubview(rowView)
+
+        let textField = UITextField()
+        textField.placeholder = "模型/Endpoint ID"
+        textField.font = UIFont.systemFont(ofSize: 14)
+        textField.textColor = .white
+        textField.backgroundColor = UIColor(white: 1, alpha: 0.06)
+        textField.layer.cornerRadius = 8
+        textField.layer.borderWidth = 1
+        textField.layer.borderColor = UIColor(white: 1, alpha: 0.08).cgColor
+        textField.translatesAutoresizingMaskIntoConstraints = false
+        textField.leftView = UIView(frame: CGRect(x: 0, y: 0, width: 8, height: 1))
+        textField.leftViewMode = .always
+        textField.rightView = UIView(frame: CGRect(x: 0, y: 0, width: 8, height: 1))
+        textField.rightViewMode = .always
+        textField.text = StarCoreAgent.shared.currentProvider.model
+        textField.tag = 200
+        textField.addTarget(self, action: #selector(modelChanged(_:)), for: .editingDidEnd)
+        rowView.addSubview(label)
+        rowView.addSubview(textField)
+
+        NSLayoutConstraint.activate([
+            rowView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+            rowView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
+            rowView.topAnchor.constraint(equalTo: aboveView.bottomAnchor, constant: 10),
+            rowView.heightAnchor.constraint(equalToConstant: 46),
+            label.leadingAnchor.constraint(equalTo: rowView.leadingAnchor, constant: 16),
+            label.centerYAnchor.constraint(equalTo: rowView.centerYAnchor),
+            textField.leadingAnchor.constraint(equalTo: label.trailingAnchor, constant: 12),
+            textField.trailingAnchor.constraint(equalTo: rowView.trailingAnchor, constant: -12),
+            textField.centerYAnchor.constraint(equalTo: rowView.centerYAnchor),
+            textField.heightAnchor.constraint(equalToConstant: 32)
+        ])
+
+        return rowView
+    }
+
+    @objc private func modelChanged(_ sender: UITextField) {
+        var providers = StarCoreAgent.shared.providers
+        let idx = StarCoreAgent.shared.currentProviderIndex
+        guard idx >= 0 && idx < providers.count else { return }
+        providers[idx].model = sender.text ?? ""
         StarCoreAgent.shared.providers = providers
     }
 
