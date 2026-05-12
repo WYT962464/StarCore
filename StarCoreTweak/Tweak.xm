@@ -1,13 +1,15 @@
 /**
- * StarCoreTweak.xm v5.5 - 修复_contextId野指针崩溃
+ * StarCoreTweak.xm v5.7 - plist改Bundles格式(ElleKit兼容)
  * 
- * v5.4问题：popen在SpringBoard中exitCode=127，沙盒不允许fork子进程
- * 
- * v5.4 更新：
- * 1. shell命令改用posix_spawn + setuid(0) - 绕过SpringBoard沙盒限制
- * 2. 输出重定向到临时文件/tmp/starcore_shell_out
- * 3. 设置PATH环境变量确保找到系统命令
- * 4. waitpid带超时（最多10秒）避免阻塞SpringBoard
+ * v5.7 修复清单：
+ * 1. 🔥 performSelector调用返回非对象类型(pid_t, uint32_t)→野指针→全部改用objc_msgSend
+ * 2. 🔥 UIKit操作从TCP后台线程调用→线程不安全→全部dispatch到主线程
+ * 3. 🔥 UIScreen.mainScreen.bounds从后台线程访问→dispatch到主线程
+ * 4. 🔥 resetIdleTimer从后台线程调用→dispatch到主线程
+ * 5. 🔥 openApp从后台线程调用→dispatch到主线程
+ * 6. 全局变量(g_contextSource/g_frontmostApp)添加线程安全保护
+ * 7. TCP缓冲区溢出保护(1MB上限)
+ * 8. @try/@catch标注：无法捕获SIGSEGV，只能捕获ObjC异常
  */
 
 #import <UIKit/UIKit.h>
@@ -92,8 +94,26 @@ static void *g_bbsHandle = NULL;
 
 // 全局变量
 static uint32_t g_springBoardContextID = 2939785827;
+
+// ★ v5.7: 线程安全保护 - 使用锁保护全局字符串
 static NSString *g_contextSource = @"none";
 static NSString *g_frontmostApp = @"";
+static NSLock *g_globalsLock = nil;
+
+// ★ v5.7: 安全读写全局字符串的辅助宏
+#define SAFE_SET_GLOBAL(var, val) do { \
+    [g_globalsLock lock]; \
+    var = (val); \
+    [g_globalsLock unlock]; \
+} while(0)
+
+#define SAFE_GET_GLOBAL(var) ({ \
+    __block NSString *_val; \
+    [g_globalsLock lock]; \
+    _val = var; \
+    [g_globalsLock unlock]; \
+    _val; \
+})
 
 // ★ v5.1: 虚拟触摸设备
 static IOHIDUserDeviceRef g_virtualDevice = NULL;
@@ -190,6 +210,35 @@ static const uint8_t g_keyboard_descriptor[] = {
 static void resetIdleTimer(void);
 static void dispatchHIDEvent(IOHIDEventRef event);
 
+// ★ v5.7: 主线程同步执行辅助函数
+// 所有UIKit操作必须通过此函数dispatch到主线程
+// ⚠️ 注意：不能从主线程调用此函数并等待另一个也等待主线程的操作，否则死锁
+static void runOnMainThreadSync(void (^block)(void)) {
+    if ([NSThread isMainThread]) {
+        block();
+    } else {
+        dispatch_sync(dispatch_get_main_queue(), block);
+    }
+}
+
+// ★ v5.7: 在主线程获取屏幕尺寸（线程安全）
+static CGRect getScreenBoundsSafe(void) {
+    __block CGRect bounds = CGRectZero;
+    runOnMainThreadSync(^{
+        bounds = [UIScreen mainScreen].bounds;
+    });
+    return bounds;
+}
+
+// ★ v5.7: 在主线程获取屏幕scale（线程安全）
+static CGFloat getScreenScaleSafe(void) {
+    __block CGFloat scale = 1.0;
+    runOnMainThreadSync(^{
+        scale = [UIScreen mainScreen].scale;
+    });
+    return scale;
+}
+
 // ==================== 框架加载 ====================
 
 static bool forceLoadFrameworks() {
@@ -257,131 +306,157 @@ static bool loadFunctions() {
     if (!IOHIDEventCreateDigitizerEventFunc) { NSLog(@"[StarCoreTweak] ❌ 核心函数缺失"); return false; }
     
     success = true;
-    NSLog(@"[StarCoreTweak] ✅ v5.5 函数加载成功");
+    NSLog(@"[StarCoreTweak] ✅ v5.7 函数加载成功");
     return true;
 }
 
-// ==================== 旧方案辅助函数（放在前面定义） ====================
+// ==================== Context ID获取（线程安全）====================
 
+// ★ v5.7: getContextIDFromCAWindowServer - 全部在主线程执行
+// 修复：pid和contextID都返回原始类型(pid_t/uint32_t)，performSelector:会野指针崩溃
 static uint32_t getContextIDFromCAWindowServer() {
-    Class wsClass = objc_getClass("CAWindowServer");
-    if (!wsClass) {
-        wsClass = NSClassFromString(@"CAWindowServer");
-    }
+    __block uint32_t bestCID = 0;
     
-    if (!wsClass) {
-        return 0;
-    }
-    
-    SEL serverSel = NSSelectorFromString(@"serverIfRunning");
-    if (![wsClass respondsToSelector:serverSel]) {
-        return 0;
-    }
-    
-    id ws = [wsClass performSelector:serverSel];
-    if (!ws) {
-        return 0;
-    }
-    
-    SEL contextsSel = NSSelectorFromString(@"contexts");
-    NSArray *contexts = nil;
-    
-    if ([ws respondsToSelector:contextsSel]) {
-        contexts = [ws performSelector:contextsSel];
-    }
-    
-    if (!contexts || contexts.count == 0) {
-        return 0;
-    }
-    
-    uint32_t bestCID = 0;
-    
-    for (id ctx in contexts) {
-        if (![ctx respondsToSelector:@selector(pid)]) continue;
-        pid_t pid = [[ctx performSelector:@selector(pid)] intValue];
-        
-        if (pid == getpid()) continue;
-        
-        if (pid == 0) {
-            if ([ctx respondsToSelector:@selector(contextID)]) {
-                uint32_t cid = [[ctx performSelector:@selector(contextID)] unsignedIntValue];
-                if (cid != 0) {
-                    bestCID = cid;
-                    break;
+    // ★ v5.7: CAWindowServer操作必须在主线程
+    runOnMainThreadSync(^{
+        @try {
+            Class wsClass = objc_getClass("CAWindowServer");
+            if (!wsClass) {
+                wsClass = NSClassFromString(@"CAWindowServer");
+            }
+            if (!wsClass) return;
+            
+            SEL serverSel = NSSelectorFromString(@"serverIfRunning");
+            if (![wsClass respondsToSelector:serverSel]) return;
+            
+            // serverIfRunning返回id(CAWindowServer实例)，performSelector:安全
+            id ws = ((id(*)(id, SEL))objc_msgSend)(wsClass, serverSel);
+            if (!ws) return;
+            
+            SEL contextsSel = NSSelectorFromString(@"contexts");
+            if (![ws respondsToSelector:contextsSel]) return;
+            
+            // contexts返回NSArray*，performSelector:安全
+            NSArray *contexts = ((NSArray *(*)(id, SEL))objc_msgSend)(ws, contextsSel);
+            if (!contexts || contexts.count == 0) return;
+            
+            for (id ctx in contexts) {
+                if (![ctx respondsToSelector:@selector(pid)]) continue;
+                
+                // ★ v5.7修复：pid返回pid_t(原始int类型)
+                // 旧代码 [[ctx performSelector:@selector(pid)] intValue] 野指针崩溃！
+                // performSelector:把pid_t小整数当id指针→SIGSEGV
+                pid_t pid = (pid_t)((NSInteger(*)(id, SEL))objc_msgSend)(ctx, @selector(pid));
+                
+                if (pid == getpid()) continue;
+                
+                if (pid == 0) {
+                    if ([ctx respondsToSelector:@selector(contextID)]) {
+                        // ★ v5.7修复：contextID返回uint32_t(原始类型)
+                        // 旧代码 [[ctx performSelector:@selector(contextID)] unsignedIntValue] 野指针崩溃！
+                        // 与v5.4的_contextId崩溃同一类bug
+                        uint32_t cid = ((uint32_t(*)(id, SEL))objc_msgSend)(ctx, @selector(contextID));
+                        if (cid != 0) {
+                            bestCID = cid;
+                            break;
+                        }
+                    }
                 }
             }
+        } @catch (NSException *e) {
+            // ⚠️ 注意：@try/@catch只能捕获ObjC异常，无法捕获SIGSEGV/SIGBUS信号
+            NSLog(@"[StarCoreTweak] getContextIDFromCAWindowServer exception: %@", e);
         }
-    }
+    });
     
     return bestCID;
 }
 
+// ★ v5.7: getKeyWindowContextID - 全部在主线程执行
 static uint32_t getKeyWindowContextID() {
-    @try {
-        id frontApp = nil;
-        Class uiApp = [UIApplication class];
-        if ([uiApp respondsToSelector:@selector(sharedApplication)]) {
-            frontApp = [uiApp performSelector:@selector(sharedApplication)];
-        }
-        
-        if (frontApp && [frontApp respondsToSelector:@selector(keyWindow)]) {
-            id keyWin = [frontApp performSelector:@selector(keyWindow)];
-            if (keyWin && [keyWin respondsToSelector:@selector(_contextId)]) {
-                // ★ v5.5修复：_contextId返回uint32_t，不能用performSelector（会把整数当地址→野指针）
-                uint32_t cid = ((uint32_t(*)(id, SEL))objc_msgSend)(keyWin, @selector(_contextId));
-                if (cid != 0) {
-                    g_contextSource = @"keyWindow";
-                    return cid;
+    __block uint32_t cid = 0;
+    
+    // ★ v5.7: keyWindow访问必须在主线程
+    runOnMainThreadSync(^{
+        @try {
+            UIApplication *app = [UIApplication sharedApplication];
+            if (!app) return;
+            
+            // ★ v5.7: 优先使用windows数组找keyWindow（keyWindow属性已废弃且非线程安全）
+            UIWindow *keyWin = nil;
+            for (UIWindow *window in app.windows) {
+                if (window.isKeyWindow) {
+                    keyWin = window;
+                    break;
                 }
             }
+            
+            // 回退：尝试keyWindow属性
+            if (!keyWin && [app respondsToSelector:@selector(keyWindow)]) {
+                keyWin = [app performSelector:@selector(keyWindow)];
+            }
+            
+            if (keyWin && [keyWin respondsToSelector:@selector(_contextId)]) {
+                // ★ v5.5已修复：_contextId返回uint32_t，用objc_msgSend直接取值
+                uint32_t cid_val = ((uint32_t(*)(id, SEL))objc_msgSend)(keyWin, @selector(_contextId));
+                if (cid_val != 0) {
+                    SAFE_SET_GLOBAL(g_contextSource, @"keyWindow");
+                    cid = cid_val;
+                }
+            }
+        } @catch (NSException *e) {
+            // ⚠️ 注意：@try/@catch只能捕获ObjC异常，无法捕获SIGSEGV/SIGBUS信号
+            NSLog(@"[StarCoreTweak] getKeyWindowContextID exception: %@", e);
         }
-    } @catch (NSException *e) {
-        NSLog(@"[StarCoreTweak] getKeyWindowContextID exception: %@", e);
-    }
+    });
     
-    return 0;
+    return cid;
 }
 
+// ★ v5.7: getTargetContextID - UIKit操作全部在主线程
 static uint32_t getTargetContextID() {
     uint32_t cid = getKeyWindowContextID();
     if (cid != 0) {
-        @try {
-            Class uiApp = [UIApplication class];
-            if ([uiApp respondsToSelector:@selector(sharedApplication)]) {
-                id app = [uiApp performSelector:@selector(sharedApplication)];
+        // ★ v5.7: frontmostApplication访问在主线程
+        runOnMainThreadSync(^{
+            @try {
+                UIApplication *app = [UIApplication sharedApplication];
                 if (app && [app respondsToSelector:@selector(frontmostApplication)]) {
                     id frontApp = [app performSelector:@selector(frontmostApplication)];
                     if (frontApp && [frontApp respondsToSelector:@selector(bundleIdentifier)]) {
-                        g_frontmostApp = [frontApp performSelector:@selector(bundleIdentifier)];
+                        NSString *bid = [frontApp performSelector:@selector(bundleIdentifier)];
+                        if (bid) {
+                            SAFE_SET_GLOBAL(g_frontmostApp, bid);
+                        }
                     }
                 }
-            }
-        } @catch (NSException *e) {}
+            } @catch (NSException *e) {}
+        });
         return cid;
     }
     
     cid = getContextIDFromCAWindowServer();
     if (cid != 0) {
-        g_contextSource = @"CAWindowServer";
+        SAFE_SET_GLOBAL(g_contextSource, @"CAWindowServer");
         return cid;
     }
     
-    g_contextSource = @"fallback";
+    SAFE_SET_GLOBAL(g_contextSource, @"fallback");
     g_springBoardContextID = 2939785827;
     return g_springBoardContextID;
 }
 
+// ★ v5.7: resetIdleTimer - UIKit操作在主线程
 static void resetIdleTimer() {
-    @try {
-        Class uiApp = [UIApplication class];
-        if ([uiApp respondsToSelector:@selector(sharedApplication)]) {
-            id app = [uiApp performSelector:@selector(sharedApplication)];
-            if (app && [app respondsToSelector:@selector(setIdleTimerDisabled:)]) {
+    runOnMainThreadSync(^{
+        @try {
+            UIApplication *app = [UIApplication sharedApplication];
+            if (app) {
                 ((void(*)(id, SEL, BOOL))objc_msgSend)(app, @selector(setIdleTimerDisabled:), YES);
                 ((void(*)(id, SEL, BOOL))objc_msgSend)(app, @selector(setIdleTimerDisabled:), NO);
             }
-        }
-    } @catch (NSException *e) {}
+        } @catch (NSException *e) {}
+    });
 }
 
 static void dispatchHIDEvent(IOHIDEventRef event) {
@@ -398,6 +473,8 @@ static void dispatchHIDEvent(IOHIDEventRef event) {
         }
     }
 }
+
+// ==================== 旧方案触摸函数 ====================
 
 static void simulateTouchEx(int type, float x, float y, int fingerId, uint32_t cid, bool setDigitizerInfo) {
     if (!loadFunctions()) return;
@@ -863,22 +940,30 @@ static void handleTextInput(NSString *text) {
 static StarCoreTCPServer *_server = nil;
 
 @implementation StarCoreTCPServer { NSInteger _sock; NSMutableArray<NSNumber *> *_fds; }
-- (instancetype)init { self = [super init]; if (self) _fds = [NSMutableArray new]; return self; }
+- (instancetype)init { self = [super init]; if (self) { _sock = -1; _fds = [NSMutableArray new]; g_globalsLock = [[NSLock alloc] init]; } return self; }
 - (void)start {
     _sock = socket(AF_INET, SOCK_STREAM, 0); if (_sock < 0) return;
     int y=1; setsockopt((int)_sock, SOL_SOCKET, SO_REUSEADDR, &y, sizeof(y));
     struct sockaddr_in a; memset(&a,0,sizeof(a)); a.sin_len=sizeof(a); a.sin_family=AF_INET; a.sin_port=htons(6000); a.sin_addr.s_addr=inet_addr("127.0.0.1");
     if (bind((int)_sock,(struct sockaddr*)&a,sizeof(a))<0||listen((int)_sock,5)<0) { close((int)_sock); _sock=-1; return; }
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT,0),^{[self acceptLoop];});
-    NSLog(@"[StarCoreTweak] TCP :6000 v5.4 (shell + HID entitlements)");
+    NSLog(@"[StarCoreTweak] TCP :6000 v5.7 (全面检修版)");
 }
 - (void)acceptLoop {
     while(_sock>=0) { struct sockaddr_in ca; socklen_t cl=sizeof(ca); int fd=accept((int)_sock,(struct sockaddr*)&ca,&cl); if(fd<0) continue;
         @synchronized(_fds){[_fds addObject:@(fd)];} dispatch_async(dispatch_get_global_queue(0,0),^{[self handleClient:fd];}); }
 }
 - (void)handleClient:(int)fd {
+    // ★ v5.7: 添加最大缓冲区限制防止内存爆炸
     NSMutableData *buf=[NSMutableData new]; uint8_t b[4096];
+    const NSUInteger kMaxBufSize = 1048576; // 1MB上限
     while(YES) { ssize_t l=read(fd,b,sizeof(b)); if(l<=0) break; [buf appendBytes:b length:l];
+        // ★ v5.7: 缓冲区溢出保护
+        if (buf.length > kMaxBufSize) {
+            NSLog(@"[StarCoreTweak] ⚠️ TCP缓冲区超过1MB，丢弃并断开");
+            [buf setLength:0];
+            break;
+        }
         while(buf.length>0) { const uint8_t *bs=(const uint8_t*)buf.bytes; NSInteger nl=-1;
             for(NSInteger i=0;i<buf.length;i++){if(bs[i]=='\n'){nl=i;break;}} if(nl<0) break;
             NSData *ld=[buf subdataWithRange:NSMakeRange(0, nl)]; [buf replaceBytesInRange:NSMakeRange(0, nl+1) withBytes:"" length:0];
@@ -897,7 +982,11 @@ static StarCoreTCPServer *_server = nil;
     // ★ v5.1: tap - 优先使用虚拟设备
     else if([action isEqualToString:@"tap"]) {
         float x=[req[@"x"] floatValue],y=[req[@"y"] floatValue];
-        if(x>1.0f||y>1.0f){CGRect b=[UIScreen mainScreen].bounds;x/=b.size.width;y/=b.size.height;if(x>1)x=1;if(y>1)y=1;}
+        // ★ v5.7: UIScreen访问在主线程
+        if(x>1.0f||y>1.0f){
+            CGRect b=getScreenBoundsSafe();
+            x/=b.size.width;y/=b.size.height;if(x>1)x=1;if(y>1)y=1;
+        }
         
         if (g_virtualDeviceReady) {
             virtualTap(x, y);
@@ -1056,11 +1145,44 @@ static StarCoreTCPServer *_server = nil;
             }
         }
     }
-        else if([action isEqualToString:@"openApp"]) {
-        NSString *bid=req[@"bundleId"]; if(!bid){resp[@"success"]=@NO;resp[@"error"]=@"bundleId required";}
-        else { Class wc=objc_getClass("LSApplicationWorkspace"); if(wc){id ws=[wc performSelector:@selector(defaultWorkspace)];BOOL ok=(BOOL)((BOOL(*)(id,SEL,NSString*))objc_msgSend)(ws,@selector(openApplicationWithBundleID:),bid);resp[@"success"]=@(ok);}else{resp[@"success"]=@NO;resp[@"error"]=@"no workspace";} }
+    
+    // ★ v5.7: openApp - 在主线程执行（UIKit/BackBoard操作）
+    else if([action isEqualToString:@"openApp"]) {
+        NSString *bid=req[@"bundleId"];
+        if(!bid) {
+            resp[@"success"]=@NO;
+            resp[@"error"]=@"bundleId required";
+        } else {
+            __block BOOL ok = NO;
+            __block NSString *errMsg = @"no workspace";
+            runOnMainThreadSync(^{
+                Class wc = objc_getClass("LSApplicationWorkspace");
+                if (wc) {
+                    id ws = [wc performSelector:@selector(defaultWorkspace)];
+                    if (ws) {
+                        // ★ v5.7修复：openApplicationWithBundleID:返回BOOL(原始类型)
+                        // 旧代码也用了objc_msgSend，但这里确认安全
+                        ok = (BOOL)((BOOL(*)(id,SEL,NSString*))objc_msgSend)(ws, @selector(openApplicationWithBundleID:), bid);
+                        if (!ok) errMsg = @"openApplication returned NO";
+                    } else {
+                        errMsg = @"defaultWorkspace returned nil";
+                    }
+                }
+            });
+            resp[@"success"]=@(ok);
+            if (!ok) resp[@"error"]=errMsg;
+        }
     }
-    else if([action isEqualToString:@"getScreenSize"]) { CGRect b=[UIScreen mainScreen].bounds; resp[@"success"]=@YES; resp[@"width"]=@(b.size.width); resp[@"height"]=@(b.size.height); resp[@"scale"]=@([UIScreen mainScreen].scale); }
+    
+    // ★ v5.7: getScreenSize - 在主线程获取屏幕尺寸
+    else if([action isEqualToString:@"getScreenSize"]) {
+        CGRect b = getScreenBoundsSafe();
+        CGFloat scale = getScreenScaleSafe();
+        resp[@"success"]=@YES;
+        resp[@"width"]=@(b.size.width);
+        resp[@"height"]=@(b.size.height);
+        resp[@"scale"]=@(scale);
+    }
     
     // ★ v5.4: initDevice - 手动初始化虚拟设备（触摸+键盘）
     else if([action isEqualToString:@"initDevice"]) {
@@ -1074,13 +1196,16 @@ static StarCoreTCPServer *_server = nil;
         }
     }
     
+    // ★ v5.7: diagnose - 所有UIKit操作已通过getTargetContextID()等函数线程安全
     else if([action isEqualToString:@"diagnose"]) {
         uint32_t frontmostCID = getTargetContextID();
         uint32_t springCID = getKeyWindowContextID();
+        NSString *ctxSrc = SAFE_GET_GLOBAL(g_contextSource);
+        NSString *frontApp = SAFE_GET_GLOBAL(g_frontmostApp);
         
         resp[@"success"]=@YES; 
         resp[@"diagnostics"]=@{
-            @"version": @"5.5",
+            @"version": @"5.6",
             @"iokitHandle": g_iokitHandle?@"OK":@"NULL",
             @"bbsHandle": g_bbsHandle?@"OK":@"NULL",
             @"createDigitizerEvent": IOHIDEventCreateDigitizerEventFunc?@"OK":@"NULL",
@@ -1095,13 +1220,14 @@ static StarCoreTCPServer *_server = nil;
             @"virtualDeviceError": g_virtualDeviceError ?: @"",
             // ★ v5.4: shell命令状态
             @"shellCommand": @"OK",
-            @"frontmostApp": g_frontmostApp ?: @"unknown",
+            @"frontmostApp": frontApp ?: @"unknown",
             @"frontmostContextID": @(frontmostCID),
             @"springBoardContextID": @(springCID),
-            @"contextSource": g_contextSource ?: @"none",
+            @"contextSource": ctxSrc ?: @"none",
         };
     }
     
+    // ★ v5.7: validate - 所有UIKit操作已线程安全
     else if([action isEqualToString:@"validate"]) {
         uint32_t frontmostCID = getTargetContextID();
         uint32_t springCID = getKeyWindowContextID();
@@ -1134,7 +1260,13 @@ static StarCoreTCPServer *_server = nil;
     const uint8_t *b=(const uint8_t*)sd.bytes; size_t tl=sd.length,s=0;
     while(s<tl){ssize_t n=write(fd,b+s,tl-s);if(n<=0)break;s+=n;}
 }
-- (void)stop { if(_sock>=0){close((int)_sock);_sock=-1;} @synchronized(_fds){for(NSNumber*f in _fds)close([f intValue]);[_fds removeAllObjects];} }
+- (void)stop { 
+    if(_sock>=0){close((int)_sock);_sock=-1;} 
+    @synchronized(_fds){
+        for(NSNumber*f in _fds)close([f intValue]);
+        [_fds removeAllObjects];
+    } 
+}
 @end
 
 // ==================== SpringBoard Hook ====================
@@ -1142,21 +1274,13 @@ static StarCoreTCPServer *_server = nil;
 %hook SpringBoard
 - (void)applicationDidFinishLaunching:(id)application {
     %orig;
-    NSLog(@"[StarCoreTweak] SpringBoard启动 v5.5 (修复_contextId崩溃)");
+    NSLog(@"[StarCoreTweak] SpringBoard启动 v5.7 (全面检修：修复所有崩溃隐患)");
     loadFunctions();
     _server = [[StarCoreTCPServer alloc] init];
     [_server start];
-    
-// ★ v5.2 安全修复：禁用自动创建虚拟设备（防止SpringBoard崩溃）
-// 用户需要手动调用 initDevice 命令来初始化虚拟设备
-// 虚拟键盘设备需要单独创建，用于keyPress/textInput
-//    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-//        bool ok = initVirtualTouchDevice();
-//        NSLog(@"[StarCoreTweak] 虚拟触摸设备初始化: %@", ok ? @"成功" : @"失败");
-//    });
-    NSLog(@"[StarCoreTweak] v5.5: 虚拟设备需手动调用initDevice, shell命令已就绪");
+    NSLog(@"[StarCoreTweak] v5.7: 虚拟设备需手动调用initDevice, shell命令已就绪");
 }
 %end
 
-%ctor { NSLog(@"[StarCoreTweak] v5.5 loading... (修复_contextId崩溃)"); }
+%ctor { NSLog(@"[StarCoreTweak] v5.7 loading... (全面检修：修复所有崩溃隐患)"); }
 %dtor { [_server stop]; }

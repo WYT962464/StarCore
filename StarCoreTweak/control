@@ -1,8 +1,8 @@
 Package: com.starcore.tweak
 Name: StarCoreTweak
-Version: 5.5.0
+Version: 5.7.0
 Architecture: iphoneos-arm64
-Description: StarCore Tweak v5.5 - 修复_contextId野指针崩溃
+Description: StarCore Tweak v5.7 - plist改Bundles格式(ElleKit兼容)
 Maintainer: StarCore
 Author: StarCore
 Section: Tweaks
