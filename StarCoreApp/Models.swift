@@ -47,7 +47,7 @@ struct LLMProvider: Codable {
     static let volcengine = LLMProvider(
         name: "火山方舟",
         url: "https://ark.cn-beijing.volces.com/api/v3/chat/completions",
-        model: "",
+        model: "ep-20260510050234-p99sv",
         apiKey: ""
     )
 
@@ -107,7 +107,7 @@ struct AppSettings: Codable {
         currentProviderIndex: 0,
         providers: LLMProvider.allProviders,
         cloudBrain: .default,
-        memoryPath: "/var/mobile/StarCoreAgent/memory/files",
+        memoryPath: "/var/mobile/StarCoreAgent",
         systemPromptOverride: ""
     )
 }
