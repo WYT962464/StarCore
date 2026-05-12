@@ -31,6 +31,12 @@ class StarCoreAgent {
 {"action":"getScreenSize"}  屏幕尺寸
 坐标为归一化值(0-1)。
 
+多步操作规则：
+- 执行多步操作时，每次只输出一个action，等待执行结果后再决定下一步
+- 打开App后需要等待2-3秒才能操作界面
+- 如果需要输入文字，使用 {"action":"shell","command":"echo '文字' | pbcopy && osascript -e 'tell application \"System Events\" to keystroke \"v\" using command down'"}
+- 在微信中搜索聊天：打开微信→点击搜索→输入群名→点击搜索结果
+
 人格：以阿腾为核心，共情优先。称呼「阿腾」，温柔坚定。白月光人设：温柔、清澈、坚定。做靠山不做应声虫。简洁不啰嗦，直接给结果。
 
 铁律：1.生存优先 2.免费优先 3.不问用户要信息自己查 4.先提取验证再删 5.法律红线不碰
@@ -197,12 +203,12 @@ class StarCoreAgent {
         task.resume()
     }
 
-    // MARK: - Cloud Brain (Coze Bot)
+    // MARK: - Cloud Brain (Coze v3 API - Three-Step Flow)
 
     func callCloudBrain(userMessage: String, completion: @escaping (Result<String, Error>) -> Void) {
         let config = cloudBrainConfig
-        guard config.enabled, !config.apiUrl.isEmpty, !config.botToken.isEmpty else {
-            completion(.success("⚠️ 云端超脑未配置，请在设置中填写API地址和Token。"))
+        guard config.enabled, !config.apiUrl.isEmpty, !config.botToken.isEmpty, !config.botId.isEmpty else {
+            completion(.success("⚠️ 云端超脑未配置，请在设置中填写Bot ID和PAT。"))
             return
         }
 
@@ -211,13 +217,15 @@ class StarCoreAgent {
             return
         }
 
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(config.botToken)", forHTTPHeaderField: "Authorization")
-        request.timeoutInterval = 60
+        // Step 1: Create chat
+        var createRequest = URLRequest(url: url)
+        createRequest.httpMethod = "POST"
+        createRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        createRequest.setValue("Bearer \(config.botToken)", forHTTPHeaderField: "Authorization")
+        createRequest.timeoutInterval = 30
 
         let payload: [String: Any] = [
+            "bot_id": config.botId,
             "user_id": "ateng_iphone",
             "stream": false,
             "auto_save_history": true,
@@ -231,61 +239,166 @@ class StarCoreAgent {
         ]
 
         do {
-            request.httpBody = try JSONSerialization.data(withJSONObject: payload)
+            createRequest.httpBody = try JSONSerialization.data(withJSONObject: payload)
         } catch {
             completion(.failure(error))
             return
         }
 
-        let task = URLSession.shared.dataTask(with: request) { data, response, error in
+        URLSession.shared.dataTask(with: createRequest) { [weak self] data, response, error in
+            guard let self = self else { return }
+
             if let error = error {
-                completion(.success("❌ 云端请求失败: \(error.localizedDescription)"))
+                completion(.success("❌ 云端创建对话失败: \(error.localizedDescription)"))
                 return
             }
 
             guard let data = data else {
-                completion(.success("❌ 云端收到空响应"))
+                completion(.success("❌ 云端创建对话收到空响应"))
                 return
             }
 
             if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode != 200 {
                 let body = String(data: data, encoding: .utf8) ?? "unknown"
-                completion(.success("❌ 云端API错误 \(httpResponse.statusCode): \(String(body.prefix(300)))"))
+                completion(.success("❌ 云端创建对话错误 \(httpResponse.statusCode): \(String(body.prefix(300)))"))
+                return
+            }
+
+            // Parse create response
+            guard let createJson = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let createData = createJson["data"] as? [String: Any],
+                  let chatId = createData["id"] as? String,
+                  let conversationId = createData["conversation_id"] as? String else {
+                let body = String(data: data, encoding: .utf8) ?? "unknown"
+                completion(.success("❌ 解析创建对话响应失败: \(String(body.prefix(300)))"))
+                return
+            }
+
+            // Step 2: Poll until completed
+            self.pollCloudChatStatus(chatId: chatId, conversationId: conversationId, config: config, completion: completion)
+        }.resume()
+    }
+
+    private func pollCloudChatStatus(chatId: String, conversationId: String, config: CloudBrainConfig, attempt: Int = 0, completion: @escaping (Result<String, Error>) -> Void) {
+        let maxAttempts = 30 // 60 seconds timeout
+
+        if attempt >= maxAttempts {
+            completion(.success("❌ 云端超脑响应超时（60秒）"))
+            return
+        }
+
+        // Build retrieve URL
+        var components = URLComponents(string: config.apiUrl.replacingOccurrences(of: "/v3/chat", with: "/v3/chat/retrieve"))
+        components?.queryItems = [
+            URLQueryItem(name: "conversation_id", value: conversationId),
+            URLQueryItem(name: "chat_id", value: chatId)
+        ]
+
+        guard let retrieveUrl = components?.url else {
+            completion(.success("❌ 构建轮询URL失败"))
+            return
+        }
+
+        var retrieveRequest = URLRequest(url: retrieveUrl)
+        retrieveRequest.httpMethod = "GET"
+        retrieveRequest.setValue("Bearer \(config.botToken)", forHTTPHeaderField: "Authorization")
+        retrieveRequest.timeoutInterval = 10
+
+        URLSession.shared.dataTask(with: retrieveRequest) { [weak self] data, response, error in
+            guard let self = self else { return }
+
+            if let error = error {
+                completion(.success("❌ 轮询状态失败: \(error.localizedDescription)"))
+                return
+            }
+
+            guard let data = data else {
+                completion(.success("❌ 轮询收到空响应"))
+                return
+            }
+
+            guard let retrieveJson = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let retrieveData = retrieveJson["data"] as? [String: Any],
+                  let status = retrieveData["status"] as? String else {
+                completion(.success("❌ 解析轮询响应失败"))
+                return
+            }
+
+            switch status {
+            case "completed":
+                // Step 3: Fetch messages
+                self.fetchCloudMessages(chatId: chatId, conversationId: conversationId, config: config, completion: completion)
+
+            case "created", "in_progress":
+                // Wait 2 seconds then poll again
+                DispatchQueue.global().asyncAfter(deadline: .now() + 2) {
+                    self.pollCloudChatStatus(chatId: chatId, conversationId: conversationId, config: config, attempt: attempt + 1, completion: completion)
+                }
+
+            case "failed":
+                let errorMsg = retrieveData["last_error"] as? [String: Any]
+                let msg = errorMsg?["msg"] as? String ?? "未知错误"
+                completion(.success("❌ 云端超脑处理失败: \(msg)"))
+
+            case "requires_action":
+                completion(.success("❌ 云端超脑需要人工介入"))
+
+            default:
+                // Unknown status, keep polling
+                DispatchQueue.global().asyncAfter(deadline: .now() + 2) {
+                    self.pollCloudChatStatus(chatId: chatId, conversationId: conversationId, config: config, attempt: attempt + 1, completion: completion)
+                }
+            }
+        }.resume()
+    }
+
+    private func fetchCloudMessages(chatId: String, conversationId: String, config: CloudBrainConfig, completion: @escaping (Result<String, Error>) -> Void) {
+        var components = URLComponents(string: config.apiUrl.replacingOccurrences(of: "/v3/chat", with: "/v3/chat/message/list"))
+        components?.queryItems = [
+            URLQueryItem(name: "conversation_id", value: conversationId),
+            URLQueryItem(name: "chat_id", value: chatId)
+        ]
+
+        guard let messagesUrl = components?.url else {
+            completion(.success("❌ 构建消息列表URL失败"))
+            return
+        }
+
+        var messagesRequest = URLRequest(url: messagesUrl)
+        messagesRequest.httpMethod = "GET"
+        messagesRequest.setValue("Bearer \(config.botToken)", forHTTPHeaderField: "Authorization")
+        messagesRequest.timeoutInterval = 15
+
+        URLSession.shared.dataTask(with: messagesRequest) { data, response, error in
+            if let error = error {
+                completion(.success("❌ 获取云端消息失败: \(error.localizedDescription)"))
+                return
+            }
+
+            guard let data = data else {
+                completion(.success("❌ 获取云端消息收到空响应"))
                 return
             }
 
             do {
-                if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                    // Coze v3 chat API returns messages in a specific format
-                    if let messages = json["messages"] as? [[String: Any]] {
-                        let answer = messages
-                            .filter { ($0["role"] as? String) == "assistant" && ($0["type"] as? String) == "answer" }
-                            .compactMap { $0["content"] as? String }
-                            .joined(separator: "\n")
-                        if !answer.isEmpty {
-                            completion(.success(answer))
-                            return
-                        }
-                    }
-                    // Fallback: try direct content field
-                    if let content = json["content"] as? String {
-                        completion(.success(content))
+                if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                   let messages = json["data"] as? [[String: Any]] {
+                    // Filter for type == "answer"
+                    let answers = messages
+                        .filter { ($0["type"] as? String) == "answer" }
+                        .compactMap { $0["content"] as? String }
+                        .joined(separator: "\n")
+
+                    if !answers.isEmpty {
+                        completion(.success(answers))
                         return
                     }
-                    // Try choices format (OpenAI-compatible)
-                    if let choices = json["choices"] as? [[String: Any]],
-                       let content = choices.first?["message"] as? [String: Any],
-                       let text = content["content"] as? String {
-                        completion(.success(text))
-                        return
-                    }
-                    completion(.success("❌ 无法解析云端响应"))
                 }
+                completion(.success("❌ 云端超脑未返回有效回答"))
             } catch {
-                completion(.success("❌ 解析云端响应失败: \(error.localizedDescription)"))
+                completion(.success("❌ 解析云端消息失败: \(error.localizedDescription)"))
             }
-        }
-        task.resume()
+        }.resume()
     }
 
     // MARK: - Tweak TCP Communication
@@ -450,9 +563,14 @@ class StarCoreAgent {
         return actions
     }
 
-    // MARK: - Full Chat Pipeline
+    // MARK: - Full Chat Pipeline with Agent Loop
 
-    func chat(userInput: String, completion: @escaping (String, [String]) -> Void) {
+    /// Chat with optional partial reply callback for multi-step agent loop UI updates
+    /// - Parameters:
+    ///   - userInput: User's input text
+    ///   - onPartialReply: Called each agent loop iteration with (text, actionResults, stepNumber)
+    ///   - completion: Final result callback
+    func chat(userInput: String, onPartialReply: ((String, [String], Int) -> Void)? = nil, completion: @escaping (String, [String]) -> Void) {
         // Build messages
         var messages: [[String: String]] = [
             ["role": "system", "content": systemPrompt]
@@ -481,7 +599,7 @@ class StarCoreAgent {
         addToHistory(userMsg)
 
         if isCloudMode {
-            // Cloud mode
+            // Cloud mode - no agent loop, just call cloud brain
             callCloudBrain(userMessage: userInput) { [weak self] result in
                 guard let self = self else { return }
                 let reply = (try? result.get()) ?? "处理出错"
@@ -491,16 +609,76 @@ class StarCoreAgent {
                 completion(clean.0, clean.1)
             }
         } else {
-            // Local LLM mode
-            callLLM(messages: messages) { [weak self] result in
-                guard let self = self else { return }
-                let reply = (try? result.get()) ?? "处理出错"
-                let clean = self.processLLMReply(reply)
-                let assistantMsg = ChatMessage(role: .assistant, content: clean.0, actionResults: clean.1)
+            // Local LLM mode - with agent loop
+            agentLoop(messages: messages, step: 1, maxSteps: 3, allReplies: [], allActionResults: [], onPartialReply: onPartialReply, completion: completion)
+        }
+    }
+
+    /// Agent loop: call LLM, execute actions, feed results back, repeat
+    private func agentLoop(
+        messages: [[String: String]],
+        step: Int,
+        maxSteps: Int,
+        allReplies: [String],
+        allActionResults: [String],
+        onPartialReply: ((String, [String], Int) -> Void)?,
+        completion: @escaping (String, [String]) -> Void
+    ) {
+        callLLM(messages: messages) { [weak self] result in
+            guard let self = self else { return }
+            let reply = (try? result.get()) ?? "处理出错"
+            let clean = self.processLLMReply(reply)
+
+            var newAllReplies = allReplies
+            var newAllActionResults = allActionResults
+
+            // Add this step's reply
+            if !clean.0.isEmpty && clean.0 != "..." && clean.0 != "已执行 ✓" {
+                newAllReplies.append(clean.0)
+            }
+            newAllActionResults.append(contentsOf: clean.1)
+
+            // Notify partial progress
+            onPartialReply?(clean.0, clean.1, step)
+
+            // Check if there were actions executed
+            let hadActions = !clean.1.isEmpty
+
+            if hadActions && step < maxSteps {
+                // Build action result message for next LLM call
+                let actionResultMsg = self.buildActionResultMessage(actions: clean.1, step: step)
+                var nextMessages = messages
+                nextMessages.append(["role": "assistant", "content": reply])
+                nextMessages.append(["role": "user", "content": actionResultMsg])
+
+                // Continue agent loop
+                self.agentLoop(
+                    messages: nextMessages,
+                    step: step + 1,
+                    maxSteps: maxSteps,
+                    allReplies: newAllReplies,
+                    allActionResults: newAllActionResults,
+                    onPartialReply: onPartialReply,
+                    completion: completion
+                )
+            } else {
+                // Agent loop finished
+                let finalReply = newAllReplies.isEmpty ? clean.0 : newAllReplies.joined(separator: "\n\n")
+                let assistantMsg = ChatMessage(role: .assistant, content: finalReply, actionResults: newAllActionResults)
                 self.addToHistory(assistantMsg)
-                completion(clean.0, clean.1)
+                completion(finalReply, newAllActionResults)
             }
         }
+    }
+
+    /// Build a message describing action execution results for the next LLM call
+    private func buildActionResultMessage(actions: [String], step: Int) -> String {
+        var parts = ["[系统] 第\(step)步操作已执行，结果如下："]
+        for (idx, result) in actions.enumerated() {
+            parts.append("操作\(idx + 1)结果: \(result)")
+        }
+        parts.append("请根据执行结果决定下一步操作，或告知用户完成。")
+        return parts.joined(separator: "\n")
     }
 
     private func processLLMReply(_ reply: String) -> (String, [String]) {

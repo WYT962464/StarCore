@@ -86,11 +86,13 @@ struct TweakAction {
 struct CloudBrainConfig: Codable {
     var enabled: Bool
     var apiUrl: String
+    var botId: String
     var botToken: String
 
     static let `default` = CloudBrainConfig(
         enabled: false,
         apiUrl: "https://api.coze.cn/v3/chat",
+        botId: "",
         botToken: ""
     )
 }

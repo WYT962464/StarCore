@@ -73,6 +73,7 @@ class SettingsViewController: UIViewController {
         lastView = addSectionHeader("☁️ 云端超脑", below: lastView)
         lastView = addCloudBrainToggle(below: lastView)
         lastView = addCloudAPIUrlField(below: lastView)
+        lastView = addCloudBotIdField(below: lastView)
         lastView = addCloudTokenField(below: lastView)
 
         // Divider
@@ -359,8 +360,14 @@ class SettingsViewController: UIViewController {
     }
 
     private func addCloudTokenField(below aboveView: UIView) -> UIView {
-        let rowView = makeInputRow(placeholder: "Bot Token", tag: 102, below: aboveView)
+        let rowView = makeInputRow(placeholder: "PAT (个人访问令牌)", tag: 102, below: aboveView)
         (rowView.viewWithTag(102) as? UITextField)?.text = StarCoreAgent.shared.cloudBrainConfig.botToken
+        return rowView
+    }
+
+    private func addCloudBotIdField(below aboveView: UIView) -> UIView {
+        let rowView = makeInputRow(placeholder: "Bot ID", tag: 104, below: aboveView)
+        (rowView.viewWithTag(104) as? UITextField)?.text = StarCoreAgent.shared.cloudBrainConfig.botId
         return rowView
     }
 
@@ -540,7 +547,7 @@ class SettingsViewController: UIViewController {
 
     private func addVersionInfo(below aboveView: UIView) -> UIView {
         let label = UILabel()
-        label.text = "星核 v2.0 | StarCore Native\nSwift原生 · UIKit · 无WebView"
+        label.text = "星核 v3.0 | StarCore Native\n云端超脑 · Agent循环 · 记忆修复"
         label.font = UIFont.systemFont(ofSize: 13)
         label.textColor = UIColor(white: 1, alpha: 0.3)
         label.textAlignment = .center
@@ -617,6 +624,10 @@ class SettingsViewController: UIViewController {
                 MemoryManager.shared.updateMemoryPath(path)
                 updateMemoryInfo()
             }
+        case 104:
+            var config = StarCoreAgent.shared.cloudBrainConfig
+            config.botId = sender.text ?? ""
+            StarCoreAgent.shared.cloudBrainConfig = config
         default:
             break
         }

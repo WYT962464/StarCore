@@ -299,17 +299,58 @@ class ChatViewController: UIViewController {
 
         setWaiting(true)
 
-        StarCoreAgent.shared.chat(userInput: text) { [weak self] reply, actionResults in
-            DispatchQueue.main.async {
-                guard let self = self else { return }
-                let assistantMsg = ChatMessage(role: .assistant, content: reply, actionResults: actionResults)
-                self.messages.append(assistantMsg)
-                self.tableView.insertRows(at: [IndexPath(row: self.messages.count - 1, section: 0)], with: .bottom)
-                self.scrollToBottom()
-                self.setWaiting(false)
-                self.updateStatusBar()
+        // Add a placeholder assistant message that will be updated during agent loop
+        let placeholderMsg = ChatMessage(role: .assistant, content: "⏳ 思考中...")
+        messages.append(placeholderMsg)
+        let placeholderIndex = messages.count - 1
+        tableView.insertRows(at: [IndexPath(row: placeholderIndex, section: 0)], with: .bottom)
+        scrollToBottom()
+
+        var accumulatedReplies: [String] = []
+        var accumulatedActions: [String] = []
+
+        StarCoreAgent.shared.chat(
+            userInput: text,
+            onPartialReply: { [weak self] partialReply, actionResults, step in
+                DispatchQueue.main.async {
+                    guard let self = self else { return }
+
+                    accumulatedReplies.append("【第\(step)步】\(partialReply)")
+                    accumulatedActions.append(contentsOf: actionResults)
+
+                    // Update the placeholder message
+                    let displayText = accumulatedReplies.joined(separator: "\n\n")
+                    self.messages[placeholderIndex] = ChatMessage(
+                        role: .assistant,
+                        content: displayText,
+                        actionResults: accumulatedActions
+                    )
+                    self.tableView.reloadRows(at: [IndexPath(row: placeholderIndex, section: 0)], with: .none)
+                    self.scrollToBottom()
+                }
+            },
+            completion: { [weak self] finalReply, actionResults in
+                DispatchQueue.main.async {
+                    guard let self = self else { return }
+
+                    // Final update with clean text (without step markers)
+                    var displayText = finalReply
+                    if !actionResults.isEmpty && !finalReply.contains("已执行") {
+                        // Keep it clean for the final display
+                    }
+
+                    self.messages[placeholderIndex] = ChatMessage(
+                        role: .assistant,
+                        content: displayText.isEmpty ? finalReply : displayText,
+                        actionResults: actionResults
+                    )
+                    self.tableView.reloadRows(at: [IndexPath(row: placeholderIndex, section: 0)], with: .none)
+                    self.scrollToBottom()
+                    self.setWaiting(false)
+                    self.updateStatusBar()
+                }
             }
-        }
+        )
     }
 
     private func setWaiting(_ waiting: Bool) {

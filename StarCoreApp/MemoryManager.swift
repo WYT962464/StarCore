@@ -91,19 +91,42 @@ class MemoryManager {
         return parts.joined(separator: "")
     }
 
-    // MARK: - Check Memory Directory
+    // MARK: - Check Memory Directory (with Tweak fallback)
 
     func memoryDirectoryExists() -> Bool {
-        return fileManager.fileExists(atPath: memoryPath)
+        // First try FileManager
+        if fileManager.fileExists(atPath: memoryPath) {
+            return true
+        }
+        // Fallback: use Tweak shell command (works in sandboxed全能签 App)
+        let cmd = "ls -d \(memoryPath) 2>/dev/null && echo EXISTS"
+        if let result = StarCoreAgent.shared.tweakCmd(action: "shell", params: ["command": cmd]),
+           let raw = result["raw"] as? String, raw.contains("EXISTS") {
+            return true
+        }
+        return false
     }
 
     func memoryFilesInfo() -> [(name: String, exists: Bool, size: Int)] {
         return memoryFiles.map { file in
             let path = file.fullPath(relativeTo: memoryPath)
-            let exists = fileManager.fileExists(atPath: path)
+
+            // Try FileManager first
+            var exists = fileManager.fileExists(atPath: path)
             var size = 0
             if exists {
                 size = readFile(at: path).count
+            } else {
+                // Fallback: use Tweak shell to check existence and get size
+                let checkCmd = "stat -f%z \(path) 2>/dev/null"
+                if let result = StarCoreAgent.shared.tweakCmd(action: "shell", params: ["command": checkCmd]),
+                   let raw = result["raw"] as? String {
+                    let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if let fileSize = Int(trimmed), fileSize > 0 {
+                        exists = true
+                        size = fileSize
+                    }
+                }
             }
             return (file.displayName, exists, size)
         }
@@ -116,14 +139,31 @@ class MemoryManager {
     // MARK: - Private Helpers
 
     private func readFile(at path: String, maxChars: Int = 0) -> String {
-        guard fileManager.fileExists(atPath: path) else { return "" }
-        guard let data = fileManager.contents(atPath: path),
-              let content = String(data: data, encoding: .utf8) else { return "" }
-
-        if maxChars > 0 && content.count > maxChars {
-            let index = content.index(content.startIndex, offsetBy: maxChars)
-            return String(content[..<index]) + "\n... (已截断)"
+        // Try FileManager first
+        if fileManager.fileExists(atPath: path),
+           let data = fileManager.contents(atPath: path),
+           let content = String(data: data, encoding: .utf8) {
+            if maxChars > 0 && content.count > maxChars {
+                let index = content.index(content.startIndex, offsetBy: maxChars)
+                return String(content[..<index]) + "\n... (已截断)"
+            }
+            return content
         }
-        return content
+
+        // Fallback: use Tweak shell command to read file (bypasses sandbox)
+        let catCmd = "cat \(path) 2>/dev/null"
+        if let result = StarCoreAgent.shared.tweakCmd(action: "shell", params: ["command": catCmd], timeout: 3),
+           let raw = result["raw"] as? String, !raw.isEmpty {
+            let content = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !content.isEmpty {
+                if maxChars > 0 && content.count > maxChars {
+                    let index = content.index(content.startIndex, offsetBy: maxChars)
+                    return String(content[..<index]) + "\n... (已截断)"
+                }
+                return content
+            }
+        }
+
+        return ""
     }
 }
