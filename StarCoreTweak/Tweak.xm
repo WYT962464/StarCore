@@ -1,7 +1,14 @@
 /**
- * StarCoreTweak.xm v5.7 - plist改Bundles格式(ElleKit兼容)
+ * StarCoreTweak.xm v5.9 - BKHIDSystemInterface触摸注入修复
  * 
- * v5.7 修复清单：
+ * v5.9 修复清单：
+ * 1. 🔥 dispatchHIDEvent()优先使用BKHIDSystemInterface injectHIDEvent:（BackBoardServices私有API）
+ *    - IOHIDEventSystemClientDispatchEvent只能派发到SpringBoard自身，无法注入到前台App
+ *    - BKHIDSystemInterface injectHIDEvent:是ZXTouch/ios-mcp验证过的正确注入路径
+ *    - 保留IOHIDEventSystemClient作为回退方案
+ * 2. diagnose/validate输出添加BKS状态报告
+ * 
+ * v5.7 修复清单（继承）：
  * 1. 🔥 performSelector调用返回非对象类型(pid_t, uint32_t)→野指针→全部改用objc_msgSend
  * 2. 🔥 UIKit操作从TCP后台线程调用→线程不安全→全部dispatch到主线程
  * 3. 🔥 UIScreen.mainScreen.bounds从后台线程访问→dispatch到主线程
@@ -306,7 +313,7 @@ static bool loadFunctions() {
     if (!IOHIDEventCreateDigitizerEventFunc) { NSLog(@"[StarCoreTweak] ❌ 核心函数缺失"); return false; }
     
     success = true;
-    NSLog(@"[StarCoreTweak] ✅ v5.7 函数加载成功");
+    NSLog(@"[StarCoreTweak] ✅ v5.9 函数加载成功");
     return true;
 }
 
@@ -462,6 +469,22 @@ static void resetIdleTimer() {
 static void dispatchHIDEvent(IOHIDEventRef event) {
     if (!event) return;
     
+    // ★ v5.9: 优先使用BKHIDSystemInterface（BackBoardServices私有API，从SpringBoard注入到前台App）
+    // IOHIDEventSystemClientDispatchEvent只能派发事件到SpringBoard自身进程，
+    // 无法将触摸事件注入到前台运行的App。BKHIDSystemInterface injectHIDEvent:
+    // 是BackBoardServices框架提供的私有API，通过Backboard daemon将事件
+    // 正确路由到前台App的UIEvent处理链。这是ZXTouch和ios-mcp验证过的方案。
+    @try {
+        BKHIDSystemInterface *bks = [BKHIDSystemInterface sharedInstance];
+        if (bks) {
+            [bks injectHIDEvent:event];
+            return; // BKS成功注入，不需要走IOHIDEventSystemClient
+        }
+    } @catch (NSException *e) {
+        NSLog(@"[StarCoreTweak] BKHIDSystemInterface injectHIDEvent failed: %@", e);
+    }
+    
+    // 回退：IOHIDEventSystemClient（只能影响SpringBoard自身，无法注入前台App）
     if (IOHIDEventSystemClientDispatchEventFunc) {
         static IOHIDEventSystemClientRef client = NULL;
         static dispatch_once_t onceToken;
@@ -947,7 +970,7 @@ static StarCoreTCPServer *_server = nil;
     struct sockaddr_in a; memset(&a,0,sizeof(a)); a.sin_len=sizeof(a); a.sin_family=AF_INET; a.sin_port=htons(6000); a.sin_addr.s_addr=inet_addr("127.0.0.1");
     if (bind((int)_sock,(struct sockaddr*)&a,sizeof(a))<0||listen((int)_sock,5)<0) { close((int)_sock); _sock=-1; return; }
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT,0),^{[self acceptLoop];});
-    NSLog(@"[StarCoreTweak] TCP :6000 v5.7 (全面检修版)");
+    NSLog(@"[StarCoreTweak] TCP :6000 v5.9 (BKHIDSystemInterface触摸注入修复)");
 }
 - (void)acceptLoop {
     while(_sock>=0) { struct sockaddr_in ca; socklen_t cl=sizeof(ca); int fd=accept((int)_sock,(struct sockaddr*)&ca,&cl); if(fd<0) continue;
@@ -1205,9 +1228,10 @@ static StarCoreTCPServer *_server = nil;
         
         resp[@"success"]=@YES; 
         resp[@"diagnostics"]=@{
-            @"version": @"5.6",
+            @"version": @"5.9",
             @"iokitHandle": g_iokitHandle?@"OK":@"NULL",
             @"bbsHandle": g_bbsHandle?@"OK":@"NULL",
+            @"BKHIDSystemInterface": ([BKHIDSystemInterface sharedInstance] != nil) ? @"OK":@"NULL",
             @"createDigitizerEvent": IOHIDEventCreateDigitizerEventFunc?@"OK":@"NULL",
             @"createKeyboardEvent": IOHIDEventCreateKeyboardEventFunc?@"OK":@"NULL",
             @"eventSystemClientDispatchEvent": IOHIDEventSystemClientDispatchEventFunc?@"OK":@"NULL",
@@ -1224,6 +1248,8 @@ static StarCoreTCPServer *_server = nil;
             @"frontmostContextID": @(frontmostCID),
             @"springBoardContextID": @(springCID),
             @"contextSource": ctxSrc ?: @"none",
+            // ★ v5.9: 派发路径
+            @"dispatchPath": ([BKHIDSystemInterface sharedInstance] != nil) ? @"BKHIDSystemInterface":@"IOHIDEventSystemClient(fallback)",
         };
     }
     
@@ -1237,6 +1263,7 @@ static StarCoreTCPServer *_server = nil;
         resp[@"validation"]=@{
             @"frameworkIOKit": g_iokitHandle?@YES:@NO,
             @"frameworkBBS": g_bbsHandle?@YES:@NO,
+            @"BKHIDSystemInterfaceAvailable": ([BKHIDSystemInterface sharedInstance] != nil) ? @YES:@NO,
             @"functionIOHIDEventCreateDigitizerEvent": IOHIDEventCreateDigitizerEventFunc?@YES:@NO,
             @"functionIOHIDEventSystemClientDispatchEvent": IOHIDEventSystemClientDispatchEventFunc?@YES:@NO,
             @"functionBKSHIDEventSetDigitizerInfo": BKSHIDEventSetDigitizerInfoFunc?@YES:@NO,
@@ -1244,6 +1271,8 @@ static StarCoreTCPServer *_server = nil;
             @"functionIOHIDUserDeviceCreate": IOHIDUserDeviceCreateFunc?@YES:@NO,
             @"functionIOHIDUserDeviceHandleReport": IOHIDUserDeviceHandleReportFunc?@YES:@NO,
             @"canInjectTouch": @(canInjectTouch),
+            // ★ v5.9: BKS注入能力
+            @"canInjectTouchToApp": @(([BKHIDSystemInterface sharedInstance] != nil)),
             @"virtualDeviceReady": @(g_virtualDeviceReady),
             @"virtualKeyboardReady": @(g_virtualKeyboardReady),
             @"frontmostContextID": @(frontmostCID),
@@ -1274,13 +1303,13 @@ static StarCoreTCPServer *_server = nil;
 %hook SpringBoard
 - (void)applicationDidFinishLaunching:(id)application {
     %orig;
-    NSLog(@"[StarCoreTweak] SpringBoard启动 v5.7 (全面检修：修复所有崩溃隐患)");
+    NSLog(@"[StarCoreTweak] SpringBoard启动 v5.9 (BKHIDSystemInterface触摸注入修复)");
     loadFunctions();
     _server = [[StarCoreTCPServer alloc] init];
     [_server start];
-    NSLog(@"[StarCoreTweak] v5.7: 虚拟设备需手动调用initDevice, shell命令已就绪");
+    NSLog(@"[StarCoreTweak] v5.9: BKHIDSystemInterface优先派发, 虚拟设备需手动调用initDevice");
 }
 %end
 
-%ctor { NSLog(@"[StarCoreTweak] v5.7 loading... (全面检修：修复所有崩溃隐患)"); }
+%ctor { NSLog(@"[StarCoreTweak] v5.9 loading... (BKHIDSystemInterface触摸注入修复)"); }
 %dtor { [_server stop]; }
