@@ -65,10 +65,6 @@ typedef struct __IOHIDUserDevice *IOHIDUserDeviceRef;
 // HID Usage Page/Usage
 #define kHIDPage_KeyboardOrKeypad 0x07
 
-@interface BKHIDSystemInterface : NSObject
-+ (id)sharedInstance;
-- (void)injectHIDEvent:(IOHIDEventRef)arg1;
-@end
 
 // UIWindow私有方法
 @interface UIWindow (StarCorePrivate)
@@ -76,8 +72,11 @@ typedef struct __IOHIDUserDevice *IOHIDUserDeviceRef;
 @end
 
 @interface UIApplication (StarCorePrivate)
+
 - (void)_enqueueHIDEvent:(IOHIDEventRef)arg1;
+
 @end
+
 
 // ==================== 函数指针 ====================
 // 旧方案函数
@@ -98,6 +97,17 @@ static IOReturn (*IOHIDUserDeviceHandleReportFunc)(IOHIDUserDeviceRef, const uin
 
 static void *g_iokitHandle = NULL;
 static void *g_bbsHandle = NULL;
+
+// ★ v5.9: BKHIDSystemInterface runtime resolution (no link-time dependency)
+static Class _bksClass = Nil;
+static id bksSharedInstance(void) {
+    if (!_bksClass) _bksClass = NSClassFromString(@"BKHIDSystemInterface");
+    if (!_bksClass) return nil;
+    return ((id (*)(id, SEL))objc_msgSend)(_bksClass, @selector(sharedInstance));
+}
+static void bksInjectHIDEvent(id bks, void *event) {
+    ((void (*)(id, SEL, void*))objc_msgSend)(bks, @selector(injectHIDEvent:), event);
+}
 
 // 全局变量
 static uint32_t g_springBoardContextID = 2939785827;
@@ -475,9 +485,9 @@ static void dispatchHIDEvent(IOHIDEventRef event) {
     // 是BackBoardServices框架提供的私有API，通过Backboard daemon将事件
     // 正确路由到前台App的UIEvent处理链。这是ZXTouch和ios-mcp验证过的方案。
     @try {
-        BKHIDSystemInterface *bks = [BKHIDSystemInterface sharedInstance];
+        id bks = bksSharedInstance();
         if (bks) {
-            [bks injectHIDEvent:event];
+            bksInjectHIDEvent(bks, event);
             return; // BKS成功注入，不需要走IOHIDEventSystemClient
         }
     } @catch (NSException *e) {
@@ -1231,7 +1241,7 @@ static StarCoreTCPServer *_server = nil;
             @"version": @"5.9",
             @"iokitHandle": g_iokitHandle?@"OK":@"NULL",
             @"bbsHandle": g_bbsHandle?@"OK":@"NULL",
-            @"BKHIDSystemInterface": ([BKHIDSystemInterface sharedInstance] != nil) ? @"OK":@"NULL",
+            @"BKHIDSystemInterface": (bksSharedInstance() != nil) ? @"OK":@"NULL",
             @"createDigitizerEvent": IOHIDEventCreateDigitizerEventFunc?@"OK":@"NULL",
             @"createKeyboardEvent": IOHIDEventCreateKeyboardEventFunc?@"OK":@"NULL",
             @"eventSystemClientDispatchEvent": IOHIDEventSystemClientDispatchEventFunc?@"OK":@"NULL",
@@ -1249,7 +1259,7 @@ static StarCoreTCPServer *_server = nil;
             @"springBoardContextID": @(springCID),
             @"contextSource": ctxSrc ?: @"none",
             // ★ v5.9: 派发路径
-            @"dispatchPath": ([BKHIDSystemInterface sharedInstance] != nil) ? @"BKHIDSystemInterface":@"IOHIDEventSystemClient(fallback)",
+            @"dispatchPath": (bksSharedInstance() != nil) ? @"BKHIDSystemInterface":@"IOHIDEventSystemClient(fallback)",
         };
     }
     
@@ -1263,7 +1273,7 @@ static StarCoreTCPServer *_server = nil;
         resp[@"validation"]=@{
             @"frameworkIOKit": g_iokitHandle?@YES:@NO,
             @"frameworkBBS": g_bbsHandle?@YES:@NO,
-            @"BKHIDSystemInterfaceAvailable": ([BKHIDSystemInterface sharedInstance] != nil) ? @YES:@NO,
+            @"BKHIDSystemInterfaceAvailable": (bksSharedInstance() != nil) ? @YES:@NO,
             @"functionIOHIDEventCreateDigitizerEvent": IOHIDEventCreateDigitizerEventFunc?@YES:@NO,
             @"functionIOHIDEventSystemClientDispatchEvent": IOHIDEventSystemClientDispatchEventFunc?@YES:@NO,
             @"functionBKSHIDEventSetDigitizerInfo": BKSHIDEventSetDigitizerInfoFunc?@YES:@NO,
@@ -1272,7 +1282,7 @@ static StarCoreTCPServer *_server = nil;
             @"functionIOHIDUserDeviceHandleReport": IOHIDUserDeviceHandleReportFunc?@YES:@NO,
             @"canInjectTouch": @(canInjectTouch),
             // ★ v5.9: BKS注入能力
-            @"canInjectTouchToApp": @(([BKHIDSystemInterface sharedInstance] != nil)),
+            @"canInjectTouchToApp": @((bksSharedInstance() != nil)),
             @"virtualDeviceReady": @(g_virtualDeviceReady),
             @"virtualKeyboardReady": @(g_virtualKeyboardReady),
             @"frontmostContextID": @(frontmostCID),
