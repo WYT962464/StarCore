@@ -7,13 +7,9 @@ INSTALL_TARGET_PROCESSES = SpringBoard
 include $(THEOS)/makefiles/common.mk
 
 TWEAK_NAME = StarCoreTweak
-StarCoreTweak_FILES = Tweak.mm
+StarCoreTweak_FILES = Tweak.xm
 StarCoreTweak_CFLAGS = -fobjc-arc -w
-StarCoreTweak_FRAMEWORKS = CoreGraphics UIKit
+StarCoreTweak_FRAMEWORKS = CoreGraphics UIKit IOKit
 StarCoreTweak_CODESIGN_FLAGS = -Sentitlements.plist
 
-# Use CydiaSubstrate framework (ElleKit compat layer)
-StarCoreTweak_FRAMEWORKS += CydiaSubstrate
-StarCoreTweak_LDFLAGS = -F/var/jb/Library/Frameworks -Wl,-undefined,dynamic_lookup
-
-include $(THEOS)/makefiles/tweak.mk
+include $(THEOS_MAKE_PATH)/tweak.mk
