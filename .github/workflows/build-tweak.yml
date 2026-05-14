@@ -17,11 +17,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
       
-      - name: Install Theos
+      - name: Install Theos and ldid
         run: |
           export THEOS=/tmp/theos
           git clone --recursive https://github.com/theos/theos.git $THEOS
-          # sdks is already included via --recursive
+          brew install ldid fakeroot dpkg
           echo "THEOS=/tmp/theos" >> $GITHUB_ENV
       
       - name: Build Tweak (rootless)
