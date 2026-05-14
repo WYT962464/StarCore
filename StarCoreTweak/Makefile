@@ -10,6 +10,7 @@ TWEAK_NAME = StarCoreTweak
 StarCoreTweak_FILES = Tweak.xm
 StarCoreTweak_CFLAGS = -fobjc-arc -w
 StarCoreTweak_FRAMEWORKS = CoreGraphics UIKit IOKit
+StarCoreTweak_LDFLAGS = -Wl,-undefined,dynamic_lookup
 StarCoreTweak_CODESIGN_FLAGS = -Sentitlements.plist
 
 include $(THEOS_MAKE_PATH)/tweak.mk
