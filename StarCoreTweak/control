@@ -1,8 +1,8 @@
 Package: com.starcore.tweak
 Name: StarCoreTweak
-Version: 5.7.0
+Version: 5.9.0
 Architecture: iphoneos-arm64
-Description: StarCore Tweak v5.7 - plist改Bundles格式(ElleKit兼容)
+Description: StarCore Tweak v5.9 - BKHIDSystemInterface触摸注入修复+%ctor修复
 Maintainer: StarCore
 Author: StarCore
 Section: Tweaks

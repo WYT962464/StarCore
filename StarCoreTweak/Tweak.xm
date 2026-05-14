@@ -1311,5 +1311,5 @@ static StarCoreTCPServer *_server = nil;
 }
 %end
 
-%ctor { NSLog(@"[StarCoreTweak] v5.9 loading... (BKHIDSystemInterface触摸注入修复)"); }
+%ctor { %init; NSLog(@"[StarCoreTweak] v5.9 loading... (BKHIDSystemInterface触摸注入修复)"); }
 %dtor { [_server stop]; }
