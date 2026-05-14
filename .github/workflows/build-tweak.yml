@@ -17,11 +17,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
       
-      - name: Install Theos and ldid
+      - name: Install Theos and tools
         run: |
           export THEOS=/tmp/theos
           git clone --recursive https://github.com/theos/theos.git $THEOS
-          brew install ldid fakeroot dpkg
+          brew install ldid dpkg
           echo "THEOS=/tmp/theos" >> $GITHUB_ENV
       
       - name: Build Tweak (rootless)
@@ -30,7 +30,7 @@ jobs:
           THEOS_PACKAGE_SCHEME: rootless
         run: |
           make clean
-          make package
+          make package THEOS_FAKE_PACKAGE=1
       
       - name: Upload DEB artifact
         uses: actions/upload-artifact@v4
