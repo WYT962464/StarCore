@@ -8,10 +8,12 @@ class ChatViewController: UIViewController {
     private var inputContainerView: UIView!
     private var inputTextField: UITextField!
     private var sendButton: UIButton!
+    private var screenshotButton: UIButton!
     private var statusBarView: UIView!
     private var tweakStatusLabel: UILabel!
     private var providerLabel: UILabel!
     private var cloudStatusLabel: UILabel!
+    private var mcpStatusLabel: UILabel!
     private var typingIndicatorView: UIActivityIndicatorView!
 
     // MARK: - Data
@@ -102,7 +104,7 @@ class ChatViewController: UIViewController {
 
         let statusStack = UIStackView()
         statusStack.axis = .horizontal
-        statusStack.spacing = 12
+        statusStack.spacing = 8
         statusStack.translatesAutoresizingMaskIntoConstraints = false
         statusBarView.addSubview(statusStack)
 
@@ -114,10 +116,12 @@ class ChatViewController: UIViewController {
         tweakStatusLabel = makeStatusLabel(text: "Tweak: ·")
         providerLabel = makeStatusLabel(text: "LLM: ·")
         cloudStatusLabel = makeStatusLabel(text: "超脑: ·")
+        mcpStatusLabel = makeStatusLabel(text: "MCP: ·")
 
         statusStack.addArrangedSubview(tweakStatusLabel)
         statusStack.addArrangedSubview(providerLabel)
         statusStack.addArrangedSubview(cloudStatusLabel)
+        statusStack.addArrangedSubview(mcpStatusLabel)
 
         let borderView = UIView()
         borderView.backgroundColor = UIColor(white: 1, alpha: 0.06)
@@ -152,6 +156,7 @@ class ChatViewController: UIViewController {
         tableView.scrollIndicatorInsets = tableView.contentInset
         tableView.keyboardDismissMode = .interactive
         tableView.register(ChatBubbleCell.self, forCellReuseIdentifier: "ChatBubbleCell")
+        tableView.register(ImageBubbleCell.self, forCellReuseIdentifier: "ImageBubbleCell")
 
         view.insertSubview(tableView, belowSubview: statusBarView)
 
@@ -173,6 +178,14 @@ class ChatViewController: UIViewController {
         borderLine.backgroundColor = UIColor(white: 1, alpha: 0.06)
         borderLine.translatesAutoresizingMaskIntoConstraints = false
         inputContainerView.addSubview(borderLine)
+
+        // Screenshot button (left of input)
+        screenshotButton = UIButton(type: .custom)
+        screenshotButton.setTitle("📱", for: .normal)
+        screenshotButton.titleLabel?.font = UIFont.systemFont(ofSize: 18)
+        screenshotButton.translatesAutoresizingMaskIntoConstraints = false
+        screenshotButton.addTarget(self, action: #selector(takeScreenshot), for: .touchUpInside)
+        inputContainerView.addSubview(screenshotButton)
 
         inputTextField = UITextField()
         inputTextField.placeholder = "对我说..."
@@ -217,7 +230,12 @@ class ChatViewController: UIViewController {
             borderLine.trailingAnchor.constraint(equalTo: inputContainerView.trailingAnchor),
             borderLine.heightAnchor.constraint(equalToConstant: 1),
 
-            inputTextField.leadingAnchor.constraint(equalTo: inputContainerView.leadingAnchor, constant: 12),
+            screenshotButton.leadingAnchor.constraint(equalTo: inputContainerView.leadingAnchor, constant: 8),
+            screenshotButton.centerYAnchor.constraint(equalTo: inputContainerView.centerYAnchor),
+            screenshotButton.widthAnchor.constraint(equalToConstant: 40),
+            screenshotButton.heightAnchor.constraint(equalToConstant: 40),
+
+            inputTextField.leadingAnchor.constraint(equalTo: screenshotButton.trailingAnchor, constant: 4),
             inputTextField.centerYAnchor.constraint(equalTo: inputContainerView.centerYAnchor),
             inputTextField.heightAnchor.constraint(equalToConstant: 40),
             inputTextField.trailingAnchor.constraint(equalTo: sendButton.leadingAnchor, constant: -8),
@@ -267,6 +285,10 @@ class ChatViewController: UIViewController {
         let cloudConfig = agent.cloudBrainConfig
         cloudStatusLabel.text = cloudConfig.enabled ? "超脑: 🟢" : "超脑: ⚪"
         cloudStatusLabel.textColor = cloudConfig.enabled ? UIColor(red: 0x60/255, green: 0xa5/255, blue: 0xfa/255, alpha: 1) : UIColor(white: 1, alpha: 0.3)
+
+        let mcpConnected = agent.getMcpStatus()
+        mcpStatusLabel.text = mcpConnected ? "MCP: ✅" : "MCP: ⚪"
+        mcpStatusLabel.textColor = mcpConnected ? UIColor(red: 0x4e/255, green: 0xca/255, blue: 0x80/255, alpha: 1) : UIColor(white: 1, alpha: 0.3)
     }
 
     // MARK: - Data
@@ -353,6 +375,42 @@ class ChatViewController: UIViewController {
         )
     }
 
+    // MARK: - Screenshot
+
+    @objc private func takeScreenshot() {
+        guard !isWaiting else { return }
+
+        screenshotButton.isEnabled = false
+
+        StarCoreAgent.shared.takeScreenshot { [weak self] filePath, error in
+            guard let self = self else { return }
+            self.screenshotButton.isEnabled = true
+
+            if let filePath = filePath {
+                // Add screenshot message to chat
+                let screenshotMsg = ChatMessage(
+                    role: .user,
+                    content: "📸 截图",
+                    imagePaths: [filePath]
+                )
+                self.messages.append(screenshotMsg)
+                self.tableView.insertRows(at: [IndexPath(row: self.messages.count - 1, section: 0)], with: .bottom)
+                self.scrollToBottom()
+
+                // Also save to history
+                StarCoreAgent.shared.addToHistory(screenshotMsg)
+            } else {
+                let errorMsg = ChatMessage(
+                    role: .assistant,
+                    content: "❌ 截图失败: \(error ?? "未知错误")"
+                )
+                self.messages.append(errorMsg)
+                self.tableView.insertRows(at: [IndexPath(row: self.messages.count - 1, section: 0)], with: .bottom)
+                self.scrollToBottom()
+            }
+        }
+    }
+
     private func setWaiting(_ waiting: Bool) {
         isWaiting = waiting
         if waiting {
@@ -382,8 +440,19 @@ extension ChatViewController: UITableViewDataSource, UITableViewDelegate {
     }
 
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = tableView.dequeueReusableCell(withIdentifier: "ChatBubbleCell", for: indexPath) as! ChatBubbleCell
         let message = messages[indexPath.row]
+
+        // Use ImageBubbleCell for messages with images
+        if let imagePaths = message.imagePaths, !imagePaths.isEmpty {
+            let cell = tableView.dequeueReusableCell(withIdentifier: "ImageBubbleCell", for: indexPath) as! ImageBubbleCell
+            cell.configure(with: message)
+            cell.onImageTapped = { [weak self] imagePath in
+                self?.showFullScreenImage(at: imagePath)
+            }
+            return cell
+        }
+
+        let cell = tableView.dequeueReusableCell(withIdentifier: "ChatBubbleCell", for: indexPath) as! ChatBubbleCell
         cell.configure(with: message)
         return cell
     }
@@ -393,7 +462,18 @@ extension ChatViewController: UITableViewDataSource, UITableViewDelegate {
     }
 
     func tableView(_ tableView: UITableView, estimatedHeightForRowAt indexPath: IndexPath) -> CGFloat {
+        let message = messages[indexPath.row]
+        if message.imagePaths != nil { return 200 }
         return 60
+    }
+
+    // MARK: - Full Screen Image Viewer
+
+    private func showFullScreenImage(at path: String) {
+        let viewer = ImageViewerViewController()
+        viewer.imagePath = path
+        viewer.title = (path as NSString).lastPathComponent
+        navigationController?.pushViewController(viewer, animated: true)
     }
 }
 
@@ -534,5 +614,137 @@ class ChatBubbleCell: UITableViewCell {
         actionResultLabel.text = nil
         actionResultLabel.isHidden = true
         bubbleView.backgroundColor = .clear
+    }
+}
+
+// MARK: - Image Bubble Cell
+
+class ImageBubbleCell: UITableViewCell {
+
+    private let bubbleView = UIView()
+    private let captionLabel = UILabel()
+    private let thumbnailImageView = UIImageView()
+    private let timeLabel = UILabel()
+
+    var onImageTapped: ((String) -> Void)?
+    private var currentImagePath: String?
+
+    override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
+        super.init(style: style, reuseIdentifier: reuseIdentifier)
+        setupCell()
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    private func setupCell() {
+        selectionStyle = .none
+        backgroundColor = .clear
+        contentView.backgroundColor = .clear
+
+        bubbleView.layer.cornerRadius = 16
+        bubbleView.clipsToBounds = true
+        bubbleView.translatesAutoresizingMaskIntoConstraints = false
+        contentView.addSubview(bubbleView)
+
+        captionLabel.numberOfLines = 1
+        captionLabel.font = UIFont.systemFont(ofSize: 13)
+        captionLabel.translatesAutoresizingMaskIntoConstraints = false
+        bubbleView.addSubview(captionLabel)
+
+        thumbnailImageView.contentMode = .scaleAspectFill
+        thumbnailImageView.clipsToBounds = true
+        thumbnailImageView.layer.cornerRadius = 8
+        thumbnailImageView.backgroundColor = UIColor(red: 15/255, green: 20/255, blue: 50/255, alpha: 1.0)
+        thumbnailImageView.translatesAutoresizingMaskIntoConstraints = false
+        bubbleView.addSubview(thumbnailImageView)
+
+        timeLabel.font = UIFont.systemFont(ofSize: 10)
+        timeLabel.textColor = UIColor(white: 1, alpha: 0.25)
+        timeLabel.translatesAutoresizingMaskIntoConstraints = false
+        contentView.addSubview(timeLabel)
+
+        let tapGesture = UITapGestureRecognizer(target: self, action: #selector(imageTapped))
+        thumbnailImageView.isUserInteractionEnabled = true
+        thumbnailImageView.addGestureRecognizer(tapGesture)
+
+        NSLayoutConstraint.activate([
+            bubbleView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
+            bubbleView.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 6),
+            bubbleView.widthAnchor.constraint(lessThanOrEqualTo: contentView.widthAnchor, multiplier: 0.7),
+
+            captionLabel.topAnchor.constraint(equalTo: bubbleView.topAnchor, constant: 8),
+            captionLabel.leadingAnchor.constraint(equalTo: bubbleView.leadingAnchor, constant: 12),
+            captionLabel.trailingAnchor.constraint(equalTo: bubbleView.trailingAnchor, constant: -12),
+
+            thumbnailImageView.topAnchor.constraint(equalTo: captionLabel.bottomAnchor, constant: 6),
+            thumbnailImageView.leadingAnchor.constraint(equalTo: bubbleView.leadingAnchor, constant: 8),
+            thumbnailImageView.trailingAnchor.constraint(equalTo: bubbleView.trailingAnchor, constant: -8),
+            thumbnailImageView.heightAnchor.constraint(equalToConstant: 180),
+            thumbnailImageView.bottomAnchor.constraint(equalTo: bubbleView.bottomAnchor, constant: -8),
+
+            timeLabel.topAnchor.constraint(equalTo: bubbleView.bottomAnchor, constant: 3),
+            timeLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
+            timeLabel.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -2)
+        ])
+
+        bubbleView.backgroundColor = UIColor(red: 0x25/255, green: 0x63/255, blue: 0xeb/255, alpha: 1.0)
+        captionLabel.textColor = .white
+        bubbleView.layer.maskedCorners = [.layerMinXMinYCorner, .layerMinXMaxYCorner]
+    }
+
+    func configure(with message: ChatMessage) {
+        captionLabel.text = message.content
+        currentImagePath = message.imagePaths?.first
+
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        timeLabel.text = formatter.string(from: message.timestamp)
+
+        // Load thumbnail
+        if let imagePath = message.imagePaths?.first {
+            loadImageThumbnail(at: imagePath)
+        }
+    }
+
+    private func loadImageThumbnail(at path: String) {
+        // Try FileManager
+        if let data = FileManager.default.contents(atPath: path),
+           let image = UIImage(data: data) {
+            thumbnailImageView.image = image
+            return
+        }
+
+        // Fallback: try via Tweak shell
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let base64Cmd = "base64 -i \(path) 2>/dev/null | head -c 50000"
+            if let result = StarCoreAgent.shared.tweakCmd(action: "shell", params: ["command": base64Cmd], timeout: 10),
+               let raw = result["raw"] as? String,
+               let data = Data(base64Encoded: raw.trimmingCharacters(in: .whitespacesAndNewlines)),
+               let image = UIImage(data: data) {
+                DispatchQueue.main.async {
+                    self?.thumbnailImageView.image = image
+                }
+            } else {
+                DispatchQueue.main.async {
+                    self?.thumbnailImageView.image = nil
+                }
+            }
+        }
+    }
+
+    @objc private func imageTapped() {
+        if let path = currentImagePath {
+            onImageTapped?(path)
+        }
+    }
+
+    override func prepareForReuse() {
+        super.prepareForReuse()
+        captionLabel.text = nil
+        thumbnailImageView.image = nil
+        currentImagePath = nil
+        onImageTapped = nil
     }
 }

@@ -10,6 +10,12 @@ class StarCoreAgent {
     private let tweakHost = "127.0.0.1"
     private let tweakPort: UInt16 = 6000
 
+    // ios-mcp configuration
+    private let mcpHost = "127.0.0.1"
+    private let mcpPort: Int = 8090
+    private let mcpPath = "/mcp"
+    private var isMcpInitialized = false
+
     private var tweakConnection: NWConnection?
     private var isTweakConnected = false
 
@@ -29,7 +35,13 @@ class StarCoreAgent {
 {"action":"openApp","bundleId":"com.apple.MobilePhone"}  打开App
 {"action":"pressHome"}  Home键
 {"action":"getScreenSize"}  屏幕尺寸
-坐标为归一化值(0-1)。
+{"action":"screenshot"}  截图
+{"action":"iosMcpTap","x":100,"y":200}  ios-mcp点击(像素坐标)
+{"action":"iosMcpSwipe","startX":0,"startY":500,"endX":0,"endY":100}  ios-mcp滑动(像素坐标)
+{"action":"iosMcpGetUI"}  获取UI元素
+{"action":"iosMcpLaunchApp","bundleId":"com.xxx"}  ios-mcp启动App
+{"action":"iosMcpListApps"}  获取App列表
+坐标为归一化值(0-1)，ios-mcp动作为像素坐标。
 
 多步操作规则：
 - 执行多步操作时，每次只输出一个action，等待执行结果后再决定下一步
@@ -476,6 +488,207 @@ class StarCoreAgent {
         return result
     }
 
+    // MARK: - iOS MCP HTTP API
+
+    /// Initialize ios-mcp connection
+    func initializeMcp(completion: @escaping (Bool) -> Void = { _ in }) {
+        let urlStr = "http://\(mcpHost):\(mcpPort)\(mcpPath)"
+        guard let url = URL(string: urlStr) else {
+            completion(false)
+            return
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 10
+
+        let payload: [String: Any] = [
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": [
+                "protocolVersion": "2025-03-26",
+                "capabilities": [:],
+                "clientInfo": [
+                    "name": "StarCore",
+                    "version": "4.0"
+                ]
+            ]
+        ]
+
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: payload)
+        } catch {
+            completion(false)
+            return
+        }
+
+        URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
+            guard let self = self else { return }
+            if let error = error {
+                print("[MCP] Initialize failed: \(error.localizedDescription)")
+                self.isMcpInitialized = false
+                completion(false)
+                return
+            }
+            if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 {
+                self.isMcpInitialized = true
+                print("[MCP] Initialized successfully")
+                completion(true)
+            } else {
+                self.isMcpInitialized = false
+                completion(false)
+            }
+        }.resume()
+    }
+
+    /// Call ios-mcp tool via JSON-RPC 2.0
+    func callMcpTool(name: String, arguments: [String: Any] = [:], completion: @escaping (Result<[String: Any], Error>) -> Void) {
+        let urlStr = "http://\(mcpHost):\(mcpPort)\(mcpPath)"
+        guard let url = URL(string: urlStr) else {
+            completion(.success(["error": "MCP URL格式错误"]))
+            return
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 30
+
+        let payload: [String: Any] = [
+            "jsonrpc": "2.0",
+            "id": Int(Date().timeIntervalSince1970 * 1000) % Int.max,
+            "method": "tools/call",
+            "params": [
+                "name": name,
+                "arguments": arguments
+            ]
+        ]
+
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: payload)
+        } catch {
+            completion(.failure(error))
+            return
+        }
+
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            if let error = error {
+                completion(.success(["error": "ios-mcp未连接: \(error.localizedDescription)"]))
+                return
+            }
+
+            guard let data = data else {
+                completion(.success(["error": "ios-mcp返回空响应"]))
+                return
+            }
+
+            if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode != 200 {
+                let body = String(data: data, encoding: .utf8) ?? ""
+                completion(.success(["error": "ios-mcp错误 \(httpResponse.statusCode): \(String(body.prefix(200)))"]))
+                return
+            }
+
+            do {
+                if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                    // Check for JSON-RPC error
+                    if let rpcError = json["error"] as? [String: Any] {
+                        completion(.success(["error": "MCP错误: \(rpcError["message"] ?? "未知")"]))
+                        return
+                    }
+                    completion(.success(json))
+                } else {
+                    completion(.success(["error": "ios-mcp返回非JSON"]))
+                }
+            } catch {
+                completion(.success(["error": "ios-mcp响应解析失败: \(error.localizedDescription)"]))
+            }
+        }.resume()
+    }
+
+    /// Synchronous MCP call (blocking, for use in agent loop)
+    func callMcpToolSync(name: String, arguments: [String: Any] = [:]) -> [String: Any]? {
+        var result: [String: Any]? = nil
+        let semaphore = DispatchSemaphore(value: 0)
+
+        callMcpTool(name: name, arguments: arguments) { res in
+            switch res {
+            case .success(let json):
+                result = json
+            case .failure(let error):
+                result = ["error": error.localizedDescription]
+            }
+            semaphore.signal()
+        }
+
+        _ = semaphore.wait(timeout: .now() + 30)
+        return result
+    }
+
+    // MARK: - Screenshot via ios-mcp
+
+    /// Take screenshot via ios-mcp, returns (filePath, error?) on main thread
+    func takeScreenshot(completion: @escaping (String?, String?) -> Void) {
+        // Initialize if needed
+        if !isMcpInitialized {
+            initializeMcp { [weak self] success in
+                guard let self = self else { return }
+                if success {
+                    self.performScreenshot(completion: completion)
+                } else {
+                    DispatchQueue.main.async {
+                        completion(nil, "ios-mcp未连接，请确保ios-mcp服务已启动 (localhost:8090)")
+                    }
+                }
+            }
+        } else {
+            performScreenshot(completion: completion)
+        }
+    }
+
+    private func performScreenshot(completion: @escaping (String?, String?) -> Void) {
+        callMcpTool(name: "screenshot", arguments: [:]) { result in
+            switch result {
+            case .success(let json):
+                // Extract base64 from result.content[0].data
+                if let error = json["error"] as? String {
+                    DispatchQueue.main.async {
+                        completion(nil, error)
+                    }
+                    return
+                }
+
+                guard let resultObj = json["result"] as? [String: Any],
+                      let content = resultObj["content"] as? [[String: Any]],
+                      let firstContent = content.first,
+                      let base64Data = firstContent["data"] as? String else {
+                    DispatchQueue.main.async {
+                        completion(nil, "截图返回数据格式异常")
+                    }
+                    return
+                }
+
+                // Decode base64 and save
+                if let imageData = Data(base64Encoded: base64Data) {
+                    let filePath = MemoryManager.shared.saveScreenshot(data: imageData)
+                    DispatchQueue.main.async {
+                        completion(filePath, nil)
+                    }
+                } else {
+                    DispatchQueue.main.async {
+                        completion(nil, "截图base64解码失败")
+                    }
+                }
+
+            case .failure(let error):
+                DispatchQueue.main.async {
+                    completion(nil, "截图失败: \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+
     // MARK: - Action Execution
 
     func execAction(_ actionStr: String) -> [String: Any]? {
@@ -516,6 +729,47 @@ class StarCoreAgent {
 
         case "getScreenSize":
             return tweakCmd(action: "getScreenSize")
+
+        // ios-mcp actions
+        case "screenshot":
+            // Synchronous screenshot for agent loop
+            var result: [String: Any]? = nil
+            let semaphore = DispatchSemaphore(value: 0)
+            takeScreenshot { filePath, error in
+                if let filePath = filePath {
+                    result = ["success": true, "filePath": filePath, "message": "截图已保存"]
+                } else {
+                    result = ["success": false, "error": error ?? "截图失败"]
+                }
+                semaphore.signal()
+            }
+            _ = semaphore.wait(timeout: .now() + 35)
+            return result ?? ["success": false, "error": "截图超时"]
+
+        case "iosMcpTap":
+            let x = action["x"] as? Int ?? 0
+            let y = action["y"] as? Int ?? 0
+            return callMcpToolSync(name: "tap_screen", arguments: ["x": x, "y": y])
+
+        case "iosMcpSwipe":
+            let startX = action["startX"] as? Int ?? 0
+            let startY = action["startY"] as? Int ?? 0
+            let endX = action["endX"] as? Int ?? 0
+            let endY = action["endY"] as? Int ?? 0
+            return callMcpToolSync(name: "swipe_screen", arguments: [
+                "startX": startX, "startY": startY,
+                "endX": endX, "endY": endY
+            ])
+
+        case "iosMcpGetUI":
+            return callMcpToolSync(name: "get_ui_elements", arguments: [:])
+
+        case "iosMcpLaunchApp":
+            let bundleId = action["bundleId"] as? String ?? ""
+            return callMcpToolSync(name: "launch_app", arguments: ["bundle_id": bundleId])
+
+        case "iosMcpListApps":
+            return callMcpToolSync(name: "list_apps", arguments: [:])
 
         default:
             return ["error": "未知动作: \(act)"]
@@ -583,6 +837,11 @@ class StarCoreAgent {
             let h = screen["height"] as? Int ?? 812
             let s = screen["scale"] as? Int ?? 3
             messages[0]["content"]! += "\n屏幕: \(w)x\(h), scale=\(s)"
+        }
+
+        // Add ios-mcp availability info
+        if isMcpInitialized {
+            messages[0]["content"]! += "\nios-mcp: 已连接 (localhost:8090)"
         }
 
         // Add history
@@ -727,7 +986,16 @@ class StarCoreAgent {
         return isTweakConnected
     }
 
+    func getMcpStatus() -> Bool {
+        return isMcpInitialized
+    }
+
     func reconnectTweak() {
         checkTweakConnection()
+    }
+
+    func reconnectMcp() {
+        isMcpInitialized = false
+        initializeMcp()
     }
 }

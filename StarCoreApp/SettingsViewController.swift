@@ -87,10 +87,10 @@ class SettingsViewController: UIViewController {
         // Divider
         lastView = addDivider(below: lastView)
 
-        // Section: Memory
-        lastView = addSectionHeader("🧠 本地记忆包", below: lastView)
-        lastView = addMemoryPathField(below: lastView)
-        lastView = addMemoryInfo(below: lastView)
+        // Section: iOS MCP
+        lastView = addSectionHeader("📱 ios-mcp", below: lastView)
+        lastView = addMcpStatus(below: lastView)
+        lastView = addMcpReconnectButton(below: lastView)
 
         // Divider
         lastView = addDivider(below: lastView)
@@ -177,7 +177,7 @@ class SettingsViewController: UIViewController {
         return (label, rowView)
     }
 
-    // MARK: - Provider Picker
+    // MARK: - Provider picker
 
     private func addProviderPicker(below aboveView: UIView) -> UIView {
         let (label, rowView) = addRow(label: "当前Provider", below: aboveView)
@@ -418,67 +418,50 @@ class SettingsViewController: UIViewController {
         }
     }
 
-    // MARK: - Memory
+    // MARK: - iOS MCP Status
 
-    private func addMemoryPathField(below aboveView: UIView) -> UIView {
-        let rowView = makeInputRow(placeholder: "记忆包路径", tag: 103, below: aboveView)
-        (rowView.viewWithTag(103) as? UITextField)?.text = MemoryManager.shared.memoryDirectoryExists()
-            ? UserDefaults.standard.string(forKey: "memoryPath") ?? "/var/mobile/StarCoreAgent"
-            : ""
+    private var mcpStatusLabel: UILabel!
+
+    private func addMcpStatus(below aboveView: UIView) -> UIView {
+        let (label, rowView) = addRow(label: "ios-mcp状态", below: aboveView)
+        mcpStatusLabel = label
+        let connected = StarCoreAgent.shared.getMcpStatus()
+        updateMcpStatusLabel(connected)
         return rowView
     }
 
-    @objc private func memoryPathChanged(_ sender: UITextField) {
-        if let path = sender.text {
-            MemoryManager.shared.updateMemoryPath(path)
-        }
+    private func updateMcpStatusLabel(_ connected: Bool) {
+        mcpStatusLabel?.text = connected ? "✅ 已连接 (localhost:8090)" : "⚪ 未连接"
+        mcpStatusLabel?.textColor = connected ? UIColor(red: 0x4e/255, green: 0xca/255, blue: 0x80/255, alpha: 1) : UIColor(white: 1, alpha: 0.4)
     }
 
-    private var memoryInfoLabel: UILabel!
-
-    private func addMemoryInfo(below aboveView: UIView) -> UIView {
-        let rowView = UIView()
-        rowView.backgroundColor = UIColor(white: 1, alpha: 0.04)
-        rowView.layer.cornerRadius = 10
-        rowView.translatesAutoresizingMaskIntoConstraints = false
-        contentView.addSubview(rowView)
-
-        memoryInfoLabel = UILabel()
-        memoryInfoLabel.numberOfLines = 0
-        memoryInfoLabel.font = UIFont.monospacedSystemFont(ofSize: 12, weight: .regular)
-        memoryInfoLabel.textColor = UIColor(white: 1, alpha: 0.5)
-        memoryInfoLabel.translatesAutoresizingMaskIntoConstraints = false
-        rowView.addSubview(memoryInfoLabel)
+    private func addMcpReconnectButton(below aboveView: UIView) -> UIView {
+        let button = UIButton(type: .system)
+        button.setTitle("重新连接ios-mcp", for: .normal)
+        button.setTitleColor(UIColor(red: 0x60/255, green: 0xa5/255, blue: 0xfa/255, alpha: 1.0), for: .normal)
+        button.titleLabel?.font = UIFont.systemFont(ofSize: 14)
+        button.backgroundColor = UIColor(white: 1, alpha: 0.04)
+        button.layer.cornerRadius = 10
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.addTarget(self, action: #selector(reconnectMcp), for: .touchUpInside)
+        contentView.addSubview(button)
 
         NSLayoutConstraint.activate([
-            rowView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
-            rowView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
-            rowView.topAnchor.constraint(equalTo: aboveView.bottomAnchor, constant: rowGap),
-
-            memoryInfoLabel.topAnchor.constraint(equalTo: rowView.topAnchor, constant: 12),
-            memoryInfoLabel.bottomAnchor.constraint(equalTo: rowView.bottomAnchor, constant: -12),
-            memoryInfoLabel.leadingAnchor.constraint(equalTo: rowView.leadingAnchor, constant: 16),
-            memoryInfoLabel.trailingAnchor.constraint(equalTo: rowView.trailingAnchor, constant: -16)
+            button.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+            button.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
+            button.topAnchor.constraint(equalTo: aboveView.bottomAnchor, constant: rowGap),
+            button.heightAnchor.constraint(equalToConstant: 46)
         ])
 
-        updateMemoryInfo()
-
-        return rowView
+        return button
     }
 
-    private func updateMemoryInfo() {
-        let dirExists = MemoryManager.shared.memoryDirectoryExists()
-        if !dirExists {
-            memoryInfoLabel?.text = "⚠️ 记忆目录不存在\n路径: \(UserDefaults.standard.string(forKey: "memoryPath") ?? "/var/mobile/StarCoreAgent")"
-            return
+    @objc private func reconnectMcp() {
+        StarCoreAgent.shared.reconnectMcp()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+            let connected = StarCoreAgent.shared.getMcpStatus()
+            self?.updateMcpStatusLabel(connected)
         }
-        let info = MemoryManager.shared.memoryFilesInfo()
-        var lines = ["📂 记忆目录已找到"]
-        for item in info {
-            let status = item.exists ? "✅ \(item.size)字符" : "⚪ 不存在"
-            lines.append("  \(item.name): \(status)")
-        }
-        memoryInfoLabel?.text = lines.joined(separator: "\n")
     }
 
     // MARK: - Mode Switch
@@ -547,7 +530,7 @@ class SettingsViewController: UIViewController {
 
     private func addVersionInfo(below aboveView: UIView) -> UIView {
         let label = UILabel()
-        label.text = "星核 v3.0 | StarCore Native\n云端超脑 · Agent循环 · 记忆修复"
+        label.text = "星核 v4.0 | StarCore Native\n云端超脑 · Agent循环 · ios-mcp · 记忆管理"
         label.font = UIFont.systemFont(ofSize: 13)
         label.textColor = UIColor(white: 1, alpha: 0.3)
         label.textAlignment = .center
@@ -619,11 +602,6 @@ class SettingsViewController: UIViewController {
             var config = StarCoreAgent.shared.cloudBrainConfig
             config.botToken = sender.text ?? ""
             StarCoreAgent.shared.cloudBrainConfig = config
-        case 103:
-            if let path = sender.text {
-                MemoryManager.shared.updateMemoryPath(path)
-                updateMemoryInfo()
-            }
         case 104:
             var config = StarCoreAgent.shared.cloudBrainConfig
             config.botId = sender.text ?? ""
@@ -637,6 +615,6 @@ class SettingsViewController: UIViewController {
 
     private func refreshUI() {
         updateTweakStatusLabel(StarCoreAgent.shared.getTweakStatus())
-        updateMemoryInfo()
+        updateMcpStatusLabel(StarCoreAgent.shared.getMcpStatus())
     }
 }

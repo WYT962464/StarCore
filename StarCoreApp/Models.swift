@@ -7,6 +7,7 @@ struct ChatMessage: Codable {
     let content: String
     let timestamp: Date
     var actionResults: [String]?
+    var imagePaths: [String]?
 
     enum Role: String, Codable {
         case user
@@ -14,12 +15,28 @@ struct ChatMessage: Codable {
         case system
     }
 
-    init(role: Role, content: String, actionResults: [String]? = nil) {
+    init(role: Role, content: String, actionResults: [String]? = nil, imagePaths: [String]? = nil) {
         self.id = UUID().uuidString
         self.role = role
         self.content = content
         self.timestamp = Date()
         self.actionResults = actionResults
+        self.imagePaths = imagePaths
+    }
+
+    // Custom CodingKeys to handle optional new fields gracefully
+    private enum CodingKeys: String, CodingKey {
+        case id, role, content, timestamp, actionResults, imagePaths
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        role = try container.decode(Role.self, forKey: .role)
+        content = try container.decode(String.self, forKey: .content)
+        timestamp = try container.decode(Date.self, forKey: .timestamp)
+        actionResults = try container.decodeIfPresent([String].self, forKey: .actionResults)
+        imagePaths = try container.decodeIfPresent([String].self, forKey: .imagePaths)
     }
 }
 
@@ -133,4 +150,27 @@ struct LLMErrorResponse: Codable {
         let code: String?
     }
     let error: ErrorDetail?
+}
+
+// MARK: - Memory File Info
+struct MemoryFileInfo {
+    let name: String
+    let path: String
+    let isDirectory: Bool
+    let size: Int64
+    let modDate: Date?
+
+    var displaySize: String {
+        if isDirectory { return "--" }
+        if size < 1024 { return "\(size) B" }
+        if size < 1024 * 1024 { return String(format: "%.1f KB", Double(size) / 1024.0) }
+        return String(format: "%.1f MB", Double(size) / (1024.0 * 1024.0))
+    }
+
+    var displayDate: String {
+        guard let date = modDate else { return "--" }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MM-dd HH:mm"
+        return formatter.string(from: date)
+    }
 }

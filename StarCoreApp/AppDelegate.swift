@@ -19,6 +19,14 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         chatNav.navigationBar.shadowImage = UIImage()
         chatNav.navigationBar.tintColor = UIColor(red: 0x60/255, green: 0xa5/255, blue: 0xfa/255, alpha: 1.0)
 
+        let memoryVC = MemoryViewController()
+        let memoryNav = UINavigationController(rootViewController: memoryVC)
+        memoryNav.navigationBar.barStyle = .black
+        memoryNav.navigationBar.isTranslucent = true
+        memoryNav.navigationBar.setBackgroundImage(UIImage(), for: .default)
+        memoryNav.navigationBar.shadowImage = UIImage()
+        memoryNav.navigationBar.tintColor = UIColor(red: 0x60/255, green: 0xa5/255, blue: 0xfa/255, alpha: 1.0)
+
         let settingsVC = SettingsViewController()
         let settingsNav = UINavigationController(rootViewController: settingsVC)
         settingsNav.navigationBar.barStyle = .black
@@ -28,7 +36,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         settingsNav.navigationBar.tintColor = UIColor(red: 0x60/255, green: 0xa5/255, blue: 0xfa/255, alpha: 1.0)
 
         tabBarController = UITabBarController()
-        tabBarController?.viewControllers = [chatNav, settingsNav]
+        tabBarController?.viewControllers = [chatNav, memoryNav, settingsNav]
         tabBarController?.tabBar.barStyle = .black
         tabBarController?.tabBar.isTranslucent = true
         tabBarController?.tabBar.backgroundImage = UIImage()
@@ -39,6 +47,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             title: "聊天",
             image: tabImage(name: "chat"),
             selectedImage: tabImage(name: "chat.fill")
+        )
+        memoryNav.tabBarItem = UITabBarItem(
+            title: "记忆",
+            image: tabImage(name: "memory"),
+            selectedImage: tabImage(name: "memory.fill")
         )
         settingsNav.tabBarItem = UITabBarItem(
             title: "设置",
@@ -65,6 +78,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         window?.rootViewController = tabBarController
         window?.makeKeyAndVisible()
 
+        // Try initializing ios-mcp in background
+        DispatchQueue.global().asyncAfter(deadline: .now() + 3) {
+            StarCoreAgent.shared.initializeMcp()
+        }
+
         return true
     }
 
@@ -76,6 +94,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                 return UIImage(systemName: "message", withConfiguration: config)
             } else if name == "chat.fill" {
                 return UIImage(systemName: "message.fill", withConfiguration: config)
+            } else if name == "memory" {
+                return UIImage(systemName: "brain", withConfiguration: config)
+            } else if name == "memory.fill" {
+                return UIImage(systemName: "brain", withConfiguration: config)
             } else if name == "gear" {
                 return UIImage(systemName: "gearshape", withConfiguration: config)
             } else if name == "gear.fill" {
