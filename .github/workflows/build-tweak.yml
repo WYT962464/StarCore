@@ -21,7 +21,7 @@ jobs:
         run: |
           export THEOS=/tmp/theos
           git clone --recursive https://github.com/theos/theos.git $THEOS
-          git clone https://github.com/theos/sdks.git $THEOS/sdks
+          # sdks is already included via --recursive
           echo "THEOS=/tmp/theos" >> $GITHUB_ENV
       
       - name: Build Tweak (rootless)
