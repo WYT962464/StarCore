@@ -10,11 +10,16 @@ StarCoreApp_FILES = \
 	AppDelegate.swift \
 	Models.swift \
 	MemoryManager.swift \
+	MemoryViewController.swift \
 	StarCoreAgent.swift \
 	ChatViewController.swift \
-	SettingsViewController.swift
+	SettingsViewController.swift \
+	MarkdownRenderer.swift \
+	StreamingLLM.swift \
+	ImagePickerHelper.swift \
+	CloudBridgeClient.swift
 
-StarCoreApp_FRAMEWORKS = UIKit Foundation Network
+StarCoreApp_FRAMEWORKS = UIKit Foundation Network WebKit Photos
 StarCoreApp_CFLAGS = -fobjc-arc
 StarCoreApp_BUNDLE_NAME = StarCoreApp
 StarCoreApp_INSTALL_PATH = /Applications

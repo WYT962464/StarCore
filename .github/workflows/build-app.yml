@@ -1,0 +1,58 @@
+name: Build StarCoreApp
+
+on:
+  push:
+    branches:
+      - v1.0-dual-layer
+    paths:
+      - 'StarCoreApp/**'
+      - '.github/workflows/build-app.yml'
+  workflow_dispatch:
+
+jobs:
+  build-app:
+    runs-on: macos-14
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_PAT }}
+          fetch-depth: 0
+      
+      - name: Set up Theos
+        uses: Randomblock1/theos-action@v1
+        with:
+          theos-branch: 'feature/rootless-support'
+      
+      - name: Build StarCoreApp (rootless)
+        working-directory: ./StarCoreApp
+        env:
+          THEOS_PACKAGE_SCHEME: rootless
+        run: |
+          make clean
+          make package
+      
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: StarCoreApp-rootless
+          path: ./StarCoreApp/.theos/obj/*.ipa
+          retention-days: 7
+      
+      - name: Upload to GitHub Release
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          # Find the ipa file
+          IPA_FILE=$(find ./StarCoreApp/.theos/obj -name "*.ipa" | head -1)
+          if [ -z "$IPA_FILE" ]; then
+            echo "No IPA found"
+            exit 1
+          fi
+          echo "Found IPA: $IPA_FILE"
+          
+          # Upload to release v8.4 (create if not exists)
+          gh release upload v8.4 "$IPA_FILE" --repo WYT962464/StarCore --clobber || \
+          gh release create v8.4 "$IPA_FILE" --repo WYT962464/StarCore --title "v8.4" --notes "StarCore App v8.4 - 免费LLM + 扣子功能移植"

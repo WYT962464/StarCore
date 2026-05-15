@@ -1,25 +1,33 @@
 import UIKit
+import WebKit
 
-// MARK: - Chat View Controller
+// MARK: - Chat View Controller（重写版：多行输入+Markdown渲染+流式输出）
 class ChatViewController: UIViewController {
 
     // MARK: - UI Components
     private var tableView: UITableView!
     private var inputContainerView: UIView!
-    private var inputTextField: UITextField!
+    private var inputTextView: UITextView!       // 多行输入框
     private var sendButton: UIButton!
     private var screenshotButton: UIButton!
+    private var imagePickerButton: UIButton!     // 图片选择按钮
     private var statusBarView: UIView!
     private var tweakStatusLabel: UILabel!
     private var providerLabel: UILabel!
     private var cloudStatusLabel: UILabel!
     private var mcpStatusLabel: UILabel!
-    private var cloudBridgeStatusLabel: UILabel!
     private var typingIndicatorView: UIActivityIndicatorView!
 
     // MARK: - Data
     private var messages: [ChatMessage] = []
     private var isWaiting = false
+
+    // 流式输出防抖
+    private var streamingDebounceTimer: Timer?
+    private var streamingAccumulated = ""
+
+    // 输入框高度约束
+    private var inputHeightConstraint: NSLayoutConstraint!
 
     // MARK: - Lifecycle
 
@@ -118,13 +126,11 @@ class ChatViewController: UIViewController {
         providerLabel = makeStatusLabel(text: "LLM: ·")
         cloudStatusLabel = makeStatusLabel(text: "超脑: ·")
         mcpStatusLabel = makeStatusLabel(text: "MCP: ·")
-        cloudBridgeStatusLabel = makeStatusLabel(text: "云桥: ·")
 
         statusStack.addArrangedSubview(tweakStatusLabel)
         statusStack.addArrangedSubview(providerLabel)
         statusStack.addArrangedSubview(cloudStatusLabel)
         statusStack.addArrangedSubview(mcpStatusLabel)
-        statusStack.addArrangedSubview(cloudBridgeStatusLabel)
 
         let borderView = UIView()
         borderView.backgroundColor = UIColor(white: 1, alpha: 0.06)
@@ -158,7 +164,8 @@ class ChatViewController: UIViewController {
         tableView.contentInset = UIEdgeInsets(top: 88, left: 0, bottom: 60, right: 0)
         tableView.scrollIndicatorInsets = tableView.contentInset
         tableView.keyboardDismissMode = .interactive
-        tableView.register(ChatBubbleCell.self, forCellReuseIdentifier: "ChatBubbleCell")
+        tableView.register(MarkdownBubbleCell.self, forCellReuseIdentifier: "MarkdownBubbleCell")
+        tableView.register(UserBubbleCell.self, forCellReuseIdentifier: "UserBubbleCell")
         tableView.register(ImageBubbleCell.self, forCellReuseIdentifier: "ImageBubbleCell")
 
         view.insertSubview(tableView, belowSubview: statusBarView)
@@ -182,7 +189,7 @@ class ChatViewController: UIViewController {
         borderLine.translatesAutoresizingMaskIntoConstraints = false
         inputContainerView.addSubview(borderLine)
 
-        // Screenshot button (left of input)
+        // 截图按钮（最左）
         screenshotButton = UIButton(type: .custom)
         screenshotButton.setTitle("📱", for: .normal)
         screenshotButton.titleLabel?.font = UIFont.systemFont(ofSize: 18)
@@ -190,38 +197,51 @@ class ChatViewController: UIViewController {
         screenshotButton.addTarget(self, action: #selector(takeScreenshot), for: .touchUpInside)
         inputContainerView.addSubview(screenshotButton)
 
-        inputTextField = UITextField()
-        inputTextField.placeholder = "对我说..."
-        inputTextField.attributedPlaceholder = NSAttributedString(
-            string: "对我说...",
-            attributes: [.foregroundColor: UIColor(white: 1, alpha: 0.3)]
-        )
-        inputTextField.backgroundColor = UIColor(white: 1, alpha: 0.08)
-        inputTextField.layer.borderWidth = 1
-        inputTextField.layer.borderColor = UIColor(white: 1, alpha: 0.1).cgColor
-        inputTextField.layer.cornerRadius = 20
-        inputTextField.textColor = .white
-        inputTextField.font = UIFont.systemFont(ofSize: 15)
-        inputTextField.leftView = UIView(frame: CGRect(x: 0, y: 0, width: 16, height: 1))
-        inputTextField.leftViewMode = .always
-        inputTextField.rightView = UIView(frame: CGRect(x: 0, y: 0, width: 16, height: 1))
-        inputTextField.rightViewMode = .always
-        inputTextField.translatesAutoresizingMaskIntoConstraints = false
-        inputTextField.delegate = self
-        inputContainerView.addSubview(inputTextField)
+        // 图片选择按钮
+        imagePickerButton = UIButton(type: .custom)
+        imagePickerButton.setTitle("🖼️", for: .normal)
+        imagePickerButton.titleLabel?.font = UIFont.systemFont(ofSize: 18)
+        imagePickerButton.translatesAutoresizingMaskIntoConstraints = false
+        imagePickerButton.addTarget(self, action: #selector(pickImage), for: .touchUpInside)
+        inputContainerView.addSubview(imagePickerButton)
 
+        // 多行输入框（UITextView替代UITextField）
+        inputTextView = UITextView()
+        inputTextView.font = UIFont.systemFont(ofSize: 15)
+        inputTextView.textColor = .white
+        inputTextView.backgroundColor = UIColor(white: 1, alpha: 0.08)
+        inputTextView.layer.borderWidth = 1
+        inputTextView.layer.borderColor = UIColor(white: 1, alpha: 0.1).cgColor
+        inputTextView.layer.cornerRadius = 18
+        inputTextView.textContainerInset = UIEdgeInsets(top: 8, left: 12, bottom: 8, right: 12)
+        inputTextView.isScrollEnabled = false  // 关键：禁用滚动才能自动扩展
+        inputTextView.translatesAutoresizingMaskIntoConstraints = false
+        inputTextView.delegate = self
+
+        // placeholder
+        inputTextView.text = ""
+        inputTextView.textColor = .white
+        setPlaceholder("对我说...")
+
+        inputContainerView.addSubview(inputTextView)
+
+        // 发送按钮
         sendButton = UIButton(type: .custom)
-        sendButton.setBackgroundImage(gradientImage(size: CGSize(width: 40, height: 40), colors: [
+        sendButton.setBackgroundImage(gradientImage(size: CGSize(width: 36, height: 36), colors: [
             UIColor(red: 0x25/255, green: 0x63/255, blue: 0xeb/255, alpha: 1).cgColor,
             UIColor(red: 0x1d/255, green: 0x4e/255, blue: 0xd8/255, alpha: 1).cgColor
         ]), for: .normal)
-        sendButton.layer.cornerRadius = 20
+        sendButton.layer.cornerRadius = 18
         sendButton.clipsToBounds = true
         sendButton.setTitle("↑", for: .normal)
-        sendButton.titleLabel?.font = UIFont.systemFont(ofSize: 18, weight: .bold)
+        sendButton.titleLabel?.font = UIFont.systemFont(ofSize: 16, weight: .bold)
         sendButton.translatesAutoresizingMaskIntoConstraints = false
         sendButton.addTarget(self, action: #selector(sendMessage), for: .touchUpInside)
         inputContainerView.addSubview(sendButton)
+
+        // 输入框高度约束（1行≈36，4行≈120）
+        inputHeightConstraint = inputTextView.heightAnchor.constraint(equalToConstant: 36)
+        inputHeightConstraint.priority = .required
 
         NSLayoutConstraint.activate([
             inputContainerView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
@@ -233,24 +253,63 @@ class ChatViewController: UIViewController {
             borderLine.trailingAnchor.constraint(equalTo: inputContainerView.trailingAnchor),
             borderLine.heightAnchor.constraint(equalToConstant: 1),
 
-            screenshotButton.leadingAnchor.constraint(equalTo: inputContainerView.leadingAnchor, constant: 8),
-            screenshotButton.centerYAnchor.constraint(equalTo: inputContainerView.centerYAnchor),
-            screenshotButton.widthAnchor.constraint(equalToConstant: 40),
-            screenshotButton.heightAnchor.constraint(equalToConstant: 40),
+            // 左侧按钮横排
+            screenshotButton.leadingAnchor.constraint(equalTo: inputContainerView.leadingAnchor, constant: 6),
+            screenshotButton.bottomAnchor.constraint(equalTo: inputContainerView.bottomAnchor, constant: -8),
+            screenshotButton.widthAnchor.constraint(equalToConstant: 36),
+            screenshotButton.heightAnchor.constraint(equalToConstant: 36),
 
-            inputTextField.leadingAnchor.constraint(equalTo: screenshotButton.trailingAnchor, constant: 4),
-            inputTextField.centerYAnchor.constraint(equalTo: inputContainerView.centerYAnchor),
-            inputTextField.heightAnchor.constraint(equalToConstant: 40),
-            inputTextField.trailingAnchor.constraint(equalTo: sendButton.leadingAnchor, constant: -8),
+            imagePickerButton.leadingAnchor.constraint(equalTo: screenshotButton.trailingAnchor, constant: 2),
+            imagePickerButton.centerYAnchor.constraint(equalTo: screenshotButton.centerYAnchor),
+            imagePickerButton.widthAnchor.constraint(equalToConstant: 36),
+            imagePickerButton.heightAnchor.constraint(equalToConstant: 36),
 
-            sendButton.trailingAnchor.constraint(equalTo: inputContainerView.trailingAnchor, constant: -12),
-            sendButton.centerYAnchor.constraint(equalTo: inputContainerView.centerYAnchor),
-            sendButton.widthAnchor.constraint(equalToConstant: 40),
-            sendButton.heightAnchor.constraint(equalToConstant: 40),
+            // 输入框
+            inputTextView.leadingAnchor.constraint(equalTo: imagePickerButton.trailingAnchor, constant: 4),
+            inputTextView.trailingAnchor.constraint(equalTo: sendButton.leadingAnchor, constant: -6),
+            inputTextView.bottomAnchor.constraint(equalTo: inputContainerView.bottomAnchor, constant: -8),
+            inputHeightConstraint,
 
-            inputContainerView.topAnchor.constraint(equalTo: inputTextField.topAnchor, constant: -10),
-            inputContainerView.bottomAnchor.constraint(equalTo: inputTextField.bottomAnchor, constant: 10)
+            // 发送按钮
+            sendButton.trailingAnchor.constraint(equalTo: inputContainerView.trailingAnchor, constant: -10),
+            sendButton.centerYAnchor.constraint(equalTo: inputTextView.centerYAnchor),
+            sendButton.widthAnchor.constraint(equalToConstant: 36),
+            sendButton.heightAnchor.constraint(equalToConstant: 36),
+
+            // 容器顶部对齐输入框顶部
+            inputContainerView.topAnchor.constraint(equalTo: inputTextView.topAnchor, constant: -8)
         ])
+    }
+
+    // MARK: - Placeholder管理
+
+    private var isShowingPlaceholder = true
+
+    private func setPlaceholder(_ text: String) {
+        isShowingPlaceholder = true
+        inputTextView.text = text
+        inputTextView.textColor = UIColor(white: 1, alpha: 0.3)
+    }
+
+    private func removePlaceholder() {
+        if isShowingPlaceholder {
+            isShowingPlaceholder = false
+            inputTextView.text = ""
+            inputTextView.textColor = .white
+        }
+    }
+
+    // MARK: - 输入框高度自适应
+
+    private func updateInputHeight() {
+        let size = inputTextView.sizeThatFits(CGSize(width: inputTextView.frame.width, height: .greatestFiniteMagnitude))
+        let minHeight: CGFloat = 36
+        let maxHeight: CGFloat = 120  // 约4行
+        let newHeight = max(minHeight, min(maxHeight, size.height))
+        inputHeightConstraint.constant = newHeight
+
+        // 超过最大高度时启用滚动
+        inputTextView.isScrollEnabled = size.height > maxHeight
     }
 
     private func setupTypingIndicator() {
@@ -292,10 +351,6 @@ class ChatViewController: UIViewController {
         let mcpConnected = agent.getMcpStatus()
         mcpStatusLabel.text = mcpConnected ? "MCP: ✅" : "MCP: ⚪"
         mcpStatusLabel.textColor = mcpConnected ? UIColor(red: 0x4e/255, green: 0xca/255, blue: 0x80/255, alpha: 1) : UIColor(white: 1, alpha: 0.3)
-
-        let cloudBridgeAvailable = CloudBridgeClient.shared.isAvailable
-        cloudBridgeStatusLabel.text = cloudBridgeAvailable ? "云桥: 🟢" : "云桥: ⚪"
-        cloudBridgeStatusLabel.textColor = cloudBridgeAvailable ? UIColor(red: 0x60/255, green: 0xa5/255, blue: 0xfa/255, alpha: 1) : UIColor(white: 1, alpha: 0.3)
     }
 
     // MARK: - Data
@@ -312,14 +367,23 @@ class ChatViewController: UIViewController {
         }
     }
 
-    // MARK: - Send Message
+    // MARK: - Send Message（流式输出版）
 
     @objc private func sendMessage() {
-        guard let text = inputTextField.text?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else { return }
+        let text: String
+        if isShowingPlaceholder {
+            return
+        } else {
+            text = inputTextView.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        }
+        guard !text.isEmpty else { return }
         guard !isWaiting else { return }
 
-        inputTextField.text = ""
-        inputTextField.resignFirstResponder()
+        inputTextView.text = ""
+        isShowingPlaceholder = false
+        inputTextView.textColor = .white
+        updateInputHeight()
+        inputTextView.resignFirstResponder()
 
         let userMsg = ChatMessage(role: .user, content: text)
         messages.append(userMsg)
@@ -328,49 +392,57 @@ class ChatViewController: UIViewController {
 
         setWaiting(true)
 
-        // Add a placeholder assistant message that will be updated during agent loop
-        let placeholderMsg = ChatMessage(role: .assistant, content: "⏳ 思考中...")
+        // 添加占位的assistant消息
+        let placeholderMsg = ChatMessage(role: .assistant, content: "")
         messages.append(placeholderMsg)
         let placeholderIndex = messages.count - 1
         tableView.insertRows(at: [IndexPath(row: placeholderIndex, section: 0)], with: .bottom)
         scrollToBottom()
 
-        var accumulatedReplies: [String] = []
-        var accumulatedActions: [String] = []
+        streamingAccumulated = ""
 
-        StarCoreAgent.shared.chat(
+        // 使用流式Agent对话
+        StarCoreAgent.shared.chatStreaming(
             userInput: text,
-            onPartialReply: { [weak self] partialReply, actionResults, step in
+            onToken: { [weak self] token in
                 DispatchQueue.main.async {
                     guard let self = self else { return }
+                    self.streamingAccumulated += token
 
-                    accumulatedReplies.append("【第\(step)步】\(partialReply)")
-                    accumulatedActions.append(contentsOf: actionResults)
-
-                    // Update the placeholder message
-                    let displayText = accumulatedReplies.joined(separator: "\n\n")
-                    self.messages[placeholderIndex] = ChatMessage(
-                        role: .assistant,
-                        content: displayText,
-                        actionResults: accumulatedActions
-                    )
-                    self.tableView.reloadRows(at: [IndexPath(row: placeholderIndex, section: 0)], with: .none)
-                    self.scrollToBottom()
+                    // 防抖：300ms内只渲染一次
+                    self.streamingDebounceTimer?.invalidate()
+                    self.streamingDebounceTimer = Timer.scheduledTimer(withTimeInterval: 0.3, repeats: false) { [weak self] _ in
+                        guard let self = self else { return }
+                        self.messages[placeholderIndex] = ChatMessage(
+                            role: .assistant,
+                            content: self.streamingAccumulated
+                        )
+                        self.tableView.reloadRows(at: [IndexPath(row: placeholderIndex, section: 0)], with: .none)
+                        self.scrollToBottom()
+                    }
+                }
+            },
+            onStatus: { [weak self] status in
+                DispatchQueue.main.async {
+                    guard let self = self else { return }
+                    // 更新执行状态显示
+                    if let cell = self.tableView.cellForRow(at: IndexPath(row: placeholderIndex, section: 0)) as? MarkdownBubbleCell {
+                        cell.updateStatus(status)
+                    }
                 }
             },
             completion: { [weak self] finalReply, actionResults in
                 DispatchQueue.main.async {
                     guard let self = self else { return }
 
-                    // Final update with clean text (without step markers)
-                    var displayText = finalReply
-                    if !actionResults.isEmpty && !finalReply.contains("已执行") {
-                        // Keep it clean for the final display
-                    }
+                    // 取消防抖计时器
+                    self.streamingDebounceTimer?.invalidate()
+                    self.streamingDebounceTimer = nil
 
+                    // 最终完整渲染
                     self.messages[placeholderIndex] = ChatMessage(
                         role: .assistant,
-                        content: displayText.isEmpty ? finalReply : displayText,
+                        content: finalReply,
                         actionResults: actionResults
                     )
                     self.tableView.reloadRows(at: [IndexPath(row: placeholderIndex, section: 0)], with: .none)
@@ -394,7 +466,6 @@ class ChatViewController: UIViewController {
             self.screenshotButton.isEnabled = true
 
             if let filePath = filePath {
-                // Add screenshot message to chat
                 let screenshotMsg = ChatMessage(
                     role: .user,
                     content: "📸 截图",
@@ -403,8 +474,6 @@ class ChatViewController: UIViewController {
                 self.messages.append(screenshotMsg)
                 self.tableView.insertRows(at: [IndexPath(row: self.messages.count - 1, section: 0)], with: .bottom)
                 self.scrollToBottom()
-
-                // Also save to history
                 StarCoreAgent.shared.addToHistory(screenshotMsg)
             } else {
                 let errorMsg = ChatMessage(
@@ -415,6 +484,74 @@ class ChatViewController: UIViewController {
                 self.tableView.insertRows(at: [IndexPath(row: self.messages.count - 1, section: 0)], with: .bottom)
                 self.scrollToBottom()
             }
+        }
+    }
+
+    // MARK: - Image Picker
+
+    @objc private func pickImage() {
+        guard !isWaiting else { return }
+
+        ImagePickerHelper.showPicker(from: self) { [weak self] image, data in
+            guard let self = self else { return }
+
+            // 保存图片到本地
+            let filePath = MemoryManager.shared.saveUploadedImage(image: image)
+
+            // 添加图片消息到对话
+            let imageMsg = ChatMessage(
+                role: .user,
+                content: "🖼️ 图片",
+                imagePaths: filePath != nil ? [filePath!] : nil
+            )
+            self.messages.append(imageMsg)
+            self.tableView.insertRows(at: [IndexPath(row: self.messages.count - 1, section: 0)], with: .bottom)
+            self.scrollToBottom()
+
+            // 如果图片有路径，保存到历史
+            if let filePath = filePath {
+                StarCoreAgent.shared.addToHistory(imageMsg)
+            }
+
+            // 发送图片给AI（多模态API）
+            self.setWaiting(true)
+
+            let placeholderMsg = ChatMessage(role: .assistant, content: "")
+            self.messages.append(placeholderMsg)
+            let placeholderIndex = self.messages.count - 1
+            self.tableView.insertRows(at: [IndexPath(row: placeholderIndex, section: 0)], with: .bottom)
+            self.scrollToBottom()
+
+            self.streamingAccumulated = ""
+
+            StarCoreAgent.shared.chatWithImage(
+                text: "请看这张图片",
+                imageData: data,
+                onToken: { [weak self] token in
+                    DispatchQueue.main.async {
+                        guard let self = self else { return }
+                        self.streamingAccumulated += token
+                        self.streamingDebounceTimer?.invalidate()
+                        self.streamingDebounceTimer = Timer.scheduledTimer(withTimeInterval: 0.3, repeats: false) { [weak self] _ in
+                            guard let self = self else { return }
+                            self.messages[placeholderIndex] = ChatMessage(role: .assistant, content: self.streamingAccumulated)
+                            self.tableView.reloadRows(at: [IndexPath(row: placeholderIndex, section: 0)], with: .none)
+                            self.scrollToBottom()
+                        }
+                    }
+                },
+                completion: { [weak self] reply, actionResults in
+                    DispatchQueue.main.async {
+                        guard let self = self else { return }
+                        self.streamingDebounceTimer?.invalidate()
+                        self.streamingDebounceTimer = nil
+                        self.messages[placeholderIndex] = ChatMessage(role: .assistant, content: reply, actionResults: actionResults)
+                        self.tableView.reloadRows(at: [IndexPath(row: placeholderIndex, section: 0)], with: .none)
+                        self.scrollToBottom()
+                        self.setWaiting(false)
+                    }
+                }
+            )
         }
     }
 
@@ -449,7 +586,7 @@ extension ChatViewController: UITableViewDataSource, UITableViewDelegate {
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let message = messages[indexPath.row]
 
-        // Use ImageBubbleCell for messages with images
+        // 图片消息
         if let imagePaths = message.imagePaths, !imagePaths.isEmpty {
             let cell = tableView.dequeueReusableCell(withIdentifier: "ImageBubbleCell", for: indexPath) as! ImageBubbleCell
             cell.configure(with: message)
@@ -459,8 +596,19 @@ extension ChatViewController: UITableViewDataSource, UITableViewDelegate {
             return cell
         }
 
-        let cell = tableView.dequeueReusableCell(withIdentifier: "ChatBubbleCell", for: indexPath) as! ChatBubbleCell
+        // 用户消息（纯文本，用UILabel）
+        if message.role == .user {
+            let cell = tableView.dequeueReusableCell(withIdentifier: "UserBubbleCell", for: indexPath) as! UserBubbleCell
+            cell.configure(with: message)
+            return cell
+        }
+
+        // AI消息（Markdown渲染）
+        let cell = tableView.dequeueReusableCell(withIdentifier: "MarkdownBubbleCell", for: indexPath) as! MarkdownBubbleCell
         cell.configure(with: message)
+        cell.onLinkTapped = { [weak self] url in
+            self?.openURL(url)
+        }
         return cell
     }
 
@@ -471,7 +619,18 @@ extension ChatViewController: UITableViewDataSource, UITableViewDelegate {
     func tableView(_ tableView: UITableView, estimatedHeightForRowAt indexPath: IndexPath) -> CGFloat {
         let message = messages[indexPath.row]
         if message.imagePaths != nil { return 200 }
-        return 60
+        if message.role == .user { return 60 }
+        return 80
+    }
+
+    // MARK: - 长按菜单
+
+    func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        // 不做处理，但用于取消高亮
+    }
+
+    override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
+        return false
     }
 
     // MARK: - Full Screen Image Viewer
@@ -482,30 +641,315 @@ extension ChatViewController: UITableViewDataSource, UITableViewDelegate {
         viewer.title = (path as NSString).lastPathComponent
         navigationController?.pushViewController(viewer, animated: true)
     }
+
+    // MARK: - Open URL
+
+    private func openURL(_ urlString: String) {
+        guard let url = URL(string: urlString) else { return }
+        if #available(iOS 10.0, *) {
+            UIApplication.shared.open(url, options: [:])
+        } else {
+            UIApplication.shared.openURL(url)
+        }
+    }
 }
 
-// MARK: - UITextField Delegate
+// MARK: - UITextView Delegate（多行输入框）
 
-extension ChatViewController: UITextFieldDelegate {
-    func textFieldShouldReturn(_ textField: UITextField) -> Bool {
-        sendMessage()
+extension ChatViewController: UITextViewDelegate {
+
+    func textViewDidChange(_ textView: UITextView) {
+        updateInputHeight()
+
+        // 更新发送按钮状态
+        let hasText = !textView.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        if !isWaiting {
+            sendButton.isEnabled = hasText
+            sendButton.alpha = hasText ? 1.0 : 0.5
+        }
+    }
+
+    func textViewDidBeginEditing(_ textView: UITextView) {
+        removePlaceholder()
+    }
+
+    func textViewDidEndEditing(_ textView: UITextView) {
+        if textView.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            setPlaceholder("对我说...")
+        }
+    }
+
+    func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool {
+        // 按回车键发送（Shift+回车换行暂不支持，直接换行）
+        if text == "\n" {
+            // 如果输入为空则换行，否则发送
+            let currentText = textView.text ?? ""
+            if currentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return true  // 空输入时允许换行
+            }
+            sendMessage()
+            return false
+        }
         return true
     }
 }
 
-// MARK: - Chat Bubble Cell
+// MARK: - Markdown Bubble Cell（AI消息，使用WKWebView渲染）
 
-class ChatBubbleCell: UITableViewCell {
+class MarkdownBubbleCell: UITableViewCell {
+
+    private let bubbleView = UIView()
+    private var webView: WKWebView!
+    private let timeLabel = UILabel()
+    private let actionResultLabel = UILabel()
+    private let statusLabel = UILabel()
+    private let statusSpinner = UIActivityIndicatorView(style: .white)
+
+    private var leadingConstraint: NSLayoutConstraint!
+    private var trailingConstraint: NSLayoutConstraint!
+    private var webViewHeightConstraint: NSLayoutConstraint!
+    private var currentContent: String = ""
+
+    var onLinkTapped: ((String) -> Void)?
+
+    // 消息内容脚本处理器
+    private class ContentScriptHandler: NSObject, WKScriptMessageHandler {
+        var onLinkTapped: ((String) -> Void)?
+        var onSizeUpdate: ((CGFloat) -> Void)?
+
+        func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+            if message.name == "sizeUpdate" {
+                if let body = message.body as? [String: Any],
+                   let height = body["height"] as? CGFloat {
+                    onSizeUpdate?(height)
+                }
+            } else if message.name == "linkClick" {
+                if let body = message.body as? [String: Any],
+                   let url = body["url"] as? String {
+                    onLinkTapped?(url)
+                }
+            }
+        }
+    }
+
+    private var scriptHandler = ContentScriptHandler()
+
+    override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
+        super.init(style: style, reuseIdentifier: reuseIdentifier)
+        setupCell()
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    private func setupCell() {
+        selectionStyle = .none
+        backgroundColor = .clear
+        contentView.backgroundColor = .clear
+
+        bubbleView.layer.cornerRadius = 16
+        bubbleView.layer.maskedCorners = [.layerMaxXMinYCorner, .layerMaxXMaxYCorner]
+        bubbleView.backgroundColor = UIColor(white: 1, alpha: 0.08)
+        bubbleView.translatesAutoresizingMaskIntoConstraints = false
+        contentView.addSubview(bubbleView)
+
+        // WKWebView配置
+        let config = WKWebViewConfiguration()
+        let contentController = WKUserContentController()
+        scriptHandler = ContentScriptHandler()
+        scriptHandler.onLinkTapped = { [weak self] url in
+            self?.onLinkTapped?(url)
+        }
+        scriptHandler.onSizeUpdate = { [weak self] height in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                // 更新webView高度约束
+                let newHeight = max(30, height + 8)  // 8px padding
+                if abs(self.webViewHeightConstraint.constant - newHeight) > 1 {
+                    self.webViewHeightConstraint.constant = newHeight
+                    // 通知tableView重新计算高度
+                    if let tableView = self.superview as? UITableView ?? self.superview?.superview as? UITableView {
+                        tableView.beginUpdates()
+                        tableView.endUpdates()
+                    }
+                }
+            }
+        }
+        contentController.add(scriptHandler, name: "sizeUpdate")
+        contentController.add(scriptHandler, name: "linkClick")
+        config.userContentController = contentController
+
+        webView = WKWebView(frame: .zero, configuration: config)
+        webView.isOpaque = false
+        webView.backgroundColor = .clear
+        webView.scrollView.isScrollEnabled = false
+        webView.scrollView.bounces = false
+        webView.translatesAutoresizingMaskIntoConstraints = false
+        bubbleView.addSubview(webView)
+
+        webViewHeightConstraint = webView.heightAnchor.constraint(equalToConstant: 30)
+
+        timeLabel.font = UIFont.systemFont(ofSize: 10)
+        timeLabel.textColor = UIColor(white: 1, alpha: 0.25)
+        timeLabel.translatesAutoresizingMaskIntoConstraints = false
+        contentView.addSubview(timeLabel)
+
+        actionResultLabel.numberOfLines = 0
+        actionResultLabel.font = UIFont.monospacedSystemFont(ofSize: 11, weight: .regular)
+        actionResultLabel.textColor = UIColor(red: 0x60/255, green: 0xa5/255, blue: 0xfa/255, alpha: 0.7)
+        actionResultLabel.isHidden = true
+        actionResultLabel.translatesAutoresizingMaskIntoConstraints = false
+        contentView.addSubview(actionResultLabel)
+
+        // Agent执行状态
+        statusLabel.font = UIFont.systemFont(ofSize: 12)
+        statusLabel.textColor = UIColor(red: 0x60/255, green: 0xa5/255, blue: 0xfa/255, alpha: 0.8)
+        statusLabel.isHidden = true
+        statusLabel.translatesAutoresizingMaskIntoConstraints = false
+        contentView.addSubview(statusLabel)
+
+        statusSpinner.hidesWhenStopped = true
+        statusSpinner.translatesAutoresizingMaskIntoConstraints = false
+        contentView.addSubview(statusSpinner)
+
+        NSLayoutConstraint.activate([
+            bubbleView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
+            bubbleView.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 6),
+            bubbleView.widthAnchor.constraint(lessThanOrEqualTo: contentView.widthAnchor, multiplier: 0.85),
+
+            webView.topAnchor.constraint(equalTo: bubbleView.topAnchor, constant: 4),
+            webView.leadingAnchor.constraint(equalTo: bubbleView.leadingAnchor, constant: 2),
+            webView.trailingAnchor.constraint(equalTo: bubbleView.trailingAnchor, constant: -2),
+            webView.bottomAnchor.constraint(equalTo: bubbleView.bottomAnchor, constant: -4),
+            webViewHeightConstraint,
+
+            timeLabel.topAnchor.constraint(equalTo: bubbleView.bottomAnchor, constant: 3),
+            timeLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
+            timeLabel.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -2),
+
+            actionResultLabel.topAnchor.constraint(equalTo: timeLabel.bottomAnchor, constant: 2),
+            actionResultLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+            actionResultLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
+            actionResultLabel.bottomAnchor.constraint(lessThanOrEqualTo: contentView.bottomAnchor, constant: -4),
+
+            statusLabel.leadingAnchor.constraint(equalTo: bubbleView.leadingAnchor, constant: 8),
+            statusLabel.bottomAnchor.constraint(equalTo: bubbleView.topAnchor, constant: -2),
+
+            statusSpinner.leadingAnchor.constraint(equalTo: statusLabel.trailingAnchor, constant: 4),
+            statusSpinner.centerYAnchor.constraint(equalTo: statusLabel.centerYAnchor)
+        ])
+    }
+
+    func configure(with message: ChatMessage) {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        timeLabel.text = formatter.string(from: message.timestamp)
+
+        // 渲染Markdown
+        let content = message.content
+        if content != currentContent {
+            currentContent = content
+            if content.isEmpty {
+                // 空内容：显示思考中动画
+                let html = MarkdownRenderer.render("⏳ 思考中...")
+                webView.loadHTMLString(html, baseURL: nil)
+                webViewHeightConstraint.constant = 40
+            } else {
+                let html = MarkdownRenderer.render(content)
+                webView.loadHTMLString(html, baseURL: nil)
+            }
+        }
+
+        // Action results
+        if let results = message.actionResults, !results.isEmpty {
+            actionResultLabel.isHidden = false
+            actionResultLabel.text = results.map { "▸ \($0)" }.joined(separator: "\n")
+        } else {
+            actionResultLabel.isHidden = true
+            actionResultLabel.text = nil
+        }
+
+        // 添加长按手势
+        let longPress = UILongPressGestureRecognizer(target: self, action: #selector(handleLongPress(_:)))
+        bubbleView.addGestureRecognizer(longPress)
+
+        setNeedsLayout()
+        layoutIfNeeded()
+    }
+
+    /// 更新Agent执行状态
+    func updateStatus(_ status: String) {
+        if status.isEmpty {
+            statusLabel.isHidden = true
+            statusSpinner.stopAnimating()
+        } else {
+            statusLabel.isHidden = false
+            statusLabel.text = status
+            statusSpinner.startAnimating()
+        }
+    }
+
+    override func prepareForReuse() {
+        super.prepareForReuse()
+        currentContent = ""
+        timeLabel.text = nil
+        actionResultLabel.text = nil
+        actionResultLabel.isHidden = true
+        statusLabel.isHidden = true
+        statusLabel.text = nil
+        statusSpinner.stopAnimating()
+        onLinkTapped = nil
+        webView.loadHTMLString("", baseURL: nil)
+        webViewHeightConstraint.constant = 30
+    }
+
+    // MARK: - 长按菜单
+
+    @objc private func handleLongPress(_ gesture: UILongPressGestureRecognizer) {
+        if gesture.state == .began {
+            // 触发Haptic反馈
+            let generator = UIImpactFeedbackGenerator(style: .medium)
+            generator.impactOccurred()
+
+            // 获取cell所在的viewController
+            var responder: UIResponder? = self
+            while responder != nil {
+                if let vc = responder as? ChatViewController {
+                    // 弹出菜单
+                    let alert = UIAlertController(title: nil, message: nil, preferredStyle: .actionSheet)
+                    alert.addAction(UIAlertAction(title: "📋 复制", style: .default) { _ in
+                        UIPasteboard.general.string = self.currentContent
+                    })
+                    alert.addAction(UIAlertAction(title: "🔄 重新生成", style: .default) { _ in
+                        // TODO: 重新生成逻辑
+                    })
+                    alert.addAction(UIAlertAction(title: "🗑 删除", style: .destructive) { _ in
+                        // TODO: 删除消息逻辑
+                    })
+                    alert.addAction(UIAlertAction(title: "取消", style: .cancel))
+
+                    if let popover = alert.popoverPresentationController {
+                        popover.sourceView = self.bubbleView
+                        popover.sourceRect = self.bubbleView.bounds
+                    }
+
+                    vc.present(alert, animated: true)
+                    break
+                }
+                responder = responder?.next
+            }
+        }
+    }
+}
+
+// MARK: - User Bubble Cell（用户消息，纯文本UILabel）
+
+class UserBubbleCell: UITableViewCell {
 
     private let bubbleView = UIView()
     private let label = UILabel()
     private let timeLabel = UILabel()
-    private let actionResultLabel = UILabel()
-
-    private var leadingConstraint: NSLayoutConstraint!
-    private var trailingConstraint: NSLayoutConstraint!
-    private var timeLeadingConstraint: NSLayoutConstraint!
-    private var timeTrailingConstraint: NSLayoutConstraint!
 
     override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
         super.init(style: style, reuseIdentifier: reuseIdentifier)
@@ -524,26 +968,23 @@ class ChatBubbleCell: UITableViewCell {
         label.numberOfLines = 0
         label.font = UIFont.systemFont(ofSize: 15)
         label.lineBreakMode = .byWordWrapping
+        label.textColor = .white
 
         timeLabel.font = UIFont.systemFont(ofSize: 10)
         timeLabel.textColor = UIColor(white: 1, alpha: 0.25)
-
-        actionResultLabel.numberOfLines = 0
-        actionResultLabel.font = UIFont.monospacedSystemFont(ofSize: 11, weight: .regular)
-        actionResultLabel.textColor = UIColor(red: 0x60/255, green: 0xa5/255, blue: 0xfa/255, alpha: 0.7)
-        actionResultLabel.isHidden = true
+        timeLabel.textAlignment = .right
 
         bubbleView.layer.cornerRadius = 16
+        bubbleView.layer.maskedCorners = [.layerMinXMinYCorner, .layerMinXMaxYCorner]
+        bubbleView.backgroundColor = UIColor(red: 0x25/255, green: 0x63/255, blue: 0xeb/255, alpha: 1.0)
         bubbleView.addSubview(label)
 
         contentView.addSubview(bubbleView)
         contentView.addSubview(timeLabel)
-        contentView.addSubview(actionResultLabel)
 
         bubbleView.translatesAutoresizingMaskIntoConstraints = false
         label.translatesAutoresizingMaskIntoConstraints = false
         timeLabel.translatesAutoresizingMaskIntoConstraints = false
-        actionResultLabel.translatesAutoresizingMaskIntoConstraints = false
 
         // Label inside bubble
         label.topAnchor.constraint(equalTo: bubbleView.topAnchor, constant: 10).isActive = true
@@ -551,25 +992,15 @@ class ChatBubbleCell: UITableViewCell {
         label.leadingAnchor.constraint(equalTo: bubbleView.leadingAnchor, constant: 14).isActive = true
         label.trailingAnchor.constraint(equalTo: bubbleView.trailingAnchor, constant: -14).isActive = true
 
-        // Bubble position
+        // Bubble position (右对齐)
         bubbleView.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 6).isActive = true
+        bubbleView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16).isActive = true
         bubbleView.widthAnchor.constraint(lessThanOrEqualTo: contentView.widthAnchor, multiplier: 0.8).isActive = true
-
-        leadingConstraint = bubbleView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16)
-        trailingConstraint = bubbleView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16)
 
         // Time label
         timeLabel.topAnchor.constraint(equalTo: bubbleView.bottomAnchor, constant: 3).isActive = true
+        timeLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16).isActive = true
         timeLabel.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -2).isActive = true
-
-        timeLeadingConstraint = timeLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16)
-        timeTrailingConstraint = timeLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16)
-
-        // Action results
-        actionResultLabel.topAnchor.constraint(equalTo: timeLabel.bottomAnchor, constant: 2).isActive = true
-        actionResultLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20).isActive = true
-        actionResultLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20).isActive = true
-        actionResultLabel.bottomAnchor.constraint(lessThanOrEqualTo: contentView.bottomAnchor, constant: -4).isActive = true
     }
 
     func configure(with message: ChatMessage) {
@@ -579,37 +1010,6 @@ class ChatBubbleCell: UITableViewCell {
         formatter.dateFormat = "HH:mm"
         timeLabel.text = formatter.string(from: message.timestamp)
 
-        // Reset alignment constraints
-        leadingConstraint.isActive = false
-        trailingConstraint.isActive = false
-        timeLeadingConstraint.isActive = false
-        timeTrailingConstraint.isActive = false
-
-        if message.role == .user {
-            trailingConstraint.isActive = true
-            timeTrailingConstraint.isActive = true
-            bubbleView.backgroundColor = UIColor(red: 0x25/255, green: 0x63/255, blue: 0xeb/255, alpha: 1.0)
-            label.textColor = .white
-            timeLabel.textAlignment = .right
-            bubbleView.layer.maskedCorners = [.layerMinXMinYCorner, .layerMinXMaxYCorner]
-        } else {
-            leadingConstraint.isActive = true
-            timeLeadingConstraint.isActive = true
-            bubbleView.backgroundColor = UIColor(white: 1, alpha: 0.08)
-            label.textColor = UIColor(white: 1, alpha: 0.9)
-            timeLabel.textAlignment = .left
-            bubbleView.layer.maskedCorners = [.layerMaxXMinYCorner, .layerMaxXMaxYCorner]
-        }
-
-        // Action results
-        if let results = message.actionResults, !results.isEmpty {
-            actionResultLabel.isHidden = false
-            actionResultLabel.text = results.map { "▸ \($0)" }.joined(separator: "\n")
-        } else {
-            actionResultLabel.isHidden = true
-            actionResultLabel.text = nil
-        }
-
         setNeedsLayout()
         layoutIfNeeded()
     }
@@ -618,13 +1018,10 @@ class ChatBubbleCell: UITableViewCell {
         super.prepareForReuse()
         label.text = nil
         timeLabel.text = nil
-        actionResultLabel.text = nil
-        actionResultLabel.isHidden = true
-        bubbleView.backgroundColor = .clear
     }
 }
 
-// MARK: - Image Bubble Cell
+// MARK: - Image Bubble Cell（图片消息，保留原版）
 
 class ImageBubbleCell: UITableViewCell {
 
@@ -709,21 +1106,18 @@ class ImageBubbleCell: UITableViewCell {
         formatter.dateFormat = "HH:mm"
         timeLabel.text = formatter.string(from: message.timestamp)
 
-        // Load thumbnail
         if let imagePath = message.imagePaths?.first {
             loadImageThumbnail(at: imagePath)
         }
     }
 
     private func loadImageThumbnail(at path: String) {
-        // Try FileManager
         if let data = FileManager.default.contents(atPath: path),
            let image = UIImage(data: data) {
             thumbnailImageView.image = image
             return
         }
 
-        // Fallback: try via Tweak shell
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let base64Cmd = "base64 -i \(path) 2>/dev/null | head -c 50000"
             if let result = StarCoreAgent.shared.tweakCmd(action: "shell", params: ["command": base64Cmd], timeout: 10),

@@ -1,4 +1,4 @@
-# 星核 v2.0 - StarCore Native App
+# 星核 v8.4 - StarCore Native App
 
 Swift原生重写版，替代原有的WKWebView+Python架构。一个App搞定所有。
 
@@ -40,13 +40,18 @@ StarCoreApp/
 - 开场语："核心就位｜星核系统｜启动完毕。随时响应你的一切指令。"
 
 ### Agent核心
-- **LLM API**：URLSession POST，支持多Provider切换
-  - 硅基流动（默认）
-  - DeepSeek
-  - 火山方舟
+- **LLM API**：URLSession POST，支持多Provider切换，429自动Fallback
+  - DeepSeek（免费，500万token）— 默认
+  - Gemini（免费，1500次/天）
+  - Groq（免费，30RPM）
+  - 硅基流动（有免费额度）
   - 自定义URL
 - **Tweak通信**：NWConnection TCP连localhost:6000
   - 动作：tap/swipe/shell/openApp/pressHome/getScreenSize
+  - v8.4新增：inputText/typeText/pressPower/pressVolumeUp/pressVolumeDown/getScreenInfo
+  - 截图：优先Tweak截图（快），失败fallback到ios-mcp
+- **ios-mcp**（备选方案）：需localhost:8090运行
+  - 动作：iosMcpTap/iosMcpSwipe/iosMcpGetUI/iosMcpLaunchApp/iosMcpListApps
 - **动作解析**：正则提取JSON动作→执行→替换为✓
 - **对话历史**：UserDefaults持久化，最多40条
 

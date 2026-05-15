@@ -47,24 +47,31 @@ struct LLMProvider: Codable {
     var model: String
     var apiKey: String
 
-    static let siliconflow = LLMProvider(
-        name: "硅基流动",
-        url: "https://api.siliconflow.cn/v1/chat/completions",
-        model: "deepseek-ai/DeepSeek-V3",
-        apiKey: ""
-    )
-
     static let deepseek = LLMProvider(
-        name: "DeepSeek",
+        name: "DeepSeek（免费）",
         url: "https://api.deepseek.com/v1/chat/completions",
         model: "deepseek-chat",
         apiKey: ""
     )
 
-    static let volcengine = LLMProvider(
-        name: "火山方舟",
-        url: "https://ark.cn-beijing.volces.com/api/v3/chat/completions",
-        model: "ep-20260510050234-p99sv",
+    static let gemini = LLMProvider(
+        name: "Gemini（免费）",
+        url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+        model: "gemini-2.5-flash-preview-05-20",
+        apiKey: ""
+    )
+
+    static let groq = LLMProvider(
+        name: "Groq（免费）",
+        url: "https://api.groq.com/openai/v1/chat/completions",
+        model: "llama-3.3-70b-versatile",
+        apiKey: ""
+    )
+
+    static let siliconflow = LLMProvider(
+        name: "硅基流动（有免费额度）",
+        url: "https://api.siliconflow.cn/v1/chat/completions",
+        model: "deepseek-ai/DeepSeek-V3",
         apiKey: ""
     )
 
@@ -76,7 +83,24 @@ struct LLMProvider: Codable {
     )
 
     static var allProviders: [LLMProvider] {
-        return [.siliconflow, .deepseek, .volcengine, .custom]
+        return [.deepseek, .gemini, .groq, .siliconflow, .custom]
+    }
+
+    // 前3个Provider是免费的（DeepSeek/Gemini/Groq）
+    static var freeProviderIndices: [Int] {
+        return [0, 1, 2]
+    }
+
+    // 根据Provider索引返回API Key获取提示
+    static func keyHint(forProviderIndex index: Int) -> String {
+        switch index {
+        case 0: return "平台：platform.deepseek.com → 500万免费token"
+        case 1: return "平台：aistudio.google.com → 1500次/天免费"
+        case 2: return "平台：console.groq.com → 30RPM免费"
+        case 3: return "平台：siliconflow.cn → 有免费额度"
+        case 4: return "填入自定义OpenAI兼容API地址"
+        default: return ""
+        }
     }
 }
 
@@ -150,6 +174,7 @@ struct LLMErrorResponse: Codable {
         let code: String?
     }
     let error: ErrorDetail?
+    let status: Int?  // Gemini返回格式不同，HTTP状态码在此字段
 }
 
 // MARK: - Memory File Info

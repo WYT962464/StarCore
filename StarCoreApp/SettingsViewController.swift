@@ -61,8 +61,9 @@ class SettingsViewController: UIViewController {
         var lastView: UIView = contentView
 
         // Section: LLM Provider
-        lastView = addSectionHeader("🤖 LLM Provider", below: lastView, isFirst: true)
+        lastView = addSectionHeader("🤖 LLM Provider（免费）", below: lastView, isFirst: true)
         lastView = addProviderPicker(below: lastView)
+        lastView = addKeyHint(below: lastView)
         lastView = addAPIKeyField(below: lastView)
         lastView = addModelField(below: lastView)
 
@@ -70,7 +71,7 @@ class SettingsViewController: UIViewController {
         lastView = addDivider(below: lastView)
 
         // Section: Cloud Brain
-        lastView = addSectionHeader("☁️ 云端超脑", below: lastView)
+        lastView = addSectionHeader("☁️ 云端超脑（可选）", below: lastView)
         lastView = addCloudBrainToggle(below: lastView)
         lastView = addCloudAPIUrlField(below: lastView)
         lastView = addCloudBotIdField(below: lastView)
@@ -88,7 +89,7 @@ class SettingsViewController: UIViewController {
         lastView = addDivider(below: lastView)
 
         // Section: iOS MCP
-        lastView = addSectionHeader("📱 ios-mcp", below: lastView)
+        lastView = addSectionHeader("📱 ios-mcp（备选）", below: lastView)
         lastView = addMcpStatus(below: lastView)
         lastView = addMcpReconnectButton(below: lastView)
 
@@ -215,6 +216,53 @@ class SettingsViewController: UIViewController {
     @objc private func providerChanged(_ sender: UISegmentedControl) {
         StarCoreAgent.shared.currentProviderIndex = sender.selectedSegmentIndex
         refreshUI()
+    }
+
+    // MARK: - Key Hint (获取免费Key提示)
+
+    private func addKeyHint(below aboveView: UIView) -> UIView {
+        let hintLabel = UILabel()
+        hintLabel.font = UIFont.systemFont(ofSize: 12)
+        hintLabel.textColor = UIColor(red: 0x4e/255, green: 0xca/255, blue: 0x80/255, alpha: 1.0)  // 绿色
+        hintLabel.numberOfLines = 0
+        hintLabel.translatesAutoresizingMaskIntoConstraints = false
+        contentView.addSubview(hintLabel)
+        keyHintLabel = hintLabel
+
+        // 点击手势，打开注册页面
+        let tapGesture = UITapGestureRecognizer(target: self, action: #selector(openKeyRegistrationPage))
+        hintLabel.isUserInteractionEnabled = true
+        hintLabel.addGestureRecognizer(tapGesture)
+
+        NSLayoutConstraint.activate([
+            hintLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 24),
+            hintLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
+            hintLabel.topAnchor.constraint(equalTo: aboveView.bottomAnchor, constant: 4)
+        ])
+
+        updateKeyHintText()
+        return hintLabel
+    }
+
+    private func updateKeyHintText() {
+        let idx = StarCoreAgent.shared.currentProviderIndex
+        let hint = LLMProvider.keyHint(forProviderIndex: idx)
+        keyHintLabel?.text = "💡 \(hint)"
+    }
+
+    @objc private func openKeyRegistrationPage() {
+        let idx = StarCoreAgent.shared.currentProviderIndex
+        let urlString: String
+        switch idx {
+        case 0: urlString = "https://platform.deepseek.com"
+        case 1: urlString = "https://aistudio.google.com"
+        case 2: urlString = "https://console.groq.com"
+        case 3: urlString = "https://siliconflow.cn"
+        default: return
+        }
+        if let url = URL(string: urlString) {
+            UIApplication.shared.open(url, options: [:], completionHandler: nil)
+        }
     }
 
     // MARK: - API Key Field
@@ -433,6 +481,7 @@ class SettingsViewController: UIViewController {
 
     private var cloudBridgeToggle: UISwitch!
     private var cloudBridgeStatusLabel: UILabel!
+    private var keyHintLabel: UILabel?
 
     private func addCloudBridgeToggle(below aboveView: UIView) -> UIView {
         let (label, rowView) = addRow(label: "启用云控", below: aboveView)
@@ -588,7 +637,7 @@ class SettingsViewController: UIViewController {
     private func addModeSwitch(below aboveView: UIView) -> UIView {
         let (label, rowView) = addRow(label: "对话模式", below: aboveView)
 
-        modeSegment = UISegmentedControl(items: ["本地LLM", "云端超脑"])
+        modeSegment = UISegmentedControl(items: ["本地LLM（免费）", "云端超脑"])
         modeSegment.selectedSegmentIndex = StarCoreAgent.shared.isCloudMode ? 1 : 0
         modeSegment.translatesAutoresizingMaskIntoConstraints = false
         modeSegment.tintColor = UIColor(red: 0x25/255, green: 0x63/255, blue: 0xeb/255, alpha: 1.0)
@@ -647,7 +696,7 @@ class SettingsViewController: UIViewController {
 
     private func addVersionInfo(below aboveView: UIView) -> UIView {
         let label = UILabel()
-        label.text = "星核 v4.1 | StarCore Native\n双控架构 · 云控桥接 · Agent循环 · 记忆管理"
+        label.text = "星核 v8.4 | StarCore Native\n免费LLM · 自研Tweak · Agent循环 · 记忆管理"
         label.font = UIFont.systemFont(ofSize: 13)
         label.textColor = UIColor(white: 1, alpha: 0.3)
         label.textAlignment = .center
@@ -750,5 +799,6 @@ class SettingsViewController: UIViewController {
     private func refreshUI() {
         updateTweakStatusLabel(StarCoreAgent.shared.getTweakStatus())
         updateMcpStatusLabel(StarCoreAgent.shared.getMcpStatus())
+        updateKeyHintText()
     }
 }

@@ -1,0 +1,20 @@
+# Build artifacts
+.theos/
+*.deb
+*.ipa
+*.o
+*.dylib
+*.dSYM/
+
+# Packages
+packages/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Embedded repos
+StarCore-repo/
+
+# OS files
+.DS_Store
