@@ -42,6 +42,11 @@ class StarCoreAgent {
 {"action":"iosMcpLaunchApp","bundleId":"com.xxx"}  ios-mcp启动App
 {"action":"iosMcpListApps"}  获取App列表
 坐标为归一化值(0-1)，ios-mcp动作为像素坐标。
+{"action":"cloud","command":"ls -la"}  云端执行命令(在云电脑上执行shell命令)
+{"action":"cloudHealth"}  云桥健康检查
+云端动作在云电脑上执行，用于需要电脑环境的操作(如文件处理、运行脚本、浏览器自动化等)。
+
+决策规则：手机操作用tap/swipe/shell，需要电脑环境时用cloud。手机能做的不要发到云端。
 
 多步操作规则：
 - 执行多步操作时，每次只输出一个action，等待执行结果后再决定下一步
@@ -110,6 +115,23 @@ class StarCoreAgent {
     var isCloudMode: Bool {
         get { defaults.bool(forKey: "isCloudMode") }
         set { defaults.set(newValue, forKey: "isCloudMode") }
+    }
+
+    // MARK: - Cloud Bridge Config
+
+    var cloudBridgeConfig: CloudBridgeConfig {
+        get {
+            if let data = defaults.data(forKey: "cloudBridgeConfig"),
+               let decoded = try? JSONDecoder().decode(CloudBridgeConfig.self, from: data) {
+                return decoded
+            }
+            return .default
+        }
+        set {
+            if let data = try? JSONEncoder().encode(newValue) {
+                defaults.set(data, forKey: "cloudBridgeConfig")
+            }
+        }
     }
 
     // MARK: - System Prompt Builder
@@ -488,6 +510,53 @@ class StarCoreAgent {
         return result
     }
 
+    // ★ v6.0: 发送到指定端口的TCP命令
+    private func rawTCPSendToPort(jsonString: String, port: UInt16, timeout: TimeInterval = 5) -> String? {
+        var result: String? = nil
+        let semaphore = DispatchSemaphore(value: 0)
+
+        let queue = DispatchQueue(label: "com.starcore.tcp")
+        let host = NWEndpoint.Host(tweakHost)
+        guard let nwPort = NWEndpoint.Port(rawValue: port) else { return nil }
+
+        let connection = NWConnection(host: host, port: nwPort, using: .tcp)
+        let sendData = (jsonString + "\n").data(using: .utf8)!
+
+        var stateHandler: ((NWConnection.State) -> Void)?
+        stateHandler = { state in
+            switch state {
+            case .ready:
+                connection.send(content: sendData, completion: .contentProcessed { error in
+                    if error != nil {
+                        semaphore.signal()
+                        return
+                    }
+                    connection.receive(minimumIncompleteLength: 1, maximumLength: 4096) { data, _, _, error in
+                        if let data = data, let str = String(data: data, encoding: .utf8) {
+                            result = str.trimmingCharacters(in: .whitespacesAndNewlines)
+                        }
+                        semaphore.signal()
+                    }
+                })
+            case .failed, .cancelled:
+                semaphore.signal()
+            default:
+                break
+            }
+        }
+        connection.stateUpdateHandler = stateHandler
+        connection.start(queue: queue)
+
+        _ = semaphore.wait(timeout: .now() + timeout)
+        connection.cancel()
+        return result
+    }
+
+    // v7.0: 触摸命令 - 直接走6000端口(senderID修复后不再需要双进程)
+    func touchCmd(action: String, params: [String: Any] = [:], timeout: TimeInterval = 5) -> [String: Any]? {
+        return tweakCmd(action: action, params: params, timeout: timeout)
+    }
+
     // MARK: - iOS MCP HTTP API
 
     /// Initialize ios-mcp connection
@@ -702,7 +771,7 @@ class StarCoreAgent {
         case "tap":
             let x = action["x"] as? Double ?? 0.5
             let y = action["y"] as? Double ?? 0.5
-            return tweakCmd(action: "tap", params: ["x": x, "y": y])
+            return touchCmd(action: "tap", params: ["x": x, "y": y])
 
         case "swipe":
             let fromX = action["fromX"] as? Double ?? action["x1"] as? Double ?? 0.5
@@ -710,7 +779,7 @@ class StarCoreAgent {
             let toX = action["toX"] as? Double ?? action["x2"] as? Double ?? 0.5
             let toY = action["toY"] as? Double ?? action["y2"] as? Double ?? 0.3
             let duration = action["duration"] as? Double ?? 0.5
-            return tweakCmd(action: "swipe", params: [
+            return touchCmd(action: "swipe", params: [
                 "fromX": fromX, "fromY": fromY,
                 "toX": toX, "toY": toY,
                 "duration": duration
@@ -725,7 +794,7 @@ class StarCoreAgent {
             return tweakCmd(action: "openApp", params: ["bundleId": bundleId])
 
         case "pressHome":
-            return tweakCmd(action: "pressHome")
+            return touchCmd(action: "pressHome")
 
         case "getScreenSize":
             return tweakCmd(action: "getScreenSize")
@@ -771,6 +840,42 @@ class StarCoreAgent {
         case "iosMcpListApps":
             return callMcpToolSync(name: "list_apps", arguments: [:])
 
+
+        // Cloud Bridge actions
+        case "cloud":
+            let command = action["command"] as? String ?? ""
+            let timeout = action["timeout"] as? Double
+            let result = CloudBridgeClient.shared.executeSync(command: command, timeout: timeout)
+            switch result {
+            case .success(let cloudResult):
+                var dict: [String: Any] = [
+                    "success": cloudResult.success,
+                    "output": cloudResult.output,
+                    "exitCode": cloudResult.exitCode,
+                    "executionTime": cloudResult.executionTime
+                ]
+                if !cloudResult.success {
+                    dict["error"] = "云端命令执行失败 (exit=\(cloudResult.exitCode))"
+                }
+                return dict
+            case .failure(let error):
+                return ["success": false, "error": "云桥错误: \(error.localizedDescription)"]
+            }
+
+        case "cloudHealth":
+            var healthResult: [String: Any] = [:]
+            let semaphore = DispatchSemaphore(value: 0)
+            CloudBridgeClient.shared.healthCheck { result in
+                switch result {
+                case .success(let health):
+                    healthResult = ["success": true, "status": health.status, "isHealthy": health.isHealthy]
+                case .failure(let error):
+                    healthResult = ["success": false, "error": error.localizedDescription]
+                }
+                semaphore.signal()
+            }
+            _ = semaphore.wait(timeout: .now() + 15)
+            return healthResult.isEmpty ? ["success": false, "error": "健康检查超时"] : healthResult
         default:
             return ["error": "未知动作: \(act)"]
         }
@@ -842,6 +947,12 @@ class StarCoreAgent {
         // Add ios-mcp availability info
         if isMcpInitialized {
             messages[0]["content"]! += "\nios-mcp: 已连接 (localhost:8090)"
+        }
+
+        // Add cloud bridge availability info
+        if CloudBridgeClient.shared.isAvailable {
+            let cfg = cloudBridgeConfig
+            messages[0]["content"]! += "\n云桥: 已启用 (\(cfg.serverUrl))"
         }
 
         // Add history

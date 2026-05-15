@@ -14,6 +14,7 @@ class ChatViewController: UIViewController {
     private var providerLabel: UILabel!
     private var cloudStatusLabel: UILabel!
     private var mcpStatusLabel: UILabel!
+    private var cloudBridgeStatusLabel: UILabel!
     private var typingIndicatorView: UIActivityIndicatorView!
 
     // MARK: - Data
@@ -117,11 +118,13 @@ class ChatViewController: UIViewController {
         providerLabel = makeStatusLabel(text: "LLM: ·")
         cloudStatusLabel = makeStatusLabel(text: "超脑: ·")
         mcpStatusLabel = makeStatusLabel(text: "MCP: ·")
+        cloudBridgeStatusLabel = makeStatusLabel(text: "云桥: ·")
 
         statusStack.addArrangedSubview(tweakStatusLabel)
         statusStack.addArrangedSubview(providerLabel)
         statusStack.addArrangedSubview(cloudStatusLabel)
         statusStack.addArrangedSubview(mcpStatusLabel)
+        statusStack.addArrangedSubview(cloudBridgeStatusLabel)
 
         let borderView = UIView()
         borderView.backgroundColor = UIColor(white: 1, alpha: 0.06)
@@ -289,6 +292,10 @@ class ChatViewController: UIViewController {
         let mcpConnected = agent.getMcpStatus()
         mcpStatusLabel.text = mcpConnected ? "MCP: ✅" : "MCP: ⚪"
         mcpStatusLabel.textColor = mcpConnected ? UIColor(red: 0x4e/255, green: 0xca/255, blue: 0x80/255, alpha: 1) : UIColor(white: 1, alpha: 0.3)
+
+        let cloudBridgeAvailable = CloudBridgeClient.shared.isAvailable
+        cloudBridgeStatusLabel.text = cloudBridgeAvailable ? "云桥: 🟢" : "云桥: ⚪"
+        cloudBridgeStatusLabel.textColor = cloudBridgeAvailable ? UIColor(red: 0x60/255, green: 0xa5/255, blue: 0xfa/255, alpha: 1) : UIColor(white: 1, alpha: 0.3)
     }
 
     // MARK: - Data
