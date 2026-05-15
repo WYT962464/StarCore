@@ -1,19 +1,18 @@
 /**
- * StarCoreTweak.xm v7.0 - senderID根因修复
+ * StarCoreTweak.xm v8.0 - SpringBoard崩溃修复
  * 
- * v7.0 修复清单（基于ZXTouch开源代码分析）：
- * 1. 🔥 根因修复：senderID自动获取机制
- *    - ZXTouch也是注入SpringBoard，不是backboardd
- *    - ZXTouch用的是IOHIDEventSystemClientDispatchEvent（跟我们一样）
- *    - ZXTouch能跨App工作的关键是senderID
- *    - 先注册回调监听真实触摸事件，从中获取真实触摸设备的senderID
- *    - 然后伪造事件时设置成同样的senderID
- *    - 没有senderID → 事件只路由到SpringBoard自己
- *    - 有正确senderID → 系统认为事件来自真实触摸屏，正确路由到前台App
- * 2. 去掉v6.0的双进程注入backboardd方案（不再需要）
- *    - 只注入SpringBoard
- *    - 只用一个TCP server在6000端口
- * 3. 保留IOHIDUserDevice虚拟设备作为辅助路径
+ * v8.0 修复清单：
+ * 1. 🔥 移除IOHIDEventSystemClient回调注册机制（导致SpringBoard崩溃的根因）
+ *    - IOHIDEventSystemClientRegisterEventCallback注册的回调在RunLoop触发时跳到空地址
+ *    - 导致EXC_BAD_ACCESS (SIGSEGV) at 0x0000000000000000
+ *    - 移除所有回调注册相关代码：ScheduleWithRunLoop、RegisterEventCallback等
+ * 2. senderID获取方式改为安全方案：
+ *    - 保留从文件读取senderID的逻辑
+ *    - 如果文件不存在，使用硬编码的senderID作为fallback
+ *    - 新增set_senderid命令，允许手动设置senderID并写入文件
+ * 3. 删除不再需要的函数指针和全局变量
+ * 4. 保留所有触摸注入功能（tap/swipe等）
+ * 5. 保留TCP server 6000端口的完整功能
  */
 
 #import <UIKit/UIKit.h>
@@ -85,12 +84,7 @@ static IOHIDEventSystemClientRef (*IOHIDEventSystemClientCreateFunc)(CFAllocator
 static void (*IOHIDEventSystemClientDispatchEventFunc)(IOHIDEventSystemClientRef, IOHIDEventRef) = NULL;
 static void (*BKSHIDEventSetDigitizerInfoFunc)(IOHIDEventRef, uint32_t, uint8_t, uint8_t, CFStringRef, CFTimeInterval, float) = NULL;
 
-// IOHIDEventSystemClient回调相关
-static void (*IOHIDEventSystemClientScheduleWithRunLoopFunc)(IOHIDEventSystemClientRef, CFRunLoopRef, CFStringRef) = NULL;
-static void (*IOHIDEventSystemClientUnscheduleWithRunLoopFunc)(IOHIDEventSystemClientRef, CFRunLoopRef, CFStringRef) = NULL;
-static void (*IOHIDEventSystemClientRegisterEventCallbackFunc)(IOHIDEventSystemClientRef, void*, void*, void*) = NULL;
-static void (*IOHIDEventSystemClientUnregisterEventCallbackFunc)(IOHIDEventSystemClientRef) = NULL;
-static uint32_t (*IOHIDEventGetTypeFunc)(IOHIDEventRef) = NULL;
+// IOHIDEventSystemClient回调相关函数已移除（v8.0崩溃修复）
 
 // IOHIDUserDevice函数
 static IOHIDUserDeviceRef (*IOHIDUserDeviceCreateFunc)(CFAllocatorRef, CFDictionaryRef, IOOptionBits) = NULL;
@@ -112,52 +106,13 @@ static void bksInjectHIDEvent(id bks, void *event) {
 
 // ==================== senderID自动获取机制 ====================
 static uint64_t g_realSenderID = 0;
-static IOHIDEventSystemClientRef g_senderIDClient = NULL;
 static NSString *g_senderIDFilePath = @"/var/mobile/Library/StarCore/senderid.plist";
 
-// 回调：从真实触摸事件中获取senderID（参考ZXTouch Touch.xm实现）
-static void senderIDCallback(void* target, void* refcon, IOHIDServiceRef service, IOHIDEventRef event) {
-    if (!event) return;
-    
-    uint32_t eventType = 0;
-    if (IOHIDEventGetTypeFunc) {
-        eventType = IOHIDEventGetTypeFunc(event);
-    }
-    
-    // 检查是否为Digitizer事件（触摸事件）
-    if (eventType == kIOHIDDigitizerEventTouch && g_realSenderID == 0) {
-        if (IOHIDEventGetSenderIDFunc) {
-            g_realSenderID = IOHIDEventGetSenderIDFunc(event);
-        }
-        
-        if (g_realSenderID != 0) {
-            NSLog(@"[StarCoreTweak] ✅ 获取到真实senderID: 0x%llX", g_realSenderID);
-            
-            // 保存到文件供重启后使用
-            NSDictionary *dict = @{
-                @"senderID": @(g_realSenderID),
-                @"bootTime": @([[NSDate date] timeIntervalSince1970] - [NSProcessInfo processInfo].systemUptime)
-            };
-            [dict writeToFile:g_senderIDFilePath atomically:YES];
-            NSLog(@"[StarCoreTweak] senderID已缓存到文件");
-            
-            // 获取到后注销回调
-            if (g_senderIDClient) {
-                if (IOHIDEventSystemClientUnregisterEventCallbackFunc) {
-                    IOHIDEventSystemClientUnregisterEventCallbackFunc(g_senderIDClient);
-                }
-                if (IOHIDEventSystemClientUnscheduleWithRunLoopFunc) {
-                    IOHIDEventSystemClientUnscheduleWithRunLoopFunc(g_senderIDClient, CFRunLoopGetCurrent(), kCFRunLoopDefaultMode);
-                }
-                NSLog(@"[StarCoreTweak] senderID回调已注销");
-            }
-        }
-    }
-}
+// senderIDCallback已移除（v8.0崩溃修复：回调注册导致SpringBoard崩溃）
 
-// 初始化：尝试从文件读取，失败则注册回调
+// 初始化：从文件读取senderID，不存在则使用硬编码fallback
 static void initSenderID() {
-    // 先尝试从文件读取
+    // 尝试从文件读取
     NSDictionary *data = [NSDictionary dictionaryWithContentsOfFile:g_senderIDFilePath];
     if (data) {
         NSTimeInterval bootTime = [[NSDate date] timeIntervalSince1970] - [NSProcessInfo processInfo].systemUptime;
@@ -170,27 +125,15 @@ static void initSenderID() {
                 return;
             }
         } else {
-            NSLog(@"[StarCoreTweak] senderID文件已过期（设备已重启），需要重新获取");
+            NSLog(@"[StarCoreTweak] senderID文件已过期（设备已重启），将使用硬编码fallback");
         }
-    }
-    
-    // 文件不存在或已重启，注册回调监听真实触摸
-    if (!IOHIDEventSystemClientCreateFunc || !IOHIDEventSystemClientScheduleWithRunLoopFunc || 
-        !IOHIDEventSystemClientRegisterEventCallbackFunc || !IOHIDEventGetSenderIDFunc || !IOHIDEventGetTypeFunc) {
-        NSLog(@"[StarCoreTweak] ⚠️ senderID回调所需函数未加载，将使用硬编码senderID");
-        return;
-    }
-    
-    NSLog(@"[StarCoreTweak] 注册senderID回调，等待真实触摸事件...");
-    g_senderIDClient = IOHIDEventSystemClientCreateFunc(kCFAllocatorDefault);
-    if (g_senderIDClient) {
-        IOHIDEventSystemClientScheduleWithRunLoopFunc(g_senderIDClient, CFRunLoopGetCurrent(), kCFRunLoopDefaultMode);
-        IOHIDEventSystemClientRegisterEventCallbackFunc(g_senderIDClient, 
-            (void*)senderIDCallback, NULL, NULL);
-        NSLog(@"[StarCoreTweak] senderID回调注册成功，下次触摸屏幕时自动获取");
     } else {
-        NSLog(@"[StarCoreTweak] ⚠️ IOHIDEventSystemClientCreate失败，无法注册senderID回调");
+        NSLog(@"[StarCoreTweak] senderID文件不存在，将使用硬编码fallback");
     }
+    
+    // 不再注册回调（v8.0：回调注册导致SpringBoard崩溃）
+    // 使用硬编码senderID作为fallback，可通过set_senderid命令手动设置
+    NSLog(@"[StarCoreTweak] 当前使用硬编码senderID: 0x%llX（可通过set_senderid命令手动设置）", kIOHIDEventDigitizerSenderID);
 }
 
 // 获取当前应使用的senderID（真实优先，fallback硬编码）
@@ -400,12 +343,6 @@ static bool loadFunctions() {
     LOAD_SYM(IOHIDUserDeviceCreateFunc, "IOHIDUserDeviceCreate");
     LOAD_SYM(IOHIDUserDeviceHandleReportFunc, "IOHIDUserDeviceHandleReport");
     
-    // senderID回调所需函数
-    LOAD_SYM(IOHIDEventSystemClientScheduleWithRunLoopFunc, "IOHIDEventSystemClientScheduleWithRunLoop");
-    LOAD_SYM(IOHIDEventSystemClientUnscheduleWithRunLoopFunc, "IOHIDEventSystemClientUnscheduleWithRunLoop");
-    LOAD_SYM(IOHIDEventSystemClientRegisterEventCallbackFunc, "IOHIDEventSystemClientRegisterEventCallback");
-    LOAD_SYM(IOHIDEventSystemClientUnregisterEventCallbackFunc, "IOHIDEventSystemClientUnregisterEventCallback");
-    LOAD_SYM(IOHIDEventGetTypeFunc, "IOHIDEventGetType");
     
     #undef LOAD_SYM
     
@@ -417,10 +354,9 @@ static bool loadFunctions() {
     
     // 验证senderID关键函数
     NSLog(@"[StarCoreTweak] IOHIDEventGetSenderID = %@", IOHIDEventGetSenderIDFunc ? @"✅ OK" : @"❌ NULL");
-    NSLog(@"[StarCoreTweak] IOHIDEventSystemClientRegisterEventCallback = %@", IOHIDEventSystemClientRegisterEventCallbackFunc ? @"✅ OK" : @"❌ NULL");
     
     success = true;
-    NSLog(@"[StarCoreTweak] ✅ v7.0 函数加载成功");
+    NSLog(@"[StarCoreTweak] ✅ v8.0 函数加载成功");
     return true;
 }
 
@@ -1020,30 +956,51 @@ static StarCoreTCPServer *_server = nil;
         resp[@"senderID"]=g_realSenderID!=0?[NSString stringWithFormat:@"0x%llX",g_realSenderID]:@"waiting";
     }
     
+    else if([action isEqualToString:@"set_senderid"]) {
+        // v8.0: 手动设置senderID（替代被移除的回调机制）
+        uint64_t newSenderID = [dict[@"value"] unsignedLongLongValue];
+        if (newSenderID != 0) {
+            g_realSenderID = newSenderID;
+            // 保存到文件
+            NSDictionary *saveDict = @{
+                @"senderID": @(g_realSenderID),
+                @"bootTime": @([[NSDate date] timeIntervalSince1970] - [NSProcessInfo processInfo].systemUptime)
+            };
+            [saveDict writeToFile:g_senderIDFilePath atomically:YES];
+            resp[@"success"] = @YES;
+            resp[@"senderID"] = [NSString stringWithFormat:@"0x%llX", g_realSenderID];
+            resp[@"message"] = @"senderID已设置并保存到文件";
+            NSLog(@"[StarCoreTweak] ✅ 手动设置senderID: 0x%llX (已保存)", g_realSenderID);
+        } else {
+            resp[@"success"] = @NO;
+            resp[@"error"] = @"invalid value: must be non-zero uint64";
+        }
+    }
+    
     else if([action isEqualToString:@"diagnose"]) {
         NSString *ctxSrc = SAFE_GET_GLOBAL(g_contextSource);
         NSString *frontApp = SAFE_GET_GLOBAL(g_frontmostApp);
         uint32_t frontmostCID = getTargetContextID();
         uint32_t springCID = getKeyWindowContextID();
         
-        // ★ v7.0: 判断senderID来源
+        // ★ v8.0: 判断senderID来源
         NSString *senderIDSource = @"unknown";
         if (g_realSenderID != 0) {
             NSDictionary *data = [NSDictionary dictionaryWithContentsOfFile:g_senderIDFilePath];
             if (data) {
                 NSTimeInterval bootTime = [[NSDate date] timeIntervalSince1970] - [NSProcessInfo processInfo].systemUptime;
                 NSTimeInterval savedBootTime = [data[@"bootTime"] doubleValue];
-                senderIDSource = fabs(bootTime - savedBootTime) <= 3 ? @"file" : @"callback";
+                senderIDSource = fabs(bootTime - savedBootTime) <= 3 ? @"file" : @"hardcoded";
             } else {
-                senderIDSource = @"callback";
+                senderIDSource = @"hardcoded";
             }
         } else {
-            senderIDSource = @"waiting_callback";
+            senderIDSource = @"hardcoded_fallback";
         }
         
         resp[@"success"]=@YES;
         resp[@"diagnostics"]=@{
-            @"version": @"7.0",
+            @"version": @"8.0",
             @"approach": @"senderID",
             @"iokitHandle": g_iokitHandle?@"OK":@"NULL",
             @"bbsHandle": g_bbsHandle?@"OK":@"NULL",
@@ -1054,7 +1011,6 @@ static StarCoreTCPServer *_server = nil;
             @"createKeyboardEvent": IOHIDEventCreateKeyboardEventFunc?@"OK":@"NULL",
             @"eventSystemClientDispatchEvent": IOHIDEventSystemClientDispatchEventFunc?@"OK":@"NULL",
             @"IOHIDEventGetSenderID": IOHIDEventGetSenderIDFunc?@"OK":@"NULL",
-            @"RegisterEventCallback": IOHIDEventSystemClientRegisterEventCallbackFunc?@"OK":@"NULL",
             @"BKSHIDEventSetDigitizerInfo": BKSHIDEventSetDigitizerInfoFunc?@"OK":@"NULL",
             @"IOHIDUserDeviceCreate": IOHIDUserDeviceCreateFunc?@"OK":@"NULL",
             @"IOHIDUserDeviceHandleReport": IOHIDUserDeviceHandleReportFunc?@"OK":@"NULL",
@@ -1081,7 +1037,6 @@ static StarCoreTCPServer *_server = nil;
             @"functionIOHIDEventCreateDigitizerEvent": IOHIDEventCreateDigitizerEventFunc?@YES:@NO,
             @"functionIOHIDEventSystemClientDispatchEvent": IOHIDEventSystemClientDispatchEventFunc?@YES:@NO,
             @"functionIOHIDEventGetSenderID": IOHIDEventGetSenderIDFunc?@YES:@NO,
-            @"functionRegisterEventCallback": IOHIDEventSystemClientRegisterEventCallbackFunc?@YES:@NO,
             @"functionBKSHIDEventSetDigitizerInfo": BKSHIDEventSetDigitizerInfoFunc?@YES:@NO,
             @"functionIOHIDUserDeviceCreate": IOHIDUserDeviceCreateFunc?@YES:@NO,
             @"functionIOHIDUserDeviceHandleReport": IOHIDUserDeviceHandleReportFunc?@YES:@NO,
@@ -1120,21 +1075,21 @@ static StarCoreTCPServer *_server = nil;
 %hook SpringBoard
 - (void)applicationDidFinishLaunching:(id)application {
     %orig;
-    NSLog(@"[StarCoreTweak] SpringBoard启动 v7.0 (senderID根因修复)");
+    NSLog(@"[StarCoreTweak] SpringBoard启动 v8.0 (崩溃修复版)");
     loadFunctions();
     
-    // ★ v7.0: 初始化senderID自动获取
+    // ★ v8.0: 初始化senderID（仅从文件读取，不再注册回调）
     initSenderID();
     
     _server = [[StarCoreTCPServer alloc] init];
     [_server startOnPort:kServerPort];
-    NSLog(@"[StarCoreTweak] v7.0 ready - senderID: 0x%llX (0=等待真实触摸获取)", g_realSenderID);
+    NSLog(@"[StarCoreTweak] v8.0 ready - senderID: 0x%llX (0=使用硬编码fallback，可通过set_senderid设置)", g_realSenderID);
 }
 %end
 
 %ctor {
     %init;
-    NSLog(@"[StarCoreTweak] v7.0 loading in SpringBoard... (senderID修复)");
+    NSLog(@"[StarCoreTweak] v8.0 loading in SpringBoard... (崩溃修复版)");
 }
 
 %dtor { [_server stop]; }
