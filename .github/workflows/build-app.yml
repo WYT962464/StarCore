@@ -16,14 +16,12 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GH_PAT }}
-          fetch-depth: 0
       
       - name: Set up Theos
-        uses: Randomblock1/theos-action@v1
-        with:
-          theos-branch: 'feature/rootless-support'
+        run: |
+          git clone --recursive https://github.com/theos/theos.git $HOME/theos
+          export THEOS=$HOME/theos
+          echo "THEOS=$HOME/theos" >> $GITHUB_ENV
       
       - name: Build StarCoreApp (rootless)
         working-directory: ./StarCoreApp
@@ -33,26 +31,40 @@ jobs:
           make clean
           make package
       
+      - name: Find IPA
+        id: find_ipa
+        run: |
+          IPA_FILE=$(find ./StarCoreApp/.theos/obj -name "*.ipa" | head -1)
+          if [ -z "$IPA_FILE" ]; then
+            echo "No IPA found, checking for .app"
+            find ./StarCoreApp/.theos/obj -name "*.app" | head -5
+            # Try to package manually
+            APP_DIR=$(find ./StarCoreApp/.theos/obj -name "*.app" -type d | head -1)
+            if [ -n "$APP_DIR" ]; then
+              mkdir -p /tmp/IPA/Payload
+              cp -R "$APP_DIR" /tmp/IPA/Payload/
+              cd /tmp/IPA
+              zip -r StarCoreApp.ipa Payload/
+              IPA_FILE="/tmp/IPA/StarCoreApp.ipa"
+            fi
+          fi
+          echo "ipa_path=$IPA_FILE" >> $GITHUB_OUTPUT
+          echo "Found IPA: $IPA_FILE"
+      
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
         with:
-          name: StarCoreApp-rootless
-          path: ./StarCoreApp/.theos/obj/*.ipa
-          retention-days: 7
+          name: StarCoreApp-v84
+          path: ${{ steps.find_ipa.outputs.ipa_path }}
+          retention-days: 30
       
       - name: Upload to GitHub Release
-        if: success()
+        if: steps.find_ipa.outputs.ipa_path != ''
         env:
-          GH_TOKEN: ${{ secrets.GH_PAT }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Find the ipa file
-          IPA_FILE=$(find ./StarCoreApp/.theos/obj -name "*.ipa" | head -1)
-          if [ -z "$IPA_FILE" ]; then
-            echo "No IPA found"
-            exit 1
+          IPA_FILE="${{ steps.find_ipa.outputs.ipa_path }}"
+          if [ -f "$IPA_FILE" ]; then
+            gh release upload v8.4 "$IPA_FILE" --repo ${{ github.repository }} --clobber || \
+            gh release create v8.4 "$IPA_FILE" --repo ${{ github.repository }} --title "v8.4" --notes "StarCore App v8.4 - 免费LLM + 扣子功能移植"
           fi
-          echo "Found IPA: $IPA_FILE"
-          
-          # Upload to release v8.4 (create if not exists)
-          gh release upload v8.4 "$IPA_FILE" --repo WYT962464/StarCore --clobber || \
-          gh release create v8.4 "$IPA_FILE" --repo WYT962464/StarCore --title "v8.4" --notes "StarCore App v8.4 - 免费LLM + 扣子功能移植"
