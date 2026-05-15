@@ -112,7 +112,7 @@ static IOHIDUserDeviceRef (*IOHIDUserDeviceCreateFunc)(CFAllocatorRef, CFDiction
 static IOReturn (*IOHIDUserDeviceHandleReportFunc)(IOHIDUserDeviceRef, const uint8_t *, CFIndex) = NULL;
 
 // ★ v8.4: IOHIDEventCreateDigitizerFingerEvent（ios-mcp触摸方案）
-static IOHIDEventRef (*IOHIDEventCreateDigitizerFingerEventFunc)(CFAllocatorRef, uint64_t, uint32_t, uint32_t, uint32_t, float, float, float, float, float, float, bool, bool, uint32_t) = NULL;
+static IOHIDEventRef (*IOHIDEventCreateDigitizerFingerEventFunc)(CFAllocatorRef, uint64_t, uint32_t, uint32_t, uint32_t, float, float, float, float, float, bool, bool, uint32_t) = NULL;
 
 // ★ v8.4: IOHIDEventCreateUnicodeEvent（Unicode文字输入）
 static IOHIDEventRef (*IOHIDEventCreateUnicodeEventFunc)(CFAllocatorRef, uint64_t, const uint8_t *, uint32_t, uint32_t, IOOptionBits) = NULL;
@@ -1623,7 +1623,7 @@ static NSDictionary *deviceInteractionStateOnMainThread() {
     }
     
     // protectedDataAvailable
-    BOOL protectedDataAvailable = NO;
+    __block BOOL protectedDataAvailable = NO;
     runOnMainThreadSync(^{
         protectedDataAvailable = [UIApplication sharedApplication].protectedDataAvailable;
     });
