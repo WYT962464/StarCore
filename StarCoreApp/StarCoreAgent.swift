@@ -94,6 +94,11 @@ class StarCoreAgent {
         get {
             if let data = defaults.data(forKey: "providers"),
                let decoded = try? JSONDecoder().decode([LLMProvider].self, from: data) {
+                // ★ v9.0迁移：如果已保存的providers不包含访客模式，在最前面插入
+                if !decoded.contains(where: { $0.isGuestMode }) {
+                    var migrated = [LLMProvider.guestDeepseek] + decoded
+                    return migrated
+                }
                 return decoded
             }
             return LLMProvider.allProviders
@@ -108,7 +113,7 @@ class StarCoreAgent {
     var currentProvider: LLMProvider {
         let idx = currentProviderIndex
         let all = providers
-        guard idx >= 0 && idx < all.count else { return .deepseek }
+        guard idx >= 0 && idx < all.count else { return .guestDeepseek }
         return all[idx]
     }
 
@@ -208,6 +213,22 @@ class StarCoreAgent {
             return
         }
         let provider = all[providerIndex]
+
+        // ★ v9.0: 访客模式走GuestLLM专用路径
+        if provider.isGuestMode {
+            let messagesAny: [[String: Any]] = messages.map { msg in
+                return msg.mapValues { value -> Any in return value }
+            }
+            GuestLLM.chat(
+                provider: provider,
+                messages: messagesAny,
+                onToken: { _ in },  // 非流式调用不处理token
+                onStatus: nil,
+                completion: completion
+            )
+            return
+        }
+
         guard !provider.apiKey.isEmpty else {
             completion(.failure(LLMError.invalidResponse("当前Provider未配置API Key")))
             return
@@ -314,10 +335,11 @@ class StarCoreAgent {
         let all = providers
         let freeIndices = LLMProvider.freeProviderIndices
 
-        // 从免费Provider列表中找到下一个未尝试且已配置Key的
+        // 从免费Provider列表中找到下一个未尝试且已配置Key的（访客模式也算可用）
         var nextIndex: Int? = nil
         for idx in freeIndices {
-            if !triedIndices.contains(idx) && idx < all.count && !all[idx].apiKey.isEmpty {
+            let isAvailable = idx < all.count && (all[idx].isGuestMode || !all[idx].apiKey.isEmpty)
+            if !triedIndices.contains(idx) && isAvailable {
                 nextIndex = idx
                 break
             }

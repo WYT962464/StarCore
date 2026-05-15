@@ -47,6 +47,14 @@ struct LLMProvider: Codable {
     var model: String
     var apiKey: String
 
+    // ★ v9.0: DeepSeek访客模式 - 无需API Key的免费LLM
+    static let guestDeepseek = LLMProvider(
+        name: "DeepSeek(访客)",
+        url: "https://chat.deepseek.com/api/v0/guest/chat/completion",
+        model: "deepseek-chat",
+        apiKey: "GUEST"  // 特殊标记，表示访客模式
+    )
+
     static let deepseek = LLMProvider(
         name: "DeepSeek（免费）",
         url: "https://api.deepseek.com/v1/chat/completions",
@@ -83,22 +91,28 @@ struct LLMProvider: Codable {
     )
 
     static var allProviders: [LLMProvider] {
-        return [.deepseek, .gemini, .groq, .siliconflow, .custom]
+        return [.guestDeepseek, .deepseek, .gemini, .groq, .siliconflow, .custom]
     }
 
-    // 前3个Provider是免费的（DeepSeek/Gemini/Groq）
+    // 访客模式 + 前3个Provider是免费的
     static var freeProviderIndices: [Int] {
-        return [0, 1, 2]
+        return [0, 1, 2, 3]
+    }
+
+    // 判断是否为访客模式Provider
+    var isGuestMode: Bool {
+        return name.contains("访客")
     }
 
     // 根据Provider索引返回API Key获取提示
     static func keyHint(forProviderIndex index: Int) -> String {
         switch index {
-        case 0: return "平台：platform.deepseek.com → 500万免费token"
-        case 1: return "平台：aistudio.google.com → 1500次/天免费"
-        case 2: return "平台：console.groq.com → 30RPM免费"
-        case 3: return "平台：siliconflow.cn → 有免费额度"
-        case 4: return "填入自定义OpenAI兼容API地址"
+        case 0: return "🎉 无需Key！访客模式直接使用，有频率限制"
+        case 1: return "平台：platform.deepseek.com → 500万免费token"
+        case 2: return "平台：aistudio.google.com → 1500次/天免费"
+        case 3: return "平台：console.groq.com → 30RPM免费"
+        case 4: return "平台：siliconflow.cn → 有免费额度"
+        case 5: return "填入自定义OpenAI兼容API地址"
         default: return ""
         }
     }
@@ -147,7 +161,7 @@ struct AppSettings: Codable {
     var systemPromptOverride: String
 
     static let `default` = AppSettings(
-        currentProviderIndex: 0,
+        currentProviderIndex: 0,  // 默认使用访客模式
         providers: LLMProvider.allProviders,
         cloudBrain: .default,
         memoryPath: "/var/mobile/StarCoreAgent",
@@ -197,49 +211,5 @@ struct MemoryFileInfo {
         let formatter = DateFormatter()
         formatter.dateFormat = "MM-dd HH:mm"
         return formatter.string(from: date)
-    }
-}
-
-// MARK: - Cloud Bridge Config
-struct CloudBridgeConfig: Codable {
-    var enabled: Bool
-    var serverUrl: String
-    var authToken: String
-    var hmacSecret: String
-    var timeoutSeconds: Int
-
-    static let `default` = CloudBridgeConfig(
-        enabled: false,
-        serverUrl: "http://localhost:9876/execute",
-        authToken: "",
-        hmacSecret: "",
-        timeoutSeconds: 30
-    )
-}
-
-// MARK: - Cloud Bridge Result
-struct CloudResult: Codable {
-    let success: Bool
-    let output: String
-    let exitCode: Int
-    let executionTime: Double
-
-    var displayOutput: String {
-        if success {
-            return output.isEmpty ? "✅ 执行成功（无输出）" : output
-        } else {
-            return "❌ exit=\(exitCode): \(output)"
-        }
-    }
-}
-
-// MARK: - Cloud Bridge Health
-struct CloudHealth: Codable {
-    let status: String
-    let uptime: Double?
-    let version: String?
-
-    var isHealthy: Bool {
-        return status == "ok" || status == "healthy"
     }
 }

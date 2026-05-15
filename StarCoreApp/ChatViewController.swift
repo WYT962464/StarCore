@@ -342,7 +342,8 @@ class ChatViewController: UIViewController {
 
         let provider = agent.currentProvider
         providerLabel.text = "LLM: \(provider.name)"
-        providerLabel.textColor = provider.apiKey.isEmpty ? UIColor(red: 0xf5/255, green: 0x9e/255, blue: 0x0b/255, alpha: 1) : UIColor(white: 1, alpha: 0.5)
+        // 访客模式(GUEST apiKey)或已配置Key的Provider显示正常色，未配置Key的显示警告色
+        providerLabel.textColor = (provider.isGuestMode || !provider.apiKey.isEmpty) ? UIColor(white: 1, alpha: 0.5) : UIColor(red: 0xf5/255, green: 0x9e/255, blue: 0x0b/255, alpha: 1)
 
         let cloudConfig = agent.cloudBrainConfig
         cloudStatusLabel.text = cloudConfig.enabled ? "超脑: 🟢" : "超脑: ⚪"

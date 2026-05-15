@@ -254,10 +254,11 @@ class SettingsViewController: UIViewController {
         let idx = StarCoreAgent.shared.currentProviderIndex
         let urlString: String
         switch idx {
-        case 0: urlString = "https://platform.deepseek.com"
-        case 1: urlString = "https://aistudio.google.com"
-        case 2: urlString = "https://console.groq.com"
-        case 3: urlString = "https://siliconflow.cn"
+        case 0: return  // 访客模式无需打开注册页面
+        case 1: urlString = "https://platform.deepseek.com"
+        case 2: urlString = "https://aistudio.google.com"
+        case 3: urlString = "https://console.groq.com"
+        case 4: urlString = "https://siliconflow.cn"
         default: return
         }
         if let url = URL(string: urlString) {
