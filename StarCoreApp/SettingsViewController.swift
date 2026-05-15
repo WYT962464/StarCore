@@ -95,6 +95,17 @@ class SettingsViewController: UIViewController {
         // Divider
         lastView = addDivider(below: lastView)
 
+        // Section: Cloud Bridge (云控)
+        lastView = addSectionHeader("🖥️ 云控桥接", below: lastView)
+        lastView = addCloudBridgeToggle(below: lastView)
+        lastView = addCloudBridgeServerUrlField(below: lastView)
+        lastView = addCloudBridgeTokenField(below: lastView)
+        lastView = addCloudBridgeTimeoutField(below: lastView)
+        lastView = addCloudBridgeHealthButton(below: lastView)
+
+        // Divider
+        lastView = addDivider(below: lastView)
+
         // Section: Chat
         lastView = addSectionHeader("💬 对话", below: lastView)
         lastView = addModeSwitch(below: lastView)
@@ -418,6 +429,112 @@ class SettingsViewController: UIViewController {
         }
     }
 
+    // MARK: - Cloud Bridge Settings
+
+    private var cloudBridgeToggle: UISwitch!
+    private var cloudBridgeStatusLabel: UILabel!
+
+    private func addCloudBridgeToggle(below aboveView: UIView) -> UIView {
+        let (label, rowView) = addRow(label: "启用云控", below: aboveView)
+
+        cloudBridgeToggle = UISwitch()
+        cloudBridgeToggle.isOn = StarCoreAgent.shared.cloudBridgeConfig.enabled
+        cloudBridgeToggle.onTintColor = UIColor(red: 0x25/255, green: 0x63/255, blue: 0xeb/255, alpha: 1.0)
+        cloudBridgeToggle.translatesAutoresizingMaskIntoConstraints = false
+        cloudBridgeToggle.addTarget(self, action: #selector(cloudBridgeToggleChanged(_:)), for: .valueChanged)
+        rowView.addSubview(cloudBridgeToggle)
+
+        NSLayoutConstraint.activate([
+            cloudBridgeToggle.trailingAnchor.constraint(equalTo: rowView.trailingAnchor, constant: -12),
+            cloudBridgeToggle.centerYAnchor.constraint(equalTo: rowView.centerYAnchor)
+        ])
+
+        cloudBridgeStatusLabel = label
+        updateCloudBridgeStatusLabel()
+
+        return rowView
+    }
+
+    private func updateCloudBridgeStatusLabel() {
+        let cfg = StarCoreAgent.shared.cloudBridgeConfig
+        cloudBridgeStatusLabel?.text = cfg.enabled ? "启用云控 ✅" : "启用云控"
+    }
+
+    @objc private func cloudBridgeToggleChanged(_ sender: UISwitch) {
+        var config = StarCoreAgent.shared.cloudBridgeConfig
+        config.enabled = sender.isOn
+        StarCoreAgent.shared.cloudBridgeConfig = config
+        updateCloudBridgeStatusLabel()
+    }
+
+    private func addCloudBridgeServerUrlField(below aboveView: UIView) -> UIView {
+        let rowView = makeInputRow(placeholder: "Server URL", tag: 201, below: aboveView)
+        (rowView.viewWithTag(201) as? UITextField)?.text = StarCoreAgent.shared.cloudBridgeConfig.serverUrl
+        return rowView
+    }
+
+    private func addCloudBridgeTokenField(below aboveView: UIView) -> UIView {
+        let rowView = makeInputRow(placeholder: "Auth Token", tag: 202, below: aboveView)
+        let field = rowView.viewWithTag(202) as? UITextField
+        field?.isSecureTextEntry = true
+        field?.text = StarCoreAgent.shared.cloudBridgeConfig.authToken
+        return rowView
+    }
+
+    private func addCloudBridgeTimeoutField(below aboveView: UIView) -> UIView {
+        let rowView = makeInputRow(placeholder: "超时(秒) 默认30", tag: 204, below: aboveView)
+        let field = rowView.viewWithTag(204) as? UITextField
+        field?.keyboardType = .numberPad
+        field?.text = String(StarCoreAgent.shared.cloudBridgeConfig.timeoutSeconds)
+        return rowView
+    }
+
+    private func addCloudBridgeHealthButton(below aboveView: UIView) -> UIView {
+        let button = UIButton(type: .system)
+        button.setTitle("🏥 健康检查", for: .normal)
+        button.setTitleColor(UIColor(red: 0x60/255, green: 0xa5/255, blue: 0xfa/255, alpha: 1.0), for: .normal)
+        button.titleLabel?.font = UIFont.systemFont(ofSize: 14)
+        button.backgroundColor = UIColor(white: 1, alpha: 0.04)
+        button.layer.cornerRadius = 10
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.addTarget(self, action: #selector(cloudBridgeHealthCheck), for: .touchUpInside)
+        contentView.addSubview(button)
+
+        NSLayoutConstraint.activate([
+            button.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+            button.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
+            button.topAnchor.constraint(equalTo: aboveView.bottomAnchor, constant: rowGap),
+            button.heightAnchor.constraint(equalToConstant: 46)
+        ])
+
+        return button
+    }
+
+    @objc private func cloudBridgeHealthCheck() {
+        guard CloudBridgeClient.shared.isAvailable else {
+            showAlert(title: "云桥未启用", message: "请先启用云控并填写Server URL和Auth Token")
+            return
+        }
+
+        CloudBridgeClient.shared.healthCheck { [weak self] result in
+            DispatchQueue.main.async {
+                switch result {
+                case .success(let health):
+                    let msg = "状态: \(health.status)\n版本: \(health.version ?? "未知")\n运行时间: \(health.uptime.map { String(format: "%.0fs", $0) } ?? "未知")"
+                    self?.showAlert(title: "✅ 云桥健康", message: msg)
+                case .failure(let error):
+                    self?.showAlert(title: "❌ 云桥异常", message: error.localizedDescription)
+                }
+            }
+        }
+    }
+
+    private func showAlert(title: String, message: String) {
+        let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        present(alert, animated: true)
+    }
+
     // MARK: - iOS MCP Status
 
     private var mcpStatusLabel: UILabel!
@@ -530,7 +647,7 @@ class SettingsViewController: UIViewController {
 
     private func addVersionInfo(below aboveView: UIView) -> UIView {
         let label = UILabel()
-        label.text = "星核 v4.0 | StarCore Native\n云端超脑 · Agent循环 · ios-mcp · 记忆管理"
+        label.text = "星核 v4.1 | StarCore Native\n双控架构 · 云控桥接 · Agent循环 · 记忆管理"
         label.font = UIFont.systemFont(ofSize: 13)
         label.textColor = UIColor(white: 1, alpha: 0.3)
         label.textAlignment = .center
@@ -606,6 +723,23 @@ class SettingsViewController: UIViewController {
             var config = StarCoreAgent.shared.cloudBrainConfig
             config.botId = sender.text ?? ""
             StarCoreAgent.shared.cloudBrainConfig = config
+        // Cloud Bridge fields
+        case 201:
+            var config = StarCoreAgent.shared.cloudBridgeConfig
+            config.serverUrl = sender.text ?? ""
+            StarCoreAgent.shared.cloudBridgeConfig = config
+        case 202:
+            var config = StarCoreAgent.shared.cloudBridgeConfig
+            config.authToken = sender.text ?? ""
+            StarCoreAgent.shared.cloudBridgeConfig = config
+        case 203:
+            var config = StarCoreAgent.shared.cloudBridgeConfig
+            config.hmacSecret = sender.text ?? ""
+            StarCoreAgent.shared.cloudBridgeConfig = config
+        case 204:
+            var config = StarCoreAgent.shared.cloudBridgeConfig
+            config.timeoutSeconds = Int(sender.text ?? "30") ?? 30
+            StarCoreAgent.shared.cloudBridgeConfig = config
         default:
             break
         }

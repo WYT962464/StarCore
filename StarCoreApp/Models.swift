@@ -174,3 +174,47 @@ struct MemoryFileInfo {
         return formatter.string(from: date)
     }
 }
+
+// MARK: - Cloud Bridge Config
+struct CloudBridgeConfig: Codable {
+    var enabled: Bool
+    var serverUrl: String
+    var authToken: String
+    var hmacSecret: String
+    var timeoutSeconds: Int
+
+    static let `default` = CloudBridgeConfig(
+        enabled: false,
+        serverUrl: "http://localhost:9876/execute",
+        authToken: "",
+        hmacSecret: "",
+        timeoutSeconds: 30
+    )
+}
+
+// MARK: - Cloud Bridge Result
+struct CloudResult: Codable {
+    let success: Bool
+    let output: String
+    let exitCode: Int
+    let executionTime: Double
+
+    var displayOutput: String {
+        if success {
+            return output.isEmpty ? "✅ 执行成功（无输出）" : output
+        } else {
+            return "❌ exit=\(exitCode): \(output)"
+        }
+    }
+}
+
+// MARK: - Cloud Bridge Health
+struct CloudHealth: Codable {
+    let status: String
+    let uptime: Double?
+    let version: String?
+
+    var isHealthy: Bool {
+        return status == "ok" || status == "healthy"
+    }
+}
