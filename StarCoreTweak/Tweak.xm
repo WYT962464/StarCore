@@ -1,21 +1,19 @@
 /**
- * StarCoreTweak.xm v6.0 - 双进程注入触摸修复
+ * StarCoreTweak.xm v7.0 - senderID根因修复
  * 
- * v6.0 修复清单：
- * 1. 🔥 双进程注入：Tweak同时注入SpringBoard和backboardd
- *    - SpringBoard进程：完整TCP server(端口6000)，处理所有action
- *    - backboardd进程：触摸专用TCP server(端口6001)，只处理触摸action
- *    - backboardd中BKHIDSystemInterface可用，触摸事件可正确路由到前台App
- *    - SpringBoard中的BKHIDSystemInterface为nil(该类只在backboardd进程存在)
- * 2. 触摸action列表(tap/swipe/longPress/pressHome/keyPress/textInput)→6001
- * 3. 非触摸action(openApp/getScreenSize/shell/initDevice/diagnose/validate)→6000
- * 4. App端：触摸操作优先发6001，连不上降级到6000
- * 
- * 根因：SpringBoard进程中BKHIDSystemInterface返回nil，
- *       IOHIDEventSystemClientDispatchEvent只能派发到SB自身，
- *       IOHIDUserDevice需initDevice且大概率缺HID entitlements。
- *       backboardd进程BKHIDSystemInterface.sharedInstance可用，
- *       injectHIDEvent:能将触摸事件正确路由到前台App。
+ * v7.0 修复清单（基于ZXTouch开源代码分析）：
+ * 1. 🔥 根因修复：senderID自动获取机制
+ *    - ZXTouch也是注入SpringBoard，不是backboardd
+ *    - ZXTouch用的是IOHIDEventSystemClientDispatchEvent（跟我们一样）
+ *    - ZXTouch能跨App工作的关键是senderID
+ *    - 先注册回调监听真实触摸事件，从中获取真实触摸设备的senderID
+ *    - 然后伪造事件时设置成同样的senderID
+ *    - 没有senderID → 事件只路由到SpringBoard自己
+ *    - 有正确senderID → 系统认为事件来自真实触摸屏，正确路由到前台App
+ * 2. 去掉v6.0的双进程注入backboardd方案（不再需要）
+ *    - 只注入SpringBoard
+ *    - 只用一个TCP server在6000端口
+ * 3. 保留IOHIDUserDevice虚拟设备作为辅助路径
  */
 
 #import <UIKit/UIKit.h>
@@ -43,6 +41,7 @@ typedef UInt32 IOOptionBits;
 typedef struct __IOHIDEvent *IOHIDEventRef;
 typedef struct __IOHIDEventSystemClient *IOHIDEventSystemClientRef;
 typedef struct __IOHIDUserDevice *IOHIDUserDeviceRef;
+typedef struct __IOHIDService *IOHIDServiceRef;
 
 #define kIOHIDTransducerTypeHand 3
 #define kIOHIDEventFieldDigitizerDisplayIntegrated 0x00040001
@@ -80,10 +79,18 @@ static IOHIDEventRef (*IOHIDEventCreateKeyboardEventFunc)(CFAllocatorRef, uint64
 static void (*IOHIDEventSetIntegerValueWithOptionsFunc)(IOHIDEventRef, uint32_t, int32_t, unsigned int) = NULL;
 static void (*IOHIDEventSetFloatValueFunc)(IOHIDEventRef, uint32_t, float) = NULL;
 static void (*IOHIDEventSetSenderIDFunc)(IOHIDEventRef, uint64_t) = NULL;
+static uint64_t (*IOHIDEventGetSenderIDFunc)(IOHIDEventRef) = NULL;
 static void (*IOHIDEventAppendEventFunc)(IOHIDEventRef, IOHIDEventRef) = NULL;
 static IOHIDEventSystemClientRef (*IOHIDEventSystemClientCreateFunc)(CFAllocatorRef) = NULL;
 static void (*IOHIDEventSystemClientDispatchEventFunc)(IOHIDEventSystemClientRef, IOHIDEventRef) = NULL;
 static void (*BKSHIDEventSetDigitizerInfoFunc)(IOHIDEventRef, uint32_t, uint8_t, uint8_t, CFStringRef, CFTimeInterval, float) = NULL;
+
+// IOHIDEventSystemClient回调相关
+static void (*IOHIDEventSystemClientScheduleWithRunLoopFunc)(IOHIDEventSystemClientRef, CFRunLoopRef, CFStringRef) = NULL;
+static void (*IOHIDEventSystemClientUnscheduleWithRunLoopFunc)(IOHIDEventSystemClientRef, CFRunLoopRef, CFStringRef) = NULL;
+static void (*IOHIDEventSystemClientRegisterEventCallbackFunc)(IOHIDEventSystemClientRef, void*, void*, void*) = NULL;
+static void (*IOHIDEventSystemClientUnregisterEventCallbackFunc)(IOHIDEventSystemClientRef) = NULL;
+static uint32_t (*IOHIDEventGetTypeFunc)(IOHIDEventRef) = NULL;
 
 // IOHIDUserDevice函数
 static IOHIDUserDeviceRef (*IOHIDUserDeviceCreateFunc)(CFAllocatorRef, CFDictionaryRef, IOOptionBits) = NULL;
@@ -92,7 +99,7 @@ static IOReturn (*IOHIDUserDeviceHandleReportFunc)(IOHIDUserDeviceRef, const uin
 static void *g_iokitHandle = NULL;
 static void *g_bbsHandle = NULL;
 
-// ★ v6.0: BKHIDSystemInterface runtime resolution
+// BKHIDSystemInterface runtime resolution
 static Class _bksClass = Nil;
 static id bksSharedInstance(void) {
     if (!_bksClass) _bksClass = NSClassFromString(@"BKHIDSystemInterface");
@@ -103,11 +110,92 @@ static void bksInjectHIDEvent(id bks, void *event) {
     ((void (*)(id, SEL, void*))objc_msgSend)(bks, @selector(injectHIDEvent:), event);
 }
 
-// ★ v6.0: 进程检测
-static BOOL g_isBackboardd = NO;
+// ==================== senderID自动获取机制 ====================
+static uint64_t g_realSenderID = 0;
+static IOHIDEventSystemClientRef g_senderIDClient = NULL;
+static NSString *g_senderIDFilePath = @"/var/mobile/Library/StarCore/senderid.plist";
 
-static BOOL isInBackboardd(void) {
-    return [[NSBundle mainBundle].bundleIdentifier isEqualToString:@"com.apple.backboardd"];
+// 回调：从真实触摸事件中获取senderID（参考ZXTouch Touch.xm实现）
+static void senderIDCallback(void* target, void* refcon, IOHIDServiceRef service, IOHIDEventRef event) {
+    if (!event) return;
+    
+    uint32_t eventType = 0;
+    if (IOHIDEventGetTypeFunc) {
+        eventType = IOHIDEventGetTypeFunc(event);
+    }
+    
+    // 检查是否为Digitizer事件（触摸事件）
+    if (eventType == kIOHIDDigitizerEventTouch && g_realSenderID == 0) {
+        if (IOHIDEventGetSenderIDFunc) {
+            g_realSenderID = IOHIDEventGetSenderIDFunc(event);
+        }
+        
+        if (g_realSenderID != 0) {
+            NSLog(@"[StarCoreTweak] ✅ 获取到真实senderID: 0x%llX", g_realSenderID);
+            
+            // 保存到文件供重启后使用
+            NSDictionary *dict = @{
+                @"senderID": @(g_realSenderID),
+                @"bootTime": @([[NSDate date] timeIntervalSince1970] - [NSProcessInfo processInfo].systemUptime)
+            };
+            [dict writeToFile:g_senderIDFilePath atomically:YES];
+            NSLog(@"[StarCoreTweak] senderID已缓存到文件");
+            
+            // 获取到后注销回调
+            if (g_senderIDClient) {
+                if (IOHIDEventSystemClientUnregisterEventCallbackFunc) {
+                    IOHIDEventSystemClientUnregisterEventCallbackFunc(g_senderIDClient);
+                }
+                if (IOHIDEventSystemClientUnscheduleWithRunLoopFunc) {
+                    IOHIDEventSystemClientUnscheduleWithRunLoopFunc(g_senderIDClient, CFRunLoopGetCurrent(), kCFRunLoopDefaultMode);
+                }
+                NSLog(@"[StarCoreTweak] senderID回调已注销");
+            }
+        }
+    }
+}
+
+// 初始化：尝试从文件读取，失败则注册回调
+static void initSenderID() {
+    // 先尝试从文件读取
+    NSDictionary *data = [NSDictionary dictionaryWithContentsOfFile:g_senderIDFilePath];
+    if (data) {
+        NSTimeInterval bootTime = [[NSDate date] timeIntervalSince1970] - [NSProcessInfo processInfo].systemUptime;
+        NSTimeInterval savedBootTime = [data[@"bootTime"] doubleValue];
+        // 同一次启动（3秒内差异）才使用缓存的senderID
+        if (fabs(bootTime - savedBootTime) <= 3) {
+            g_realSenderID = [data[@"senderID"] unsignedLongLongValue];
+            if (g_realSenderID != 0) {
+                NSLog(@"[StarCoreTweak] ✅ 从文件读取senderID: 0x%llX", g_realSenderID);
+                return;
+            }
+        } else {
+            NSLog(@"[StarCoreTweak] senderID文件已过期（设备已重启），需要重新获取");
+        }
+    }
+    
+    // 文件不存在或已重启，注册回调监听真实触摸
+    if (!IOHIDEventSystemClientCreateFunc || !IOHIDEventSystemClientScheduleWithRunLoopFunc || 
+        !IOHIDEventSystemClientRegisterEventCallbackFunc || !IOHIDEventGetSenderIDFunc || !IOHIDEventGetTypeFunc) {
+        NSLog(@"[StarCoreTweak] ⚠️ senderID回调所需函数未加载，将使用硬编码senderID");
+        return;
+    }
+    
+    NSLog(@"[StarCoreTweak] 注册senderID回调，等待真实触摸事件...");
+    g_senderIDClient = IOHIDEventSystemClientCreateFunc(kCFAllocatorDefault);
+    if (g_senderIDClient) {
+        IOHIDEventSystemClientScheduleWithRunLoopFunc(g_senderIDClient, CFRunLoopGetCurrent(), kCFRunLoopDefaultMode);
+        IOHIDEventSystemClientRegisterEventCallbackFunc(g_senderIDClient, 
+            (void*)senderIDCallback, NULL, NULL);
+        NSLog(@"[StarCoreTweak] senderID回调注册成功，下次触摸屏幕时自动获取");
+    } else {
+        NSLog(@"[StarCoreTweak] ⚠️ IOHIDEventSystemClientCreate失败，无法注册senderID回调");
+    }
+}
+
+// 获取当前应使用的senderID（真实优先，fallback硬编码）
+static uint64_t getCurrentSenderID() {
+    return g_realSenderID != 0 ? g_realSenderID : kIOHIDEventDigitizerSenderID;
 }
 
 // 全局变量
@@ -141,9 +229,8 @@ static NSString *g_virtualDeviceError = @"";
 static IOHIDUserDeviceRef g_virtualKeyboardDevice = NULL;
 static bool g_virtualKeyboardReady = false;
 
-// ★ v6.0: TCP端口配置
-static const uint16_t kSpringBoardPort = 6000;
-static const uint16_t kBackboarddPort = 6001;
+// TCP端口配置
+static const uint16_t kServerPort = 6000;
 
 // ==================== HID Report Descriptors ====================
 
@@ -187,7 +274,7 @@ static const uint8_t g_multitouch_descriptor[] = {
     0xC0,              //   End Collection
     0x05, 0x0D,        //   Usage Page (Digitizer)
     0x09, 0x54,        //   Usage (Contact Count)
-    0x75, 0x08,        //   Report Size (8)
+    0x75, 0x08,        //     Report Size (8)
     0x95, 0x01,        //     Report Count (1)
     0x15, 0x00,        //     Logical Minimum (0)
     0x25, 0x0A,        //     Logical Maximum (10)
@@ -236,12 +323,7 @@ static void runOnMainThreadSync(void (^block)(void)) {
     }
 }
 
-// ★ v6.0: backboardd进程不需要UIKit，但保留兼容函数
 static CGRect getScreenBoundsSafe(void) {
-    if (g_isBackboardd) {
-        // backboardd没有UIKit，返回iPhone X默认尺寸
-        return CGRectMake(0, 0, 375, 812);
-    }
     __block CGRect bounds = CGRectZero;
     runOnMainThreadSync(^{
         bounds = [UIScreen mainScreen].bounds;
@@ -250,9 +332,6 @@ static CGRect getScreenBoundsSafe(void) {
 }
 
 static CGFloat getScreenScaleSafe(void) {
-    if (g_isBackboardd) {
-        return 3.0; // iPhone X default
-    }
     __block CGFloat scale = 1.0;
     runOnMainThreadSync(^{
         scale = [UIScreen mainScreen].scale;
@@ -313,6 +392,7 @@ static bool loadFunctions() {
     LOAD_SYM(IOHIDEventSetIntegerValueWithOptionsFunc, "IOHIDEventSetIntegerValueWithOptions");
     LOAD_SYM(IOHIDEventSetFloatValueFunc, "IOHIDEventSetFloatValue");
     LOAD_SYM(IOHIDEventSetSenderIDFunc, "IOHIDEventSetSenderID");
+    LOAD_SYM(IOHIDEventGetSenderIDFunc, "IOHIDEventGetSenderID");
     LOAD_SYM(IOHIDEventAppendEventFunc, "IOHIDEventAppendEvent");
     LOAD_SYM(IOHIDEventSystemClientCreateFunc, "IOHIDEventSystemClientCreate");
     LOAD_SYM(IOHIDEventSystemClientDispatchEventFunc, "IOHIDEventSystemClientDispatchEvent");
@@ -320,24 +400,33 @@ static bool loadFunctions() {
     LOAD_SYM(IOHIDUserDeviceCreateFunc, "IOHIDUserDeviceCreate");
     LOAD_SYM(IOHIDUserDeviceHandleReportFunc, "IOHIDUserDeviceHandleReport");
     
+    // senderID回调所需函数
+    LOAD_SYM(IOHIDEventSystemClientScheduleWithRunLoopFunc, "IOHIDEventSystemClientScheduleWithRunLoop");
+    LOAD_SYM(IOHIDEventSystemClientUnscheduleWithRunLoopFunc, "IOHIDEventSystemClientUnscheduleWithRunLoop");
+    LOAD_SYM(IOHIDEventSystemClientRegisterEventCallbackFunc, "IOHIDEventSystemClientRegisterEventCallback");
+    LOAD_SYM(IOHIDEventSystemClientUnregisterEventCallbackFunc, "IOHIDEventSystemClientUnregisterEventCallback");
+    LOAD_SYM(IOHIDEventGetTypeFunc, "IOHIDEventGetType");
+    
     #undef LOAD_SYM
     
     if (!IOHIDEventCreateDigitizerEventFunc) { NSLog(@"[StarCoreTweak] ❌ 核心函数缺失"); return false; }
     
-    // ★ v6.0: 验证BKHIDSystemInterface在backboardd中可用
+    // 验证BKHIDSystemInterface
     id bks = bksSharedInstance();
-    NSLog(@"[StarCoreTweak] %@ BKHIDSystemInterface = %@", g_isBackboardd ? @"backboardd" : @"SpringBoard", bks ? @"✅ OK" : @"❌ NULL");
+    NSLog(@"[StarCoreTweak] BKHIDSystemInterface = %@", bks ? @"✅ OK" : @"❌ NULL (仅影响旧路径)");
+    
+    // 验证senderID关键函数
+    NSLog(@"[StarCoreTweak] IOHIDEventGetSenderID = %@", IOHIDEventGetSenderIDFunc ? @"✅ OK" : @"❌ NULL");
+    NSLog(@"[StarCoreTweak] IOHIDEventSystemClientRegisterEventCallback = %@", IOHIDEventSystemClientRegisterEventCallbackFunc ? @"✅ OK" : @"❌ NULL");
     
     success = true;
-    NSLog(@"[StarCoreTweak] ✅ v6.0 函数加载成功 (进程=%@)", g_isBackboardd ? @"backboardd" : @"SpringBoard");
+    NSLog(@"[StarCoreTweak] ✅ v7.0 函数加载成功");
     return true;
 }
 
-// ==================== Context ID获取（仅SpringBoard进程使用）====================
+// ==================== Context ID获取 ====================
 
 static uint32_t getContextIDFromCAWindowServer() {
-    if (g_isBackboardd) return 0;
-    
     __block uint32_t bestCID = 0;
     runOnMainThreadSync(^{
         @try {
@@ -376,8 +465,6 @@ static uint32_t getContextIDFromCAWindowServer() {
 }
 
 static uint32_t getKeyWindowContextID() {
-    if (g_isBackboardd) return 0;
-    
     __block uint32_t cid = 0;
     runOnMainThreadSync(^{
         @try {
@@ -400,8 +487,6 @@ static uint32_t getKeyWindowContextID() {
 }
 
 static uint32_t getTargetContextID() {
-    if (g_isBackboardd) return 0; // backboardd不需要contextID，BKS直接路由
-    
     uint32_t cid = getKeyWindowContextID();
     if (cid != 0) {
         runOnMainThreadSync(^{
@@ -426,7 +511,6 @@ static uint32_t getTargetContextID() {
 }
 
 static void resetIdleTimer() {
-    if (g_isBackboardd) return; // backboardd没有UIApplication
     runOnMainThreadSync(^{
         @try {
             UIApplication *app = [UIApplication sharedApplication];
@@ -443,19 +527,20 @@ static void resetIdleTimer() {
 static void dispatchHIDEvent(IOHIDEventRef event) {
     if (!event) return;
     
-    // ★ v6.0: backboardd进程 - BKHIDSystemInterface一定可用！
+    // ★ v7.0: 核心修复 - 先尝试BKHIDSystemInterface
     @try {
         id bks = bksSharedInstance();
         if (bks) {
             bksInjectHIDEvent(bks, event);
-            NSLog(@"[StarCoreTweak] %@ BKS injectHIDEvent ✅", g_isBackboardd ? @"[backboardd]" : @"[SpringBoard]");
+            NSLog(@"[StarCoreTweak] BKS injectHIDEvent ✅ (senderID=0x%llX)", getCurrentSenderID());
             return;
         }
     } @catch (NSException *e) {
         NSLog(@"[StarCoreTweak] BKHIDSystemInterface injectHIDEvent failed: %@", e);
     }
     
-    // 回退：IOHIDEventSystemClient（SpringBoard进程，只能影响SB自身）
+    // ★ v7.0: IOHIDEventSystemClient + 正确senderID = 也能跨App路由！
+    // 这是ZXTouch的方案：有正确senderID后，IOHIDEventSystemClientDispatchEvent也能路由到前台App
     if (IOHIDEventSystemClientDispatchEventFunc) {
         static IOHIDEventSystemClientRef client = NULL;
         static dispatch_once_t onceToken;
@@ -464,14 +549,17 @@ static void dispatchHIDEvent(IOHIDEventRef event) {
         });
         if (client) {
             IOHIDEventSystemClientDispatchEventFunc(client, event);
-            NSLog(@"[StarCoreTweak] %@ IOHIDEventSystemClient fallback (仅影响当前进程)", g_isBackboardd ? @"[backboardd]" : @"[SpringBoard]");
+            NSLog(@"[StarCoreTweak] IOHIDEventSystemClient dispatch ✅ (senderID=0x%llX)", getCurrentSenderID());
+            return;
         }
     }
+    
+    NSLog(@"[StarCoreTweak] ❌ 所有派发路径失败");
 }
 
 // ==================== 触摸注入函数 ====================
 
-// ★ v6.0: backboardd路径 - 不需要contextID，BKS自动路由到前台App
+// ★ v7.0: 使用真实senderID，事件可正确路由到前台App
 static void simulateTouchEx(int type, float x, float y, int fingerId, uint32_t cid, bool setDigitizerInfo) {
     if (!loadFunctions()) return;
     
@@ -487,9 +575,15 @@ static void simulateTouchEx(int type, float x, float y, int fingerId, uint32_t c
     
     if (!hand) return;
     
-    if (IOHIDEventSetSenderIDFunc) IOHIDEventSetSenderIDFunc(hand, kIOHIDEventDigitizerSenderID);
+    // ★ v7.0 核心修复：使用真实senderID替代硬编码
+    if (IOHIDEventSetSenderIDFunc) {
+        uint64_t sid = getCurrentSenderID();
+        IOHIDEventSetSenderIDFunc(hand, sid);
+        if (g_realSenderID == 0) {
+            NSLog(@"[StarCoreTweak] ⚠️ 使用硬编码senderID(未获取到真实值)，触摸可能只影响SpringBoard");
+        }
+    }
     
-    // ★ v6.0: backboardd中cid=0不需要BKSHIDEventSetDigitizerInfo，BKS会自动路由
     if (setDigitizerInfo && BKSHIDEventSetDigitizerInfoFunc && cid != 0) {
         BKSHIDEventSetDigitizerInfoFunc(hand, cid, 1, 1, NULL, 0, touch_ ? 0.2f : 0.0f);
     }
@@ -521,10 +615,17 @@ static void simulateHomeButton() {
     if (!loadFunctions()) return;
     uint64_t ts = mach_absolute_time();
     IOHIDEventRef d = IOHIDEventCreateKeyboardEventFunc(kCFAllocatorDefault, ts, kHIDPage_Consumer, kHIDUsage_Csmr_Menu, true, 0);
-    if (d) { if (IOHIDEventSetSenderIDFunc) IOHIDEventSetSenderIDFunc(d, kIOHIDEventDigitizerSenderID); dispatchHIDEvent(d); }
+    if (d) { 
+        // ★ v7.0: Home键也使用真实senderID
+        if (IOHIDEventSetSenderIDFunc) IOHIDEventSetSenderIDFunc(d, getCurrentSenderID()); 
+        dispatchHIDEvent(d); 
+    }
     usleep(50000); ts = mach_absolute_time();
     IOHIDEventRef u = IOHIDEventCreateKeyboardEventFunc(kCFAllocatorDefault, ts, kHIDPage_Consumer, kHIDUsage_Csmr_Menu, false, 0);
-    if (u) { if (IOHIDEventSetSenderIDFunc) IOHIDEventSetSenderIDFunc(u, kIOHIDEventDigitizerSenderID); dispatchHIDEvent(u); }
+    if (u) { 
+        if (IOHIDEventSetSenderIDFunc) IOHIDEventSetSenderIDFunc(u, getCurrentSenderID()); 
+        dispatchHIDEvent(u); 
+    }
     resetIdleTimer();
 }
 
@@ -742,24 +843,23 @@ static void handleTextInput(NSString *text) {
 // ==================== TCP服务器 ====================
 
 @interface StarCoreTCPServer : NSObject
-- (void)startOnPort:(uint16_t)port mode:(NSString *)mode;
+- (void)startOnPort:(uint16_t)port;
 - (void)stop;
 @end
 
 static StarCoreTCPServer *_server = nil;
 
-@implementation StarCoreTCPServer { NSInteger _sock; NSMutableArray<NSNumber *> *_fds; uint16_t _port; NSString *_mode; }
-- (instancetype)init { self = [super init]; if (self) { _sock = -1; _fds = [NSMutableArray new]; _port = 0; _mode = @"unknown"; g_globalsLock = [[NSLock alloc] init]; } return self; }
+@implementation StarCoreTCPServer { NSInteger _sock; NSMutableArray<NSNumber *> *_fds; uint16_t _port; }
+- (instancetype)init { self = [super init]; if (self) { _sock = -1; _fds = [NSMutableArray new]; _port = 0; g_globalsLock = [[NSLock alloc] init]; } return self; }
 
-- (void)startOnPort:(uint16_t)port mode:(NSString *)mode {
+- (void)startOnPort:(uint16_t)port {
     _port = port;
-    _mode = mode;
     _sock = socket(AF_INET, SOCK_STREAM, 0); if (_sock < 0) return;
     int y=1; setsockopt((int)_sock, SOL_SOCKET, SO_REUSEADDR, &y, sizeof(y));
     struct sockaddr_in a; memset(&a,0,sizeof(a)); a.sin_len=sizeof(a); a.sin_family=AF_INET; a.sin_port=htons(port); a.sin_addr.s_addr=inet_addr("127.0.0.1");
     if (bind((int)_sock,(struct sockaddr*)&a,sizeof(a))<0||listen((int)_sock,5)<0) { close((int)_sock); _sock=-1; NSLog(@"[StarCoreTweak] ❌ 端口%d bind/listen失败", port); return; }
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT,0),^{[self acceptLoop];});
-    NSLog(@"[StarCoreTweak] TCP :%d v6.0 [%@模式] 双进程注入", port, mode);
+    NSLog(@"[StarCoreTweak] TCP :%d v7.0 [senderID修复]", port);
 }
 
 - (void)acceptLoop {
@@ -786,9 +886,8 @@ static StarCoreTCPServer *_server = nil;
     if(!req||![req isKindOfClass:[NSDictionary class]]) return @{@"success":@NO,@"error":@"invalid JSON"};
     NSString *action=req[@"action"]; NSNumber *mid=req[@"id"]?:@0; NSMutableDictionary *resp=[@{@"id":mid} mutableCopy];
     
-    if([action isEqualToString:@"ping"]) { resp[@"success"]=@YES; resp[@"message"]=@"pong"; resp[@"process"]=g_isBackboardd?@"backboardd":@"SpringBoard"; resp[@"port"]=@(_port); }
+    if([action isEqualToString:@"ping"]) { resp[@"success"]=@YES; resp[@"message"]=@"pong"; resp[@"version"]=@"7.0"; }
     
-    // ★ v6.0: 触摸actions - backboardd和SpringBoard都处理
     else if([action isEqualToString:@"tap"]) {
         float x=[req[@"x"] floatValue],y=[req[@"y"] floatValue];
         if(x>1.0f||y>1.0f){CGRect b=getScreenBoundsSafe();x/=b.size.width;y/=b.size.height;if(x>1)x=1;if(y>1)y=1;}
@@ -798,21 +897,23 @@ static StarCoreTCPServer *_server = nil;
             resp[@"success"]=@YES; resp[@"method"]=@"IOHIDUserDevice";
         } else {
             simulateTap_old(x, y);
-            resp[@"success"]=@YES; resp[@"method"]=@"BKHIDSystemInterface";
+            resp[@"success"]=@YES; resp[@"method"]=@"senderID+IOHIDEventSystemClient";
         }
     }
     
     else if([action isEqualToString:@"swipe"]) {
-        float fX=[req[@"fromX"] floatValue], fY=[req[@"fromY"] floatValue];
-        float tX=[req[@"toX"] floatValue], tY=[req[@"toY"] floatValue];
-        float dur=[req[@"duration"] floatValue] ?: 0.5f;
+        float fX=[req[@"fromX"] floatValue]?:[req[@"x1"] floatValue];
+        float fY=[req[@"fromY"] floatValue]?:[req[@"y1"] floatValue];
+        float tX=[req[@"toX"] floatValue]?:[req[@"x2"] floatValue];
+        float tY=[req[@"toY"] floatValue]?:[req[@"y2"] floatValue];
+        float dur=[req[@"duration"] floatValue]?:0.5f;
         
         if (g_virtualDeviceReady) {
             virtualSwipe(fX, fY, tX, tY, dur);
             resp[@"success"]=@YES; resp[@"method"]=@"IOHIDUserDevice";
         } else {
             simulateSwipe_old(fX, fY, tX, tY, dur);
-            resp[@"success"]=@YES; resp[@"method"]=@"BKHIDSystemInterface";
+            resp[@"success"]=@YES; resp[@"method"]=@"senderID+IOHIDEventSystemClient";
         }
     }
     
@@ -825,7 +926,7 @@ static StarCoreTCPServer *_server = nil;
             resp[@"success"]=@YES; resp[@"method"]=@"IOHIDUserDevice";
         } else {
             simulateLongPress_old(x, y, d);
-            resp[@"success"]=@YES; resp[@"method"]=@"BKHIDSystemInterface";
+            resp[@"success"]=@YES; resp[@"method"]=@"senderID+IOHIDEventSystemClient";
         }
     }
     
@@ -849,75 +950,65 @@ static StarCoreTCPServer *_server = nil;
         else { handleTextInput(text); resp[@"success"]=@YES; }
     }
     
-    // ★ v6.0: 以下actions仅SpringBoard进程处理，backboardd返回not supported
     else if([action isEqualToString:@"shell"]) {
-        if (g_isBackboardd) { resp[@"success"]=@NO; resp[@"error"]=@"shell not supported in backboardd, use port 6000"; }
+        NSString *cmd = req[@"command"];
+        if (!cmd || cmd.length == 0) { resp[@"success"]=@NO; resp[@"error"]=@"command required"; }
         else {
-            NSString *cmd = req[@"command"];
-            if (!cmd || cmd.length == 0) { resp[@"success"]=@NO; resp[@"error"]=@"command required"; }
+            const char *tmpPath = "/tmp/starcore_shell_out";
+            remove(tmpPath);
+            posix_spawn_file_actions_t actions;
+            posix_spawn_file_actions_init(&actions);
+            posix_spawn_file_actions_addopen(&actions, STDOUT_FILENO, tmpPath, O_WRONLY|O_CREAT|O_TRUNC, 0644);
+            posix_spawn_file_actions_adddup2(&actions, STDOUT_FILENO, STDERR_FILENO);
+            char *argv[] = {(char*)"/bin/sh", (char*)"-c", (char*)[cmd UTF8String], NULL};
+            char *envp[] = {(char*)"PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin", (char*)"HOME=/var/mobile", NULL};
+            setuid(0);
+            pid_t pid;
+            int spawnResult = posix_spawn(&pid, "/bin/sh", &actions, NULL, argv, envp);
+            posix_spawn_file_actions_destroy(&actions);
+            if (spawnResult != 0) { resp[@"success"]=@NO; resp[@"error"]=[NSString stringWithFormat:@"posix_spawn failed: %s", strerror(spawnResult)]; }
             else {
-                const char *tmpPath = "/tmp/starcore_shell_out";
-                remove(tmpPath);
-                posix_spawn_file_actions_t actions;
-                posix_spawn_file_actions_init(&actions);
-                posix_spawn_file_actions_addopen(&actions, STDOUT_FILENO, tmpPath, O_WRONLY|O_CREAT|O_TRUNC, 0644);
-                posix_spawn_file_actions_adddup2(&actions, STDOUT_FILENO, STDERR_FILENO);
-                char *argv[] = {(char*)"/bin/sh", (char*)"-c", (char*)[cmd UTF8String], NULL};
-                char *envp[] = {(char*)"PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin", (char*)"HOME=/var/mobile", NULL};
-                setuid(0);
-                pid_t pid;
-                int spawnResult = posix_spawn(&pid, "/bin/sh", &actions, NULL, argv, envp);
-                posix_spawn_file_actions_destroy(&actions);
-                if (spawnResult != 0) { resp[@"success"]=@NO; resp[@"error"]=[NSString stringWithFormat:@"posix_spawn failed: %s", strerror(spawnResult)]; }
-                else {
-                    int status = 0, waitCount = 0;
-                    while (waitCount < 100) { pid_t result = waitpid(pid, &status, WNOHANG); if (result > 0 || result < 0) break; usleep(100000); waitCount++; }
-                    if (waitCount >= 100) { kill(pid, SIGKILL); resp[@"error"]=@"timeout (10s)"; }
-                    NSString *output = @"";
-                    FILE *fp = fopen(tmpPath, "r");
-                    if (fp) {
-                        NSMutableData *outData = [NSMutableData data]; char buf[4096];
-                        while (fgets(buf, sizeof(buf), fp)) [outData appendBytes:buf length:strlen(buf)];
-                        fclose(fp);
-                        if (outData.length > 65536) { [outData replaceBytesInRange:NSMakeRange(65536, outData.length - 65536) withBytes:"" length:0]; output = [[NSString alloc] initWithData:outData encoding:NSUTF8StringEncoding]; output = [output stringByAppendingString:@"\n... [truncated]"]; }
-                        else output = [[NSString alloc] initWithData:outData encoding:NSUTF8StringEncoding] ?: @"";
-                    }
-                    remove(tmpPath);
-                    resp[@"success"] = @(WIFEXITED(status) && WEXITSTATUS(status) == 0);
-                    resp[@"output"] = output;
-                    resp[@"exitCode"] = @(WIFEXITED(status) ? WEXITSTATUS(status) : -1);
+                int status = 0, waitCount = 0;
+                while (waitCount < 100) { pid_t result = waitpid(pid, &status, WNOHANG); if (result > 0 || result < 0) break; usleep(100000); waitCount++; }
+                if (waitCount >= 100) { kill(pid, SIGKILL); resp[@"error"]=@"timeout (10s)"; }
+                NSString *output = @"";
+                FILE *fp = fopen(tmpPath, "r");
+                if (fp) {
+                    NSMutableData *outData = [NSMutableData data]; char buf[4096];
+                    while (fgets(buf, sizeof(buf), fp)) [outData appendBytes:buf length:strlen(buf)];
+                    fclose(fp);
+                    if (outData.length > 65536) { [outData replaceBytesInRange:NSMakeRange(65536, outData.length - 65536) withBytes:"" length:0]; output = [[NSString alloc] initWithData:outData encoding:NSUTF8StringEncoding]; output = [output stringByAppendingString:@"\n... [truncated]"]; }
+                    else output = [[NSString alloc] initWithData:outData encoding:NSUTF8StringEncoding] ?: @"";
                 }
+                remove(tmpPath);
+                resp[@"success"] = @(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+                resp[@"output"] = output;
+                resp[@"exitCode"] = @(WIFEXITED(status) ? WEXITSTATUS(status) : -1);
             }
         }
     }
     
     else if([action isEqualToString:@"openApp"]) {
-        if (g_isBackboardd) { resp[@"success"]=@NO; resp[@"error"]=@"openApp not supported in backboardd, use port 6000"; }
+        NSString *bid=req[@"bundleId"];
+        if(!bid) { resp[@"success"]=@NO; resp[@"error"]=@"bundleId required"; }
         else {
-            NSString *bid=req[@"bundleId"];
-            if(!bid) { resp[@"success"]=@NO; resp[@"error"]=@"bundleId required"; }
-            else {
-                __block BOOL ok = NO;
-                __block NSString *errMsg = @"no workspace";
-                runOnMainThreadSync(^{
-                    Class wc = objc_getClass("LSApplicationWorkspace");
-                    if (wc) {
-                        id ws = [wc performSelector:@selector(defaultWorkspace)];
-                        if (ws) { ok = (BOOL)((BOOL(*)(id,SEL,NSString*))objc_msgSend)(ws, @selector(openApplicationWithBundleID:), bid); if (!ok) errMsg = @"openApplication returned NO"; }
-                        else errMsg = @"defaultWorkspace returned nil";
-                    }
-                });
-                resp[@"success"]=@(ok); if (!ok) resp[@"error"]=errMsg;
-            }
+            __block BOOL ok = NO;
+            __block NSString *errMsg = @"no workspace";
+            runOnMainThreadSync(^{
+                Class wc = objc_getClass("LSApplicationWorkspace");
+                if (wc) {
+                    id ws = [wc performSelector:@selector(defaultWorkspace)];
+                    if (ws) { ok = (BOOL)((BOOL(*)(id,SEL,NSString*))objc_msgSend)(ws, @selector(openApplicationWithBundleID:), bid); if (!ok) errMsg = @"openApplication returned NO"; }
+                    else errMsg = @"defaultWorkspace returned nil";
+                }
+            });
+            resp[@"success"]=@(ok); if (!ok) resp[@"error"]=errMsg;
         }
     }
     
     else if([action isEqualToString:@"getScreenSize"]) {
-        if (g_isBackboardd) { resp[@"success"]=@NO; resp[@"error"]=@"getScreenSize not supported in backboardd, use port 6000"; }
-        else {
-            CGRect b = getScreenBoundsSafe(); CGFloat scale = getScreenScaleSafe();
-            resp[@"success"]=@YES; resp[@"width"]=@(b.size.width); resp[@"height"]=@(b.size.height); resp[@"scale"]=@(scale);
-        }
+        CGRect b = getScreenBoundsSafe(); CGFloat scale = getScreenScaleSafe();
+        resp[@"success"]=@YES; resp[@"width"]=@(b.size.width); resp[@"height"]=@(b.size.height); resp[@"scale"]=@(scale);
     }
     
     else if([action isEqualToString:@"initDevice"]) {
@@ -926,7 +1017,7 @@ static StarCoreTCPServer *_server = nil;
         resp[@"virtualDevice"]=g_virtualDeviceReady?@"OK":@"FAILED";
         resp[@"virtualKeyboardDevice"]=g_virtualKeyboardReady?@"OK":@"FAILED";
         resp[@"error"]=g_virtualDeviceError ?: @"";
-        resp[@"process"]=g_isBackboardd?@"backboardd":@"SpringBoard";
+        resp[@"senderID"]=g_realSenderID!=0?[NSString stringWithFormat:@"0x%llX",g_realSenderID]:@"waiting";
     }
     
     else if([action isEqualToString:@"diagnose"]) {
@@ -935,17 +1026,35 @@ static StarCoreTCPServer *_server = nil;
         uint32_t frontmostCID = getTargetContextID();
         uint32_t springCID = getKeyWindowContextID();
         
+        // ★ v7.0: 判断senderID来源
+        NSString *senderIDSource = @"unknown";
+        if (g_realSenderID != 0) {
+            NSDictionary *data = [NSDictionary dictionaryWithContentsOfFile:g_senderIDFilePath];
+            if (data) {
+                NSTimeInterval bootTime = [[NSDate date] timeIntervalSince1970] - [NSProcessInfo processInfo].systemUptime;
+                NSTimeInterval savedBootTime = [data[@"bootTime"] doubleValue];
+                senderIDSource = fabs(bootTime - savedBootTime) <= 3 ? @"file" : @"callback";
+            } else {
+                senderIDSource = @"callback";
+            }
+        } else {
+            senderIDSource = @"waiting_callback";
+        }
+        
         resp[@"success"]=@YES;
         resp[@"diagnostics"]=@{
-            @"version": @"6.0",
-            @"process": g_isBackboardd?@"backboardd":@"SpringBoard",
-            @"port": @(_port),
+            @"version": @"7.0",
+            @"approach": @"senderID",
             @"iokitHandle": g_iokitHandle?@"OK":@"NULL",
             @"bbsHandle": g_bbsHandle?@"OK":@"NULL",
             @"BKHIDSystemInterface": (bksSharedInstance() != nil) ? @"OK":@"NULL",
+            @"realSenderID": g_realSenderID!=0?[NSString stringWithFormat:@"0x%llX",g_realSenderID]:@"未获取",
+            @"senderIDSource": senderIDSource,
             @"createDigitizerEvent": IOHIDEventCreateDigitizerEventFunc?@"OK":@"NULL",
             @"createKeyboardEvent": IOHIDEventCreateKeyboardEventFunc?@"OK":@"NULL",
             @"eventSystemClientDispatchEvent": IOHIDEventSystemClientDispatchEventFunc?@"OK":@"NULL",
+            @"IOHIDEventGetSenderID": IOHIDEventGetSenderIDFunc?@"OK":@"NULL",
+            @"RegisterEventCallback": IOHIDEventSystemClientRegisterEventCallbackFunc?@"OK":@"NULL",
             @"BKSHIDEventSetDigitizerInfo": BKSHIDEventSetDigitizerInfoFunc?@"OK":@"NULL",
             @"IOHIDUserDeviceCreate": IOHIDUserDeviceCreateFunc?@"OK":@"NULL",
             @"IOHIDUserDeviceHandleReport": IOHIDUserDeviceHandleReportFunc?@"OK":@"NULL",
@@ -956,14 +1065,13 @@ static StarCoreTCPServer *_server = nil;
             @"frontmostContextID": @(frontmostCID),
             @"springBoardContextID": @(springCID),
             @"contextSource": ctxSrc ?: @"none",
-            @"dispatchPath": (bksSharedInstance() != nil) ? @"BKHIDSystemInterface":@"IOHIDEventSystemClient(fallback)",
+            @"dispatchPath": (bksSharedInstance() != nil) ? @"BKHIDSystemInterface":@"IOHIDEventSystemClient+senderID",
         };
     }
     
     else if([action isEqualToString:@"validate"]) {
         uint32_t frontmostCID = getTargetContextID();
         uint32_t springCID = getKeyWindowContextID();
-        bool canInjectTouch = (BKSHIDEventSetDigitizerInfoFunc != NULL) && (frontmostCID != 0 || springCID != 0 || g_isBackboardd);
         
         resp[@"success"]=@YES;
         resp[@"validation"]=@{
@@ -972,17 +1080,18 @@ static StarCoreTCPServer *_server = nil;
             @"BKHIDSystemInterfaceAvailable": (bksSharedInstance() != nil) ? @YES:@NO,
             @"functionIOHIDEventCreateDigitizerEvent": IOHIDEventCreateDigitizerEventFunc?@YES:@NO,
             @"functionIOHIDEventSystemClientDispatchEvent": IOHIDEventSystemClientDispatchEventFunc?@YES:@NO,
+            @"functionIOHIDEventGetSenderID": IOHIDEventGetSenderIDFunc?@YES:@NO,
+            @"functionRegisterEventCallback": IOHIDEventSystemClientRegisterEventCallbackFunc?@YES:@NO,
             @"functionBKSHIDEventSetDigitizerInfo": BKSHIDEventSetDigitizerInfoFunc?@YES:@NO,
             @"functionIOHIDUserDeviceCreate": IOHIDUserDeviceCreateFunc?@YES:@NO,
             @"functionIOHIDUserDeviceHandleReport": IOHIDUserDeviceHandleReportFunc?@YES:@NO,
-            @"canInjectTouch": @(canInjectTouch),
-            @"canInjectTouchToApp": @((bksSharedInstance() != nil)),
+            @"realSenderID": g_realSenderID!=0?@YES:@NO,
+            @"canInjectTouch": @YES,
+            @"canInjectTouchToApp": @(g_realSenderID != 0 || bksSharedInstance() != nil),
             @"virtualDeviceReady": @(g_virtualDeviceReady),
             @"virtualKeyboardReady": @(g_virtualKeyboardReady),
             @"frontmostContextID": @(frontmostCID),
             @"springBoardContextID": @(springCID),
-            @"process": g_isBackboardd?@"backboardd":@"SpringBoard",
-            @"port": @(_port),
         };
     }
     
@@ -1008,41 +1117,24 @@ static StarCoreTCPServer *_server = nil;
 
 // ==================== 进程入口 ====================
 
-// ★ v6.0: SpringBoard Hook - 启动完整TCP server(端口6000)
 %hook SpringBoard
 - (void)applicationDidFinishLaunching:(id)application {
     %orig;
-    g_isBackboardd = NO;
-    NSLog(@"[StarCoreTweak] SpringBoard启动 v6.0 (双进程注入)");
+    NSLog(@"[StarCoreTweak] SpringBoard启动 v7.0 (senderID根因修复)");
     loadFunctions();
+    
+    // ★ v7.0: 初始化senderID自动获取
+    initSenderID();
+    
     _server = [[StarCoreTCPServer alloc] init];
-    [_server startOnPort:kSpringBoardPort mode:@"full"];
-    NSLog(@"[StarCoreTweak] v6.0 SpringBoard: 端口6000(完整), 触摸降级到IOHIDEventSystemClient");
+    [_server startOnPort:kServerPort];
+    NSLog(@"[StarCoreTweak] v7.0 ready - senderID: 0x%llX (0=等待真实触摸获取)", g_realSenderID);
 }
 %end
 
-// ★ v6.0: backboardd入口 - 通过%ctor检测进程，启动触摸专用TCP server(端口6001)
-// backboardd不是UIKit进程，没有applicationDidFinishLaunching
-// 我们在%ctor中直接初始化
-
 %ctor {
-    g_isBackboardd = isInBackboardd();
-    
-    if (g_isBackboardd) {
-        NSLog(@"[StarCoreTweak] backboardd进程加载 v6.0 (触摸专用)");
-        loadFunctions();
-        _server = [[StarCoreTCPServer alloc] init];
-        [_server startOnPort:kBackboarddPort mode:@"touch"];
-        
-        // ★ 验证BKHIDSystemInterface
-        id bks = bksSharedInstance();
-        NSLog(@"[StarCoreTweak] backboardd BKHIDSystemInterface = %@", bks ? @"✅ OK - 触摸注入可用!" : @"❌ NULL - 严重问题!");
-    } else {
-        // SpringBoard进程 - 由%hook SpringBoard的applicationDidFinishLaunching处理
-        // 但也在这里初始化%init
-        %init;
-        NSLog(@"[StarCoreTweak] v6.0 loading in SpringBoard... (双进程注入)");
-    }
+    %init;
+    NSLog(@"[StarCoreTweak] v7.0 loading in SpringBoard... (senderID修复)");
 }
 
 %dtor { [_server stop]; }

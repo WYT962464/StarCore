@@ -9,7 +9,6 @@ class StarCoreAgent {
     private let defaults = UserDefaults.standard
     private let tweakHost = "127.0.0.1"
     private let tweakPort: UInt16 = 6000
-    private let tweakTouchPort: UInt16 = 6001  // ★ v6.0: backboardd触摸专用端口
 
     // ios-mcp configuration
     private let mcpHost = "127.0.0.1"
@@ -553,30 +552,8 @@ class StarCoreAgent {
         return result
     }
 
-    // ★ v6.0: 触摸专用命令 - 优先发6001(backboardd), 失败降级到6000(SpringBoard)
+    // v7.0: 触摸命令 - 直接走6000端口(senderID修复后不再需要双进程)
     func touchCmd(action: String, params: [String: Any] = [:], timeout: TimeInterval = 5) -> [String: Any]? {
-        var dict: [String: Any] = ["action": action]
-        for (k, v) in params {
-            dict[k] = v
-        }
-        guard let jsonData = try? JSONSerialization.data(withJSONObject: dict),
-              let jsonString = String(data: jsonData, encoding: .utf8) else {
-            return nil
-        }
-
-        // 优先尝试6001(backboardd触摸端口)
-        let resp6001 = rawTCPSendToPort(jsonString: jsonString, port: tweakTouchPort, timeout: timeout)
-        if let resp = resp6001 {
-            if let data = resp.data(using: .utf8),
-               let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                if let success = parsed["success"] as? Bool, success {
-                    return parsed
-                }
-                // 6001返回失败(可能是backboardd不支持该action)，降级到6000
-            }
-        }
-
-        // 降级到6000(SpringBoard完整端口)
         return tweakCmd(action: action, params: params, timeout: timeout)
     }
 
