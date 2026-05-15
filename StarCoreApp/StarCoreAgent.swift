@@ -9,6 +9,7 @@ class StarCoreAgent {
     private let defaults = UserDefaults.standard
     private let tweakHost = "127.0.0.1"
     private let tweakPort: UInt16 = 6000
+    private let tweakTouchPort: UInt16 = 6001  // ★ v6.0: backboardd触摸专用端口
 
     // ios-mcp configuration
     private let mcpHost = "127.0.0.1"
@@ -510,6 +511,75 @@ class StarCoreAgent {
         return result
     }
 
+    // ★ v6.0: 发送到指定端口的TCP命令
+    private func rawTCPSendToPort(jsonString: String, port: UInt16, timeout: TimeInterval = 5) -> String? {
+        var result: String? = nil
+        let semaphore = DispatchSemaphore(value: 0)
+
+        let queue = DispatchQueue(label: "com.starcore.tcp")
+        let host = NWEndpoint.Host(tweakHost)
+        guard let nwPort = NWEndpoint.Port(rawValue: port) else { return nil }
+
+        let connection = NWConnection(host: host, port: nwPort, using: .tcp)
+        let sendData = (jsonString + "\n").data(using: .utf8)!
+
+        var stateHandler: ((NWConnection.State) -> Void)?
+        stateHandler = { state in
+            switch state {
+            case .ready:
+                connection.send(content: sendData, completion: .contentProcessed { error in
+                    if error != nil {
+                        semaphore.signal()
+                        return
+                    }
+                    connection.receive(minimumIncompleteLength: 1, maximumLength: 4096) { data, _, _, error in
+                        if let data = data, let str = String(data: data, encoding: .utf8) {
+                            result = str.trimmingCharacters(in: .whitespacesAndNewlines)
+                        }
+                        semaphore.signal()
+                    }
+                })
+            case .failed, .cancelled:
+                semaphore.signal()
+            default:
+                break
+            }
+        }
+        connection.stateUpdateHandler = stateHandler
+        connection.start(queue: queue)
+
+        _ = semaphore.wait(timeout: .now() + timeout)
+        connection.cancel()
+        return result
+    }
+
+    // ★ v6.0: 触摸专用命令 - 优先发6001(backboardd), 失败降级到6000(SpringBoard)
+    func touchCmd(action: String, params: [String: Any] = [:], timeout: TimeInterval = 5) -> [String: Any]? {
+        var dict: [String: Any] = ["action": action]
+        for (k, v) in params {
+            dict[k] = v
+        }
+        guard let jsonData = try? JSONSerialization.data(withJSONObject: dict),
+              let jsonString = String(data: jsonData, encoding: .utf8) else {
+            return nil
+        }
+
+        // 优先尝试6001(backboardd触摸端口)
+        let resp6001 = rawTCPSendToPort(jsonString: jsonString, port: tweakTouchPort, timeout: timeout)
+        if let resp = resp6001 {
+            if let data = resp.data(using: .utf8),
+               let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                if let success = parsed["success"] as? Bool, success {
+                    return parsed
+                }
+                // 6001返回失败(可能是backboardd不支持该action)，降级到6000
+            }
+        }
+
+        // 降级到6000(SpringBoard完整端口)
+        return tweakCmd(action: action, params: params, timeout: timeout)
+    }
+
     // MARK: - iOS MCP HTTP API
 
     /// Initialize ios-mcp connection
@@ -724,7 +794,7 @@ class StarCoreAgent {
         case "tap":
             let x = action["x"] as? Double ?? 0.5
             let y = action["y"] as? Double ?? 0.5
-            return tweakCmd(action: "tap", params: ["x": x, "y": y])
+            return touchCmd(action: "tap", params: ["x": x, "y": y])
 
         case "swipe":
             let fromX = action["fromX"] as? Double ?? action["x1"] as? Double ?? 0.5
@@ -732,7 +802,7 @@ class StarCoreAgent {
             let toX = action["toX"] as? Double ?? action["x2"] as? Double ?? 0.5
             let toY = action["toY"] as? Double ?? action["y2"] as? Double ?? 0.3
             let duration = action["duration"] as? Double ?? 0.5
-            return tweakCmd(action: "swipe", params: [
+            return touchCmd(action: "swipe", params: [
                 "fromX": fromX, "fromY": fromY,
                 "toX": toX, "toY": toY,
                 "duration": duration
@@ -747,7 +817,7 @@ class StarCoreAgent {
             return tweakCmd(action: "openApp", params: ["bundleId": bundleId])
 
         case "pressHome":
-            return tweakCmd(action: "pressHome")
+            return touchCmd(action: "pressHome")
 
         case "getScreenSize":
             return tweakCmd(action: "getScreenSize")
