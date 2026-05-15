@@ -1,7 +1,7 @@
 /**
- * StarCoreTweak.xm v8.1 - sendEvent Hook获取真实senderID
+ * StarCoreTweak.xm v8.2 - sendEvent Hook获取真实senderID
  * 
- * v8.1 更新清单：
+ * v8.2 更新清单：
  * 1. ✨ 新增sendEvent Hook机制获取真实senderID
  *    - Hook -[UIApplication sendEvent:] 拦截SpringBoard已处理的触摸事件
  *    - 从UIEvent中提取IOHIDEvent的senderID（通过_hidEvent私有API）
@@ -111,7 +111,7 @@ static void bksInjectHIDEvent(id bks, void *event) {
 
 // ==================== senderID自动获取机制 ====================
 static uint64_t g_realSenderID = 0;
-static BOOL g_senderIDCapturing = NO;  // v8.1: 是否正在通过sendEvent hook捕获senderID
+static BOOL g_senderIDCapturing = NO;  // v8.2: 是否正在通过sendEvent hook捕获senderID
 static NSString *g_senderIDFilePath = @"/var/mobile/Library/StarCore/senderid.plist";
 
 // senderIDCallback已移除（v8.0崩溃修复：回调注册导致SpringBoard崩溃）
@@ -137,7 +137,7 @@ static void initSenderID() {
         NSLog(@"[StarCoreTweak] senderID文件不存在，将开启sendEvent捕获");
     }
     
-    // v8.1: 不再使用硬编码fallback，而是开启sendEvent hook捕获真实senderID
+    // v8.2: 不再使用硬编码fallback，而是开启sendEvent hook捕获真实senderID
     // 当用户触摸屏幕时，hook会从真实的触摸事件中提取senderID
     g_senderIDCapturing = YES;
     NSLog(@"[StarCoreTweak] sendEvent hook已启用，等待真实触摸获取senderID... (也可通过set_senderid命令手动设置)");
@@ -363,7 +363,7 @@ static bool loadFunctions() {
     NSLog(@"[StarCoreTweak] IOHIDEventGetSenderID = %@", IOHIDEventGetSenderIDFunc ? @"✅ OK" : @"❌ NULL");
     
     success = true;
-    NSLog(@"[StarCoreTweak] ✅ v8.1 函数加载成功");
+    NSLog(@"[StarCoreTweak] ✅ v8.2 函数加载成功");
     return true;
 }
 
@@ -799,10 +799,10 @@ static StarCoreTCPServer *_server = nil;
     _port = port;
     _sock = socket(AF_INET, SOCK_STREAM, 0); if (_sock < 0) return;
     int y=1; setsockopt((int)_sock, SOL_SOCKET, SO_REUSEADDR, &y, sizeof(y));
-    struct sockaddr_in a; memset(&a,0,sizeof(a)); a.sin_len=sizeof(a); a.sin_family=AF_INET; a.sin_port=htons(port); a.sin_addr.s_addr=inet_addr("127.0.0.1");
+    struct sockaddr_in a; memset(&a,0,sizeof(a)); a.sin_len=sizeof(a); a.sin_family=AF_INET; a.sin_port=htons(port); a.sin_addr.s_addr=htonl(INADDR_ANY);
     if (bind((int)_sock,(struct sockaddr*)&a,sizeof(a))<0||listen((int)_sock,5)<0) { close((int)_sock); _sock=-1; NSLog(@"[StarCoreTweak] ❌ 端口%d bind/listen失败", port); return; }
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT,0),^{[self acceptLoop];});
-    NSLog(@"[StarCoreTweak] TCP :%d v8.1 [sendEvent Hook获取senderID]", port);
+    NSLog(@"[StarCoreTweak] TCP :%d v8.2 [sendEvent Hook获取senderID]", port);
 }
 
 - (void)acceptLoop {
@@ -968,7 +968,7 @@ static StarCoreTCPServer *_server = nil;
         uint64_t newSenderID = [req[@"value"] unsignedLongLongValue];
         if (newSenderID != 0) {
             g_realSenderID = newSenderID;
-            g_senderIDCapturing = NO;  // v8.1: 手动设置后停止捕获
+            g_senderIDCapturing = NO;  // v8.2: 手动设置后停止捕获
             // 保存到文件
             NSDictionary *saveDict = @{
                 @"senderID": @(g_realSenderID),
@@ -986,7 +986,7 @@ static StarCoreTCPServer *_server = nil;
     }
     
     else if([action isEqualToString:@"capture_senderid"]) {
-        // v8.1: 通过sendEvent hook捕获真实senderID
+        // v8.2: 通过sendEvent hook捕获真实senderID
         if (g_realSenderID != 0) {
             // 已经有真实senderID
             resp[@"success"] = @YES;
@@ -1095,7 +1095,7 @@ static StarCoreTCPServer *_server = nil;
 }
 @end
 
-// ==================== sendEvent Hook (v8.1: 安全获取真实senderID) ====================
+// ==================== sendEvent Hook (v8.2: 安全获取真实senderID) ====================
 
 %hook UIApplication
 - (void)sendEvent:(id)event {
@@ -1166,21 +1166,21 @@ static StarCoreTCPServer *_server = nil;
 %hook SpringBoard
 - (void)applicationDidFinishLaunching:(id)application {
     %orig;
-    NSLog(@"[StarCoreTweak] SpringBoard启动 v8.1 (sendEvent Hook获取senderID)");
+    NSLog(@"[StarCoreTweak] SpringBoard启动 v8.2 (sendEvent Hook获取senderID)");
     loadFunctions();
     
-    // ★ v8.1: 初始化senderID（从文件读取，无缓存则开启sendEvent捕获）
+    // ★ v8.2: 初始化senderID（从文件读取，无缓存则开启sendEvent捕获）
     initSenderID();
     
     _server = [[StarCoreTCPServer alloc] init];
     [_server startOnPort:kServerPort];
-    NSLog(@"[StarCoreTweak] v8.1 ready - senderID: 0x%llX (capturing=%d, 也可通过set_senderid设置)", g_realSenderID, g_senderIDCapturing);
+    NSLog(@"[StarCoreTweak] v8.2 ready - senderID: 0x%llX (capturing=%d, 也可通过set_senderid设置)", g_realSenderID, g_senderIDCapturing);
 }
 %end
 
 %ctor {
     %init;
-    NSLog(@"[StarCoreTweak] v8.1 loading in SpringBoard... (sendEvent Hook获取senderID)");
+    NSLog(@"[StarCoreTweak] v8.2 loading in SpringBoard... (sendEvent Hook获取senderID)");
 }
 
 %dtor { [_server stop]; }
