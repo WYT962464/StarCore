@@ -44,6 +44,24 @@ jobs:
           echo "Found app: $APP_DIR"
           ls -la "$APP_DIR/"
           
+          # Copy Info.plist and resources if missing
+          if [ ! -f "$APP_DIR/Info.plist" ]; then
+            echo "Adding Info.plist..."
+            cp ./StarCoreApp/Info.plist "$APP_DIR/"
+          fi
+          if [ ! -f "$APP_DIR/PkgInfo" ]; then
+            echo "Adding PkgInfo..."
+            echo -n "APPL????" > "$APP_DIR/PkgInfo"
+          fi
+          
+          # Copy LaunchScreen if exists in resources
+          if [ -d "./StarCoreApp/resources" ]; then
+            cp -R ./StarCoreApp/resources/* "$APP_DIR/" 2>/dev/null || true
+          fi
+          
+          echo "Final app contents:"
+          ls -laR "$APP_DIR/"
+          
           # Create proper IPA
           mkdir -p /tmp/IPA/Payload
           cp -R "$APP_DIR" /tmp/IPA/Payload/
@@ -63,8 +81,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Delete old v8.4 release if exists, recreate
-          gh release delete v8.4 --repo ${{ github.repository }} --yes || true
+          gh release upload v8.4 /tmp/StarCoreApp.ipa --repo ${{ github.repository }} --clobber || \
           gh release create v8.4 /tmp/StarCoreApp.ipa \
             --repo ${{ github.repository }} \
             --title "v8.4" \
