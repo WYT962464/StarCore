@@ -32,40 +32,40 @@ jobs:
           make clean
           make package
       
-      - name: Find IPA
-        id: find_ipa
+      - name: Package IPA from .app
         run: |
-          IPA_FILE=$(find ./StarCoreApp/.theos/obj -name "*.ipa" | head -1)
-          if [ -z "$IPA_FILE" ]; then
-            echo "No IPA found, checking for .app"
-            find ./StarCoreApp/.theos/obj -name "*.app" | head -5
-            # Try to package manually
-            APP_DIR=$(find ./StarCoreApp/.theos/obj -name "*.app" -type d | head -1)
-            if [ -n "$APP_DIR" ]; then
-              mkdir -p /tmp/IPA/Payload
-              cp -R "$APP_DIR" /tmp/IPA/Payload/
-              cd /tmp/IPA
-              zip -r StarCoreApp.ipa Payload/
-              IPA_FILE="/tmp/IPA/StarCoreApp.ipa"
-            fi
+          # Find the built .app bundle
+          APP_DIR=$(find ./StarCoreApp/.theos/obj -name "*.app" -type d | head -1)
+          if [ -z "$APP_DIR" ]; then
+            echo "No .app found"
+            find ./StarCoreApp/.theos/obj -type f | head -20
+            exit 1
           fi
-          echo "ipa_path=$IPA_FILE" >> $GITHUB_OUTPUT
-          echo "Found IPA: $IPA_FILE"
+          echo "Found app: $APP_DIR"
+          ls -la "$APP_DIR/"
+          
+          # Create proper IPA
+          mkdir -p /tmp/IPA/Payload
+          cp -R "$APP_DIR" /tmp/IPA/Payload/
+          cd /tmp/IPA
+          zip -r /tmp/StarCoreApp.ipa Payload/
+          echo "IPA created!"
+          ls -lh /tmp/StarCoreApp.ipa
       
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
         with:
           name: StarCoreApp-v84
-          path: ${{ steps.find_ipa.outputs.ipa_path }}
+          path: /tmp/StarCoreApp.ipa
           retention-days: 30
       
       - name: Upload to GitHub Release
-        if: steps.find_ipa.outputs.ipa_path != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          IPA_FILE="${{ steps.find_ipa.outputs.ipa_path }}"
-          if [ -f "$IPA_FILE" ]; then
-            gh release upload v8.4 "$IPA_FILE" --repo ${{ github.repository }} --clobber || \
-            gh release create v8.4 "$IPA_FILE" --repo ${{ github.repository }} --title "v8.4" --notes "StarCore App v8.4 - 免费LLM + 扣子功能移植"
-          fi
+          # Delete old v8.4 release if exists, recreate
+          gh release delete v8.4 --repo ${{ github.repository }} --yes || true
+          gh release create v8.4 /tmp/StarCoreApp.ipa \
+            --repo ${{ github.repository }} \
+            --title "v8.4" \
+            --notes "StarCore App v8.4 - 免费LLM + 扣子功能移植"
