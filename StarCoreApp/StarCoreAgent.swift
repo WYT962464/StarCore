@@ -1345,8 +1345,8 @@ class StarCoreAgent {
         completion: @escaping (String, [String]) -> Void
     ) {
         // 将[[String: String]]转为[[String: Any]]给StreamingLLM
-        let messagesAny = messages.map { msg -> [String: Any] in
-            return [String: Any](msg.mapValues { $0 })
+        let messagesAny: [[String: Any]] = messages.map { msg in
+            return msg.mapValues { value -> Any in return value }
         }
 
         var accumulated = ""
