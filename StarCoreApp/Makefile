@@ -1,4 +1,4 @@
-TARGET := iphone:clang:latest:15.0
+TARGET := iphone:clang:latest:14.0
 ARCHS = arm64 arm64e
 INSTALL_TARGET_PROCESSES = StarCoreApp
 
@@ -23,5 +23,6 @@ StarCoreApp_FRAMEWORKS = UIKit Foundation Network WebKit Photos
 StarCoreApp_CFLAGS = -fobjc-arc
 StarCoreApp_BUNDLE_NAME = StarCoreApp
 StarCoreApp_INSTALL_PATH = /Applications
+StarCoreApp_INFO_PLIST = Info.plist
 
 include $(THEOS)/makefiles/application.mk
