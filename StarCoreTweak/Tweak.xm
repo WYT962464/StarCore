@@ -822,7 +822,7 @@ static StarCoreTCPServer *_server = nil;
     if(!req||![req isKindOfClass:[NSDictionary class]]) return @{@"success":@NO,@"error":@"invalid JSON"};
     NSString *action=req[@"action"]; NSNumber *mid=req[@"id"]?:@0; NSMutableDictionary *resp=[@{@"id":mid} mutableCopy];
     
-    if([action isEqualToString:@"ping"]) { resp[@"success"]=@YES; resp[@"message"]=@"pong"; resp[@"version"]=@"7.0"; }
+    if([action isEqualToString:@"ping"]) { resp[@"success"]=@YES; resp[@"message"]=@"pong"; resp[@"version"]=@"8.0"; }
     
     else if([action isEqualToString:@"tap"]) {
         float x=[req[@"x"] floatValue],y=[req[@"y"] floatValue];
@@ -958,7 +958,7 @@ static StarCoreTCPServer *_server = nil;
     
     else if([action isEqualToString:@"set_senderid"]) {
         // v8.0: 手动设置senderID（替代被移除的回调机制）
-        uint64_t newSenderID = [dict[@"value"] unsignedLongLongValue];
+        uint64_t newSenderID = [req[@"value"] unsignedLongLongValue];
         if (newSenderID != 0) {
             g_realSenderID = newSenderID;
             // 保存到文件
