@@ -1,18 +1,23 @@
 /**
- * StarCoreTweak.xm v8.0 - SpringBoard崩溃修复
+ * StarCoreTweak.xm v8.1 - sendEvent Hook获取真实senderID
  * 
- * v8.0 修复清单：
- * 1. 🔥 移除IOHIDEventSystemClient回调注册机制（导致SpringBoard崩溃的根因）
- *    - IOHIDEventSystemClientRegisterEventCallback注册的回调在RunLoop触发时跳到空地址
- *    - 导致EXC_BAD_ACCESS (SIGSEGV) at 0x0000000000000000
- *    - 移除所有回调注册相关代码：ScheduleWithRunLoop、RegisterEventCallback等
- * 2. senderID获取方式改为安全方案：
- *    - 保留从文件读取senderID的逻辑
- *    - 如果文件不存在，使用硬编码的senderID作为fallback
- *    - 新增set_senderid命令，允许手动设置senderID并写入文件
- * 3. 删除不再需要的函数指针和全局变量
- * 4. 保留所有触摸注入功能（tap/swipe等）
- * 5. 保留TCP server 6000端口的完整功能
+ * v8.1 更新清单：
+ * 1. ✨ 新增sendEvent Hook机制获取真实senderID
+ *    - Hook -[UIApplication sendEvent:] 拦截SpringBoard已处理的触摸事件
+ *    - 从UIEvent中提取IOHIDEvent的senderID（通过_hidEvent私有API）
+ *    - 获取到真实senderID后自动停止拦截（性能无影响）
+ *    - 不注册新RunLoop回调，不创建新IOHIDEventSystemClient
+ * 2. 新增capture_senderid命令（TCP 6000端口）
+ *    - 主动开启捕获模式，提示用户触摸屏幕
+ * 3. initSenderID()中自动开启捕获（文件无缓存时）
+ * 4. 更新diagnose输出，添加senderIDCapturing字段
+ * 5. 保留set_senderid命令不变
+ * 
+ * v8.0 修复清单（继承）：
+ * - 移除IOHIDEventSystemClient回调注册机制（导致SpringBoard崩溃的根因）
+ * - 保留从文件读取senderID的逻辑
+ * - 保留所有触摸注入功能（tap/swipe等）
+ * - 保留TCP server 6000端口的完整功能
  */
 
 #import <UIKit/UIKit.h>
@@ -106,11 +111,12 @@ static void bksInjectHIDEvent(id bks, void *event) {
 
 // ==================== senderID自动获取机制 ====================
 static uint64_t g_realSenderID = 0;
+static BOOL g_senderIDCapturing = NO;  // v8.1: 是否正在通过sendEvent hook捕获senderID
 static NSString *g_senderIDFilePath = @"/var/mobile/Library/StarCore/senderid.plist";
 
 // senderIDCallback已移除（v8.0崩溃修复：回调注册导致SpringBoard崩溃）
 
-// 初始化：从文件读取senderID，不存在则使用硬编码fallback
+// 初始化：从文件读取senderID，不存在则开启sendEvent捕获
 static void initSenderID() {
     // 尝试从文件读取
     NSDictionary *data = [NSDictionary dictionaryWithContentsOfFile:g_senderIDFilePath];
@@ -125,15 +131,16 @@ static void initSenderID() {
                 return;
             }
         } else {
-            NSLog(@"[StarCoreTweak] senderID文件已过期（设备已重启），将使用硬编码fallback");
+            NSLog(@"[StarCoreTweak] senderID文件已过期（设备已重启），将开启sendEvent捕获");
         }
     } else {
-        NSLog(@"[StarCoreTweak] senderID文件不存在，将使用硬编码fallback");
+        NSLog(@"[StarCoreTweak] senderID文件不存在，将开启sendEvent捕获");
     }
     
-    // 不再注册回调（v8.0：回调注册导致SpringBoard崩溃）
-    // 使用硬编码senderID作为fallback，可通过set_senderid命令手动设置
-    NSLog(@"[StarCoreTweak] 当前使用硬编码senderID: 0x%llX（可通过set_senderid命令手动设置）", kIOHIDEventDigitizerSenderID);
+    // v8.1: 不再使用硬编码fallback，而是开启sendEvent hook捕获真实senderID
+    // 当用户触摸屏幕时，hook会从真实的触摸事件中提取senderID
+    g_senderIDCapturing = YES;
+    NSLog(@"[StarCoreTweak] sendEvent hook已启用，等待真实触摸获取senderID... (也可通过set_senderid命令手动设置)");
 }
 
 // 获取当前应使用的senderID（真实优先，fallback硬编码）
@@ -356,7 +363,7 @@ static bool loadFunctions() {
     NSLog(@"[StarCoreTweak] IOHIDEventGetSenderID = %@", IOHIDEventGetSenderIDFunc ? @"✅ OK" : @"❌ NULL");
     
     success = true;
-    NSLog(@"[StarCoreTweak] ✅ v8.0 函数加载成功");
+    NSLog(@"[StarCoreTweak] ✅ v8.1 函数加载成功");
     return true;
 }
 
@@ -795,7 +802,7 @@ static StarCoreTCPServer *_server = nil;
     struct sockaddr_in a; memset(&a,0,sizeof(a)); a.sin_len=sizeof(a); a.sin_family=AF_INET; a.sin_port=htons(port); a.sin_addr.s_addr=inet_addr("127.0.0.1");
     if (bind((int)_sock,(struct sockaddr*)&a,sizeof(a))<0||listen((int)_sock,5)<0) { close((int)_sock); _sock=-1; NSLog(@"[StarCoreTweak] ❌ 端口%d bind/listen失败", port); return; }
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT,0),^{[self acceptLoop];});
-    NSLog(@"[StarCoreTweak] TCP :%d v7.0 [senderID修复]", port);
+    NSLog(@"[StarCoreTweak] TCP :%d v8.1 [sendEvent Hook获取senderID]", port);
 }
 
 - (void)acceptLoop {
@@ -822,7 +829,7 @@ static StarCoreTCPServer *_server = nil;
     if(!req||![req isKindOfClass:[NSDictionary class]]) return @{@"success":@NO,@"error":@"invalid JSON"};
     NSString *action=req[@"action"]; NSNumber *mid=req[@"id"]?:@0; NSMutableDictionary *resp=[@{@"id":mid} mutableCopy];
     
-    if([action isEqualToString:@"ping"]) { resp[@"success"]=@YES; resp[@"message"]=@"pong"; resp[@"version"]=@"8.0"; }
+    if([action isEqualToString:@"ping"]) { resp[@"success"]=@YES; resp[@"message"]=@"pong"; resp[@"version"]=@"8.1"; }
     
     else if([action isEqualToString:@"tap"]) {
         float x=[req[@"x"] floatValue],y=[req[@"y"] floatValue];
@@ -961,6 +968,7 @@ static StarCoreTCPServer *_server = nil;
         uint64_t newSenderID = [req[@"value"] unsignedLongLongValue];
         if (newSenderID != 0) {
             g_realSenderID = newSenderID;
+            g_senderIDCapturing = NO;  // v8.1: 手动设置后停止捕获
             // 保存到文件
             NSDictionary *saveDict = @{
                 @"senderID": @(g_realSenderID),
@@ -974,6 +982,22 @@ static StarCoreTCPServer *_server = nil;
         } else {
             resp[@"success"] = @NO;
             resp[@"error"] = @"invalid value: must be non-zero uint64";
+        }
+    }
+    
+    else if([action isEqualToString:@"capture_senderid"]) {
+        // v8.1: 通过sendEvent hook捕获真实senderID
+        if (g_realSenderID != 0) {
+            // 已经有真实senderID
+            resp[@"success"] = @YES;
+            resp[@"senderID"] = [NSString stringWithFormat:@"0x%llX", g_realSenderID];
+            resp[@"source"] = @"already_captured";
+        } else {
+            g_senderIDCapturing = YES;
+            resp[@"success"] = @YES;
+            resp[@"message"] = @"Waiting for real touch event...";
+            resp[@"hint"] = @"Touch the screen now to capture senderID";
+            NSLog(@"[StarCoreTweak] capture_senderid: 已开启捕获，等待触摸...");
         }
     }
     
@@ -1000,13 +1024,14 @@ static StarCoreTCPServer *_server = nil;
         
         resp[@"success"]=@YES;
         resp[@"diagnostics"]=@{
-            @"version": @"8.0",
+            @"version": @"8.1",
             @"approach": @"senderID",
             @"iokitHandle": g_iokitHandle?@"OK":@"NULL",
             @"bbsHandle": g_bbsHandle?@"OK":@"NULL",
             @"BKHIDSystemInterface": (bksSharedInstance() != nil) ? @"OK":@"NULL",
             @"realSenderID": g_realSenderID!=0?[NSString stringWithFormat:@"0x%llX",g_realSenderID]:@"未获取",
             @"senderIDSource": senderIDSource,
+            @"senderIDCapturing": @(g_senderIDCapturing),
             @"createDigitizerEvent": IOHIDEventCreateDigitizerEventFunc?@"OK":@"NULL",
             @"createKeyboardEvent": IOHIDEventCreateKeyboardEventFunc?@"OK":@"NULL",
             @"eventSystemClientDispatchEvent": IOHIDEventSystemClientDispatchEventFunc?@"OK":@"NULL",
@@ -1070,26 +1095,92 @@ static StarCoreTCPServer *_server = nil;
 }
 @end
 
+// ==================== sendEvent Hook (v8.1: 安全获取真实senderID) ====================
+
+%hook UIApplication
+- (void)sendEvent:(id)event {
+    %orig;
+    
+    // 只在需要捕获senderID时处理，获取到后立即停止（性能零影响）
+    if (g_senderIDCapturing && g_realSenderID == 0 && IOHIDEventGetSenderIDFunc) {
+        @try {
+            // UIEvent中包含IOHIDEvent，通过私有API _hidEvent 获取
+            IOHIDEventRef hidEvent = NULL;
+            
+            // 方法1: 尝试 _hidEvent 私有属性
+            if ([event respondsToSelector:@selector(_hidEvent)]) {
+                id hidEventObj = [event performSelector:@selector(_hidEvent)];
+                if (hidEventObj) {
+                    hidEvent = (__bridge IOHIDEventRef)hidEventObj;
+                }
+            }
+            
+            // 方法2: 尝试 KVC 获取 _hidEvent
+            if (!hidEvent) {
+                @try {
+                    id hidEventObj = [event valueForKey:@"_hidEvent"];
+                    if (hidEventObj) {
+                        hidEvent = (__bridge IOHIDEventRef)hidEventObj;
+                    }
+                } @catch (NSException *e) {
+                    // KVC失败，静默忽略
+                }
+            }
+            
+            // 方法3: 尝试 _systemEvent 私有属性
+            if (!hidEvent) {
+                @try {
+                    id sysEvent = [event valueForKey:@"_systemEvent"];
+                    if (sysEvent) {
+                        hidEvent = (__bridge IOHIDEventRef)sysEvent;
+                    }
+                } @catch (NSException *e) {}
+            }
+            
+            if (hidEvent) {
+                uint64_t sid = IOHIDEventGetSenderIDFunc(hidEvent);
+                // 过滤掉硬编码值和0值，只接受真实的硬件senderID
+                if (sid != 0 && sid != kIOHIDEventDigitizerSenderID) {
+                    g_realSenderID = sid;
+                    g_senderIDCapturing = NO;
+                    NSLog(@"[StarCoreTweak] ✅ 从sendEvent获取到真实senderID: 0x%llX", sid);
+                    
+                    // 保存到文件，下次启动可直接使用
+                    NSDictionary *dict = @{
+                        @"senderID": @(sid),
+                        @"bootTime": @([[NSDate date] timeIntervalSince1970] - [NSProcessInfo processInfo].systemUptime)
+                    };
+                    [dict writeToFile:g_senderIDFilePath atomically:YES];
+                    NSLog(@"[StarCoreTweak] senderID已保存到文件");
+                }
+            }
+        } @catch (NSException *e) {
+            NSLog(@"[StarCoreTweak] sendEvent hook异常: %@", e);
+        }
+    }
+}
+%end
+
 // ==================== 进程入口 ====================
 
 %hook SpringBoard
 - (void)applicationDidFinishLaunching:(id)application {
     %orig;
-    NSLog(@"[StarCoreTweak] SpringBoard启动 v8.0 (崩溃修复版)");
+    NSLog(@"[StarCoreTweak] SpringBoard启动 v8.1 (sendEvent Hook获取senderID)");
     loadFunctions();
     
-    // ★ v8.0: 初始化senderID（仅从文件读取，不再注册回调）
+    // ★ v8.1: 初始化senderID（从文件读取，无缓存则开启sendEvent捕获）
     initSenderID();
     
     _server = [[StarCoreTCPServer alloc] init];
     [_server startOnPort:kServerPort];
-    NSLog(@"[StarCoreTweak] v8.0 ready - senderID: 0x%llX (0=使用硬编码fallback，可通过set_senderid设置)", g_realSenderID);
+    NSLog(@"[StarCoreTweak] v8.1 ready - senderID: 0x%llX (capturing=%d, 也可通过set_senderid设置)", g_realSenderID, g_senderIDCapturing);
 }
 %end
 
 %ctor {
     %init;
-    NSLog(@"[StarCoreTweak] v8.0 loading in SpringBoard... (崩溃修复版)");
+    NSLog(@"[StarCoreTweak] v8.1 loading in SpringBoard... (sendEvent Hook获取senderID)");
 }
 
 %dtor { [_server stop]; }

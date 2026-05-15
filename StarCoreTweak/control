@@ -1,8 +1,8 @@
 Package: com.starcore.tweak
 Name: StarCoreTweak
-Version: 5.10.0
+Version: 5.11.0
 Architecture: iphoneos-arm64
-Description: StarCore Tweak v5.10 - SpringBoard崩溃修复+移除回调注册
+Description: StarCore Tweak v5.11 - sendEvent Hook获取真实senderID
 Maintainer: StarCore
 Author: StarCore
 Section: Tweaks
