@@ -904,7 +904,7 @@ static StarCoreTCPServer *_server = nil;
             posix_spawn_file_actions_addopen(&actions, STDOUT_FILENO, tmpPath, O_WRONLY|O_CREAT|O_TRUNC, 0644);
             posix_spawn_file_actions_adddup2(&actions, STDOUT_FILENO, STDERR_FILENO);
             char *argv[] = {(char*)"/bin/sh", (char*)"-c", (char*)[cmd UTF8String], NULL};
-            char *envp[] = {(char*)"PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin", (char*)"HOME=/var/mobile", NULL};
+            char *envp[] = {(char*)"PATH=/var/jb/usr/local/bin:/var/jb/usr/bin:/var/jb/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin", (char*)"HOME=/var/mobile", NULL};
             setuid(0);
             pid_t pid;
             int spawnResult = posix_spawn(&pid, "/bin/sh", &actions, NULL, argv, envp);
@@ -929,6 +929,21 @@ static StarCoreTCPServer *_server = nil;
                 resp[@"exitCode"] = @(WIFEXITED(status) ? WEXITSTATUS(status) : -1);
             }
         }
+    }
+    
+    else if([action isEqualToString:@"setClipboard"]) {
+        NSString *text = req[@"text"];
+        if (!text) { resp[@"success"]=@NO; resp[@"error"]=@"text required"; }
+        else {
+            [%c(UIPasteboard) generalPasteboard].string = text;
+            resp[@"success"]=@YES;
+            resp[@"message"]=@"clipboard set";
+        }
+    }
+    else if([action isEqualToString:@"getClipboard"]) {
+        NSString *clip = [%c(UIPasteboard) generalPasteboard].string;
+        resp[@"success"]=@YES;
+        resp[@"text"]= clip ?: @"";
     }
     
     else if([action isEqualToString:@"openApp"]) {
