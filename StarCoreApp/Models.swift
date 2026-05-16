@@ -41,6 +41,9 @@ struct ChatMessage: Codable {
 }
 
 // MARK: - LLM Provider
+// ★ v10.3: 设置版本号，升级时自动重置UserDefaults
+let SETTINGS_VERSION = "10.3"
+
 struct LLMProvider: Codable {
     let name: String
     let url: String
@@ -60,7 +63,7 @@ struct LLMProvider: Codable {
         name: "火山方舟-DeepSeek-V3",
         url: "https://ark.cn-beijing.volces.com/api/v3/chat/completions",
         model: "ep-20260510055844-7bsvl",
-        apiKey: ""
+        apiKey: "ark-5db3deab-6e44-46f5-ad83-95877754bc4d-27897"
     )
 
     static let deepseek = LLMProvider(

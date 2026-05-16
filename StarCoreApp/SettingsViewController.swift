@@ -567,7 +567,7 @@ class SettingsViewController: UIViewController {
 
     private func addVersionInfo(below aboveView: UIView) -> UIView {
         let label = UILabel()
-        label.text = "星核 v9.1 | StarCore Native\n免费LLM · 自研Tweak · Agent循环 · 记忆管理"
+        label.text = "星核 v10.3 | StarCore Native\n开箱即用 · 自研Tweak · Agent循环 · 记忆管理"
         label.font = UIFont.systemFont(ofSize: 13)
         label.textColor = UIColor(white: 1, alpha: 0.3)
         label.textAlignment = .center
@@ -578,7 +578,7 @@ class SettingsViewController: UIViewController {
         NSLayoutConstraint.activate([
             label.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
             label.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
-            label.topAnchor.constraint(equalTo: aboveView.bottomAnchor, constant: 16)
+            label.topAnchor.constraint(equalTo: updateButton.bottomAnchor, constant: 16)
         ])
 
         return label
@@ -639,5 +639,53 @@ class SettingsViewController: UIViewController {
         updateTweakStatusLabel(StarCoreAgent.shared.getTweakStatus())
         updateMcpStatusLabel(StarCoreAgent.shared.getMcpStatus())
         updateKeyHintText()
+    }
+
+    // MARK: - Online Update (v10.3)
+
+    @objc private func checkForUpdate() {
+        let alert = UIAlertController(title: "检查更新", message: "正在检查最新版本...", preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "取消", style: .cancel))
+        present(alert, animated: true)
+
+        guard let url = URL(string: "https://api.github.com/repos/WYT962464/StarCore/releases/latest") else { return }
+
+        let task = URLSession.shared.dataTask(with: url) { [weak self] data, response, error in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+
+                guard let data = data,
+                      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                      let tagName = json["tag_name"] as? String,
+                      let assets = json["assets"] as? [[String: Any]] else {
+                    alert.message = "❌ 无法获取版本信息"
+                    return
+                }
+
+                let currentVersion = "v10.3"
+                if tagName == currentVersion || tagName <= currentVersion {
+                    alert.message = "✅ 已是最新版本 (\(currentVersion))"
+                    return
+                }
+
+                // 找到IPA下载链接
+                let ipaAsset = assets.first { ($0["name"] as? String)?.hasSuffix(".ipa") == true }
+                let downloadURL = ipaAsset?["browser_download_url"] as? String
+
+                alert.message = "🆕 发现新版本 \(tagName)！\n\n当前: \(currentVersion)\n最新: \(tagName)"
+
+                if let downloadURL = downloadURL, let url = URL(string: downloadURL) {
+                    alert.addAction(UIAlertAction(title: "📥 下载更新", style: .default) { _ in
+                        // 在Safari中打开下载链接，iOS会提示安装
+                        if #available(iOS 10.0, *) {
+                            UIApplication.shared.open(url, options: [:])
+                        } else {
+                            UIApplication.shared.openURL(url)
+                        }
+                    })
+                }
+            }
+        }
+        task.resume()
     }
 }

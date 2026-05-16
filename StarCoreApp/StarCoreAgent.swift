@@ -71,7 +71,21 @@ class StarCoreAgent {
 """
 
     private init() {
+        migrateSettingsIfNeeded()
         checkTweakConnection()
+    }
+
+    // ★ v10.3: 版本升级时重置UserDefaults（清除旧残留配置）
+    private func migrateSettingsIfNeeded() {
+        let savedVersion = defaults.string(forKey: "settingsVersion") ?? "0"
+        if savedVersion != SETTINGS_VERSION {
+            starcore_log("[StarCore] Settings version mismatch: \(savedVersion) -> \(SETTINGS_VERSION), resetting providers")
+            // 清除旧的providers数据，让代码默认值生效（包含预填的API Key）
+            defaults.removeObject(forKey: "providers")
+            defaults.removeObject(forKey: "currentProviderIndex")
+            defaults.removeObject(forKey: "chatHistory")
+            defaults.set(SETTINGS_VERSION, forKey: "settingsVersion")
+        }
     }
 
     // MARK: - Settings Accessors
