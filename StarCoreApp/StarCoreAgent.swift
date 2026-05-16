@@ -17,7 +17,7 @@ class StarCoreAgent {
     private var isMcpInitialized = false
 
     private var tweakConnection: NWConnection?
-    private var isTweakConnected = false
+    var isTweakConnected = false
 
     // Callbacks
     var onTweakStatusChanged: ((Bool) -> Void)?
