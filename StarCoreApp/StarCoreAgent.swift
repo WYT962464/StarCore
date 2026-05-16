@@ -1129,7 +1129,7 @@ class StarCoreAgent {
                     step: step + 1,
                     maxSteps: maxSteps,
                     allReplies: newAllReplies,
-                    allAllActionResults: newAllActionResults,
+                    allActionResults: newAllActionResults,
                     onToken: onToken,
                     onStatus: onStatus,
                     completion: completion
