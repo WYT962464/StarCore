@@ -566,6 +566,24 @@ class SettingsViewController: UIViewController {
     // MARK: - Version Info
 
     private func addVersionInfo(below aboveView: UIView) -> UIView {
+        // ★ v10.3: 在线更新按钮
+        let updateButton = UIButton(type: .system)
+        updateButton.setTitle("🔄 检查更新", for: .normal)
+        updateButton.setTitleColor(UIColor(red: 0x60/255, green: 0xa5/255, blue: 0xfa/255, alpha: 1.0), for: .normal)
+        updateButton.titleLabel?.font = UIFont.systemFont(ofSize: 14)
+        updateButton.backgroundColor = UIColor(white: 1, alpha: 0.04)
+        updateButton.layer.cornerRadius = 10
+        updateButton.translatesAutoresizingMaskIntoConstraints = false
+        updateButton.addTarget(self, action: #selector(checkForUpdate), for: .touchUpInside)
+        contentView.addSubview(updateButton)
+
+        NSLayoutConstraint.activate([
+            updateButton.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+            updateButton.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
+            updateButton.topAnchor.constraint(equalTo: aboveView.bottomAnchor, constant: rowGap),
+            updateButton.heightAnchor.constraint(equalToConstant: 46)
+        ])
+
         let label = UILabel()
         label.text = "星核 v10.3 | StarCore Native\n开箱即用 · 自研Tweak · Agent循环 · 记忆管理"
         label.font = UIFont.systemFont(ofSize: 13)
