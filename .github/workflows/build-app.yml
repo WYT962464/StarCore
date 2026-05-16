@@ -73,7 +73,7 @@ jobs:
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
         with:
-          name: StarCoreApp-v84
+          name: StarCoreApp-v103
           path: /tmp/StarCoreApp.ipa
           retention-days: 30
       
@@ -81,8 +81,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release upload v8.4 /tmp/StarCoreApp.ipa --repo ${{ github.repository }} --clobber || \
-          gh release create v8.4 /tmp/StarCoreApp.ipa \
+          gh release upload v10.3 /tmp/StarCoreApp.ipa --repo ${{ github.repository }} --clobber || \
+          gh release create v10.3 /tmp/StarCoreApp.ipa \
             --repo ${{ github.repository }} \
-            --title "v8.4" \
-            --notes "StarCore App v8.4 - 免费LLM + 扣子功能移植"
+            --title "v10.3" \
+            --notes "StarCore App v10.3 - 开箱即用+在线更新"

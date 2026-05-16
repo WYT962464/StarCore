@@ -63,7 +63,7 @@ struct LLMProvider: Codable {
         name: "火山方舟-DeepSeek-V3",
         url: "https://ark.cn-beijing.volces.com/api/v3/chat/completions",
         model: "ep-20260510055844-7bsvl",
-        apiKey: "ark-5db3deab-6e44-46f5-ad83-95877754bc4d-27897"
+        apiKey: ""
     )
 
     static let deepseek = LLMProvider(

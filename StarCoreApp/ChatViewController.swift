@@ -1128,7 +1128,7 @@ class ImageBubbleCell: UITableViewCell {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let base64Cmd = "base64 -i \(path) 2>/dev/null | head -c 50000"
             if let result = StarCoreAgent.shared.tweakCmd(action: "shell", params: ["command": base64Cmd], timeout: 10),
-               let raw = result["raw"] as? String,
+               let raw = result["output"] as? String,
                let data = Data(base64Encoded: raw.trimmingCharacters(in: .whitespacesAndNewlines)),
                let image = UIImage(data: data) {
                 DispatchQueue.main.async {

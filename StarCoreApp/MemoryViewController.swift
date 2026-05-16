@@ -1065,7 +1065,7 @@ class ImageViewerViewController: UIViewController {
         // Fallback: try via Tweak
         let base64Cmd = "base64 -i \(imagePath) 2>/dev/null | head -c 100000"
         if let result = StarCoreAgent.shared.tweakCmd(action: "shell", params: ["command": base64Cmd], timeout: 10),
-           let raw = result["raw"] as? String,
+           let raw = result["output"] as? String,
            let data = Data(base64Encoded: raw.trimmingCharacters(in: .whitespacesAndNewlines)),
            let image = UIImage(data: data) {
             imageView.image = image
