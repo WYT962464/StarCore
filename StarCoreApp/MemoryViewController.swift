@@ -47,7 +47,16 @@ class MemoryViewController: UIViewController {
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
-        loadData()
+        // ★ v10.2: Tweak连上后再loadData，否则沙盒App读不到文件
+        if StarCoreAgent.shared.isTweakConnected {
+            loadData()
+        } else {
+            // 等Tweak连上
+            StarCoreAgent.shared.checkTweakConnection()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                self?.loadData()
+            }
+        }
     }
 
     override var preferredStatusBarStyle: UIStatusBarStyle {

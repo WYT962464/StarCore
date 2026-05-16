@@ -104,7 +104,7 @@ class MemoryManager {
         // Fallback: use Tweak shell command (works in sandboxed全能签 App)
         let cmd = "ls -d \(memoryPath) 2>/dev/null && echo EXISTS"
         if let result = StarCoreAgent.shared.tweakCmd(action: "shell", params: ["command": cmd]),
-           let raw = result["raw"] as? String, raw.contains("EXISTS") {
+           let raw = result["output"] as? String, raw.contains("EXISTS") {
             return true
         }
         return false
@@ -123,7 +123,7 @@ class MemoryManager {
                 // Fallback: use Tweak shell to check existence and get size
                 let checkCmd = "stat -f%z \(path) 2>/dev/null"
                 if let result = StarCoreAgent.shared.tweakCmd(action: "shell", params: ["command": checkCmd]),
-                   let raw = result["raw"] as? String {
+                   let raw = result["output"] as? String {
                     let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
                     if let fileSize = Int(trimmed), fileSize > 0 {
                         exists = true
@@ -173,7 +173,7 @@ class MemoryManager {
         // Fallback: use Tweak shell
         let cmd = "ls -1 \(directoryPath) 2>/dev/null"
         if let result = StarCoreAgent.shared.tweakCmd(action: "shell", params: ["command": cmd]),
-           let raw = result["raw"] as? String {
+           let raw = result["output"] as? String {
             let names = raw.components(separatedBy: "\n").filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
             for name in names {
                 let trimmed = name.trimmingCharacters(in: .whitespaces)
@@ -215,7 +215,7 @@ class MemoryManager {
         // Fallback: use Tweak shell
         let statCmd = "stat -f '%z %Sm' \(path) 2>/dev/null"
         if let result = StarCoreAgent.shared.tweakCmd(action: "shell", params: ["command": statCmd]),
-           let raw = result["raw"] as? String, !raw.trimmingCharacters(in: .whitespaces).isEmpty {
+           let raw = result["output"] as? String, !raw.trimmingCharacters(in: .whitespaces).isEmpty {
             let name = (path as NSString).lastPathComponent
             let isDir = path.hasSuffix("/")
             var size: Int64 = 0
@@ -290,7 +290,7 @@ class MemoryManager {
             fileManager.createFile(atPath: tmpPath, contents: data)
             let cmd = "cp \(tmpPath) \(filePath) 2>/dev/null && echo OK"
             if let result = StarCoreAgent.shared.tweakCmd(action: "shell", params: ["command": cmd]),
-               let raw = result["raw"] as? String, raw.contains("OK") {
+               let raw = result["output"] as? String, raw.contains("OK") {
                 return filePath
             }
         }
@@ -324,7 +324,7 @@ class MemoryManager {
             fileManager.createFile(atPath: tmpPath, contents: pngData)
             let cmd = "cp \(tmpPath) \(filePath) 2>/dev/null && echo OK"
             if let result = StarCoreAgent.shared.tweakCmd(action: "shell", params: ["command": cmd]),
-               let raw = result["raw"] as? String, raw.contains("OK") {
+               let raw = result["output"] as? String, raw.contains("OK") {
                 return filePath
             }
         }
@@ -349,7 +349,7 @@ class MemoryManager {
         // Fallback: use Tweak shell command to read file (bypasses sandbox)
         let catCmd = "cat \(path) 2>/dev/null"
         if let result = StarCoreAgent.shared.tweakCmd(action: "shell", params: ["command": catCmd], timeout: 3),
-           let raw = result["raw"] as? String, !raw.isEmpty {
+           let raw = result["output"] as? String, !raw.isEmpty {
             let content = raw.trimmingCharacters(in: .whitespacesAndNewlines)
             if !content.isEmpty {
                 if maxChars > 0 && content.count > maxChars {
