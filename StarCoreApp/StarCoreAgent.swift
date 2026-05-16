@@ -1377,62 +1377,7 @@ class StarCoreAgent {
         onStatus: ((String) -> Void)?,
         completion: @escaping (String, [String]) -> Void
     ) {
-        // 火山方舟doubao-seed深度思考模型的流式SSE里content为空，
-        // reasoning_content才有内容，但流式解析不稳定
-        // → 对火山方舟改用非流式请求（非流式返回完整JSON，content和reasoning_content都有值）
-        if currentProvider.name.contains("火山方舟") {
-            onStatus?("🤔 思考中...")
-            callLLMWithFallback(messages: messages) { [weak self] result in
-                guard let self = self else { return }
-                NSLog("[StarCore] Agent non-stream completion received")
-                let reply: String
-                switch result {
-                case .success(let text):
-                    reply = text
-                    NSLog("[StarCore] Agent non-stream success: \(reply.prefix(80))")
-                case .failure(let error):
-                    reply = "❌ 请求失败：\(error.localizedDescription)"
-                }
-                onStatus?("")
-                // 一次性输出全部内容
-                if !reply.isEmpty {
-                    onToken(reply)
-                }
-                let clean = self.processLLMReply(reply)
-                var newAllReplies = allReplies
-                var newAllActionResults = allActionResults
-                if !clean.0.isEmpty && clean.0 != "..." && clean.0 != "已执行 ✓" {
-                    newAllReplies.append(clean.0)
-                }
-                newAllActionResults.append(contentsOf: clean.1)
-                let hadActions = !clean.1.isEmpty
-                if hadActions && step < maxSteps {
-                    onStatus?("🔧 执行操作中... (第\(step)步)")
-                    let actionResultMsg = self.buildActionResultMessage(actions: clean.1, step: step)
-                    var nextMessages = messages
-                    nextMessages.append(["role": "assistant", "content": reply])
-                    nextMessages.append(["role": "user", "content": actionResultMsg])
-                    self.agentLoopStreaming(
-                        messages: nextMessages,
-                        step: step + 1,
-                        maxSteps: maxSteps,
-                        allReplies: newAllReplies,
-                        allActionResults: newAllActionResults,
-                        onToken: onToken,
-                        onStatus: onStatus,
-                        completion: completion
-                    )
-                } else {
-                    let finalReply = newAllReplies.isEmpty ? clean.0 : newAllReplies.joined(separator: "\n\n")
-                    let assistantMsg = ChatMessage(role: .assistant, content: finalReply, actionResults: newAllActionResults)
-                    self.addToHistory(assistantMsg)
-                    completion(finalReply, newAllActionResults)
-                }
-            }
-            return
-        }
 
-        // 其他Provider走流式
         // 将[[String: String]]转为[[String: Any]]给StreamingLLM
         let messagesAny: [[String: Any]] = messages.map { msg in
             return msg.mapValues { value -> Any in return value }
@@ -1456,12 +1401,12 @@ class StarCoreAgent {
             completion: { [weak self] result in
                 guard let self = self else { return }
 
-                NSLog("[StarCore] Agent completion received, accumulated=\(accumulated.count)chars")
+                starcore_log("[StarCore] Agent completion received, accumulated=\(accumulated.count)chars")
                 let reply: String
                 switch result {
                 case .success(let text):
                     reply = text
-                    NSLog("[StarCore] Agent success reply: \(text.prefix(80))")
+                    starcore_log("[StarCore] Agent success reply: \(text.prefix(80))")
                 case .failure(let error):
                     // 访客模式失败时，给出友好提示
                     let errMsg = error.localizedDescription
@@ -1511,7 +1456,7 @@ class StarCoreAgent {
                     )
                 } else {
                     // Agent循环结束
-                    NSLog("[StarCore] Agent loop done, finalReply preview: \(newAllReplies.first?.prefix(50) ?? "nil")")
+                    starcore_log("[StarCore] Agent loop done, finalReply preview: \(newAllReplies.first?.prefix(50) ?? "nil")")
                     onStatus?("")
                     let finalReply = newAllReplies.isEmpty ? clean.0 : newAllReplies.joined(separator: "\n\n")
                     let assistantMsg = ChatMessage(role: .assistant, content: finalReply, actionResults: newAllActionResults)
@@ -1561,12 +1506,12 @@ class StarCoreAgent {
             },
             completion: { [weak self] result in
                 guard let self = self else { return }
-                NSLog("[StarCore] Agent completion received, accumulated=\(accumulated.count)chars")
+                starcore_log("[StarCore] Agent completion received, accumulated=\(accumulated.count)chars")
                 let reply: String
                 switch result {
                 case .success(let text):
                     reply = text
-                    NSLog("[StarCore] Agent success reply: \(text.prefix(80))")
+                    starcore_log("[StarCore] Agent success reply: \(text.prefix(80))")
                 case .failure(let error):
                     let errMsg = error.localizedDescription
                     if self.currentProvider.isGuestMode {

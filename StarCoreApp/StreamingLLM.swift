@@ -1,5 +1,28 @@
 import Foundation
 
+// MARK: - Debug Log to file (Filza可查看)
+func starcore_log(_ msg: String) {
+    NSLog("[StarCore] %@", msg)
+    let path = "/var/mobile/StarCore/llm_debug.log"
+    if let handle = FileHandle(forWritingAtPath: path) {
+        handle.seekToEndOfFile()
+    } else {
+        FileManager.default.createFile(atPath: path, contents: nil)
+    }
+    if let handle = FileHandle(forWritingAtPath: path) {
+        handle.seekToEndOfFile()
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm:ss.SSS"
+        let ts = formatter.string(from: Date())
+        let line = "[\(ts)] \(msg)
+"
+        if let data = line.data(using: .utf8) {
+            handle.write(data)
+        }
+        handle.closeFile()
+    }
+}
+
 // MARK: - SSE Streaming LLM 封装
 // 兼容 iOS 14，使用 URLSessionDataDelegate 方式处理SSE流
 class StreamingLLM: NSObject, URLSessionDataDelegate {
@@ -108,7 +131,7 @@ class StreamingLLM: NSObject, URLSessionDataDelegate {
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
         guard let text = String(data: data, encoding: .utf8) else { return }
-        NSLog("[StarCore] didReceive \(text.count) bytes")
+        starcore_log("didReceive \(text.count) bytes")
         buffer += text
 
         // 按行处理SSE数据
@@ -138,7 +161,7 @@ class StreamingLLM: NSObject, URLSessionDataDelegate {
         guard trimmed.hasPrefix("data: ") else { return }
 
         let jsonStr = String(trimmed.dropFirst(6))
-        NSLog("[StarCore] SSE line: \(jsonStr.prefix(120))")
+        starcore_log("SSE line: \(jsonStr.prefix(120))")
 
         // SSE结束标记
         if jsonStr == "[DONE]" {
@@ -166,22 +189,22 @@ class StreamingLLM: NSObject, URLSessionDataDelegate {
            let delta = firstChoice["delta"] as? [String: Any] {
             // reasoning_content: 深度思考模型的思考过程（如doubao-seed）
             if let reasoning = delta["reasoning_content"] as? String, !reasoning.isEmpty {
-                NSLog("[StarCore] Got reasoning: \(reasoning.prefix(50))")
+                starcore_log("Got reasoning: \(reasoning.prefix(50))")
                 accumulated += reasoning
                 onToken?(reasoning)
             }
             // content: 正式回复内容
             if let content = delta["content"] as? String, !content.isEmpty {
-                NSLog("[StarCore] Got content: \(content.prefix(50))")
+                starcore_log("Got content: \(content.prefix(50))")
                 accumulated += content
                 onToken?(content)
             }
-            NSLog("[StarCore] delta keys: \(delta.keys), accumulated=\(accumulated.count)chars")
+            starcore_log("delta keys: \(delta.keys), accumulated=\(accumulated.count)chars")
         }
     }
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
-        NSLog("[StarCore] didCompleteWithError: \(error?.localizedDescription ?? "nil"), accumulated=\(accumulated.count)chars")
+        starcore_log("didCompleteWithError: \(error?.localizedDescription ?? "nil"), accumulated=\(accumulated.count)chars")
         // 检查HTTP状态码错误
         if let httpResponse = task.response as? HTTPURLResponse, httpResponse.statusCode >= 400 {
             if accumulated.isEmpty {
@@ -222,7 +245,7 @@ class StreamingLLM: NSObject, URLSessionDataDelegate {
     }
 
     private func finishWithAccumulated() {
-        NSLog("[StarCore] finishWithAccumulated: \(accumulated.count) chars, preview: \(accumulated.prefix(80))")
+        starcore_log("finishWithAccumulated: \(accumulated.count) chars, preview: \(accumulated.prefix(80))")
         if accumulated.isEmpty {
             completion?(.success("（空回复）"))
         } else {
