@@ -1077,7 +1077,7 @@ class StarCoreAgent {
         completion: @escaping (String, [String]) -> Void
     ) {
 
-        // ★ v10.2: 用非流式请求代替SSE流式（更稳定，SSE解析在iOS上有兼容问题）
+        // ★ v10.2: 用非流式请求代替SSE流式（更稳定）
         onStatus?("🤔 思考中...")
 
         callLLMWithFallback(messages: messages) { [weak self] result in
@@ -1089,7 +1089,6 @@ class StarCoreAgent {
                 reply = text
                 starcore_log("[StarCore] Agent success reply: \(text.prefix(80))")
                 onStatus?("✍️ 生成中...")
-                onToken(reply)  // 一次性回调完整回复
             case .failure(let error):
                 let errMsg = error.localizedDescription
                 if StarCoreAgent.shared.currentProvider.isGuestMode {
@@ -1097,59 +1096,56 @@ class StarCoreAgent {
                 } else {
                     reply = "❌ 请求失败：\(errMsg)\n\n请检查：\n1. API Key是否正确\n2. 网络是否通畅\n3. 在设置中切换其他Provider试试"
                 }
-                onToken(reply)
             }
 
-                let clean = self.processLLMReply(reply)
+            onToken(reply)
 
-                var newAllReplies = allReplies
-                var newAllActionResults = allActionResults
+            let clean = self.processLLMReply(reply)
 
-                if !clean.0.isEmpty && clean.0 != "..." && clean.0 != "已执行 ✓" {
-                    newAllReplies.append(clean.0)
-                }
-                newAllActionResults.append(contentsOf: clean.1)
+            var newAllReplies = allReplies
+            var newAllActionResults = allActionResults
 
-                let hadActions = !clean.1.isEmpty
-
-                                if hadActions && step < maxSteps {
-                    // 执行了动作，继续Agent循环
-                    // 回显操作结果给用户
-                    for (idx, result) in clean.1.enumerated() {
-                        let summary = "→ 步骤" + String(step) + "." + String(idx+1) + ": " + String(result.prefix(120))
-                        onToken("\n" + summary)
-                    }
-                    onStatus?("🔧 第" + String(step) + "步完成，继续...")
-
-                    let actionResultMsg = self.buildActionResultMessage(actions: clean.1, step: step)
-                    var nextMessages = messages
-                    nextMessages.append(["role": "assistant", "content": reply])
-                    nextMessages.append(["role": "user", "content": actionResultMsg])
-
-                    self.agentLoopStreaming(
-                        messages: nextMessages,
-                        step: step + 1,
-                        maxSteps: maxSteps,
-                        allReplies: newAllReplies,
-                        allActionResults: newAllActionResults,
-                        onToken: onToken,
-                        onStatus: onStatus,
-                        completion: completion
-                    )
-                } else {
-                    // Agent循环结束
-                    starcore_log("[StarCore] Agent loop done, finalReply preview: \(newAllReplies.first?.prefix(50) ?? "nil")")
-                    onStatus?("")
-                    let finalReply = newAllReplies.isEmpty ? clean.0 : newAllReplies.joined(separator: "\n\n")
-                    let assistantMsg = ChatMessage(role: .assistant, content: finalReply, actionResults: newAllActionResults)
-                    self.addToHistory(assistantMsg)
-                    completion(finalReply, newAllActionResults)
-                }
+            if !clean.0.isEmpty && clean.0 != "..." && clean.0 != "已执行 ✓" {
+                newAllReplies.append(clean.0)
             }
-        )
+            newAllActionResults.append(contentsOf: clean.1)
+
+            let hadActions = !clean.1.isEmpty
+
+            if hadActions && step < maxSteps {
+                for (idx, result) in clean.1.enumerated() {
+                    let summary = "→ 步骤" + String(step) + "." + String(idx+1) + ": " + String(result.prefix(120))
+                    onToken("\n" + summary)
+                }
+                onStatus?("🔧 第" + String(step) + "步完成，继续...")
+
+                let actionResultMsg = self.buildActionResultMessage(actions: clean.1, step: step)
+                var nextMessages = messages
+                nextMessages.append(["role": "assistant", "content": reply])
+                nextMessages.append(["role": "user", "content": actionResultMsg])
+
+                self.agentLoopStreaming(
+                    messages: nextMessages,
+                    step: step + 1,
+                    maxSteps: maxSteps,
+                    allReplies: newAllReplies,
+                    allAllActionResults: newAllActionResults,
+                    onToken: onToken,
+                    onStatus: onStatus,
+                    completion: completion
+                )
+            } else {
+                starcore_log("[StarCore] Agent loop done, finalReply preview: \(newAllReplies.first?.prefix(50) ?? "nil")")
+                onStatus?("")
+                let finalReply = newAllReplies.isEmpty ? clean.0 : newAllReplies.joined(separator: "\n\n")
+                let assistantMsg = ChatMessage(role: .assistant, content: finalReply, actionResults: newAllActionResults)
+                self.addToHistory(assistantMsg)
+                completion(finalReply, newAllActionResults)
+            }
+        }
     }
 
-    // MARK: - 图片+文字对话（多模态）
+        // MARK: - 图片+文字对话（多模态）
 
     /// 带图片的流式对话
     func chatWithImage(
