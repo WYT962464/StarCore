@@ -246,6 +246,10 @@ struct CloudResult: Codable {
 // MARK: - Cloud Health
 struct CloudHealth: Codable {
     let status: String
-    let uptime: Double?
-    let version: String?
+    var uptime: Double?
+    var version: String?
+
+    var isHealthy: Bool {
+        return status == "ok" || status == "healthy"
+    }
 }
