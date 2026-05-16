@@ -16,8 +16,8 @@ StarCoreApp_FILES = \
 	SettingsViewController.swift \
 	MarkdownRenderer.swift \
 	StreamingLLM.swift \
-	ImagePickerHelper.swift \
-	CloudBridgeClient.swift
+	ImagePickerHelper.swift
+
 
 StarCoreApp_FRAMEWORKS = UIKit Foundation Network WebKit Photos
 StarCoreApp_CFLAGS = -fobjc-arc
