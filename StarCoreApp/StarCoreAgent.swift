@@ -1146,7 +1146,7 @@ class StarCoreAgent {
             }
         } else {
             // Local LLM mode - with agent loop
-            agentLoop(messages: messages, step: 1, maxSteps: 3, allReplies: [], allActionResults: [], onPartialReply: onPartialReply, completion: completion)
+            agentLoop(messages: messages, step: 1, maxSteps: 20, allReplies: [], allActionResults: [], onPartialReply: onPartialReply, completion: completion)
         }
     }
 
@@ -1191,10 +1191,16 @@ class StarCoreAgent {
             // Check if there were actions executed
             let hadActions = !clean.1.isEmpty
 
-            if hadActions && step < maxSteps {
-                // Build action result message for next LLM call
-                let actionResultMsg = self.buildActionResultMessage(actions: clean.1, step: step)
-                var nextMessages = messages
+                            if hadActions && step < maxSteps {
+                    // 执行了动作，继续Agent循环
+                    // 回显操作结果
+                    for (idx, result) in clean.1.enumerated() {
+                        let summary = "→ 步骤" + String(step) + "." + String(idx+1) + ": " + String(result.prefix(120))
+                        onPartialReply?(summary, clean.1, step)
+                    }
+
+                    let actionResultMsg = self.buildActionResultMessage(actions: clean.1, step: step)
+                    var nextMessages = messages
                 nextMessages.append(["role": "assistant", "content": reply])
                 nextMessages.append(["role": "user", "content": actionResultMsg])
 
@@ -1356,7 +1362,7 @@ class StarCoreAgent {
             agentLoopStreaming(
                 messages: messages,
                 step: 1,
-                maxSteps: 3,
+                maxSteps: 20,
                 allReplies: [],
                 allActionResults: [],
                 onToken: onToken,
@@ -1435,9 +1441,14 @@ class StarCoreAgent {
 
                 let hadActions = !clean.1.isEmpty
 
-                if hadActions && step < maxSteps {
+                                if hadActions && step < maxSteps {
                     // 执行了动作，继续Agent循环
-                    onStatus?("🔧 执行操作中... (第\(step)步)")
+                    // 回显操作结果给用户
+                    for (idx, result) in clean.1.enumerated() {
+                        let summary = "→ 步骤" + String(step) + "." + String(idx+1) + ": " + String(result.prefix(120))
+                        onToken("\n" + summary)
+                    }
+                    onStatus?("🔧 第" + String(step) + "步完成，继续...")
 
                     let actionResultMsg = self.buildActionResultMessage(actions: clean.1, step: step)
                     var nextMessages = messages
