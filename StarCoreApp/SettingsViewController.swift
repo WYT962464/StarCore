@@ -630,8 +630,7 @@ class SettingsViewController: UIViewController {
     }
 
     @objc private func inputFieldChanged(_ sender: UITextField) {
-        // No cloud config fields anymore - all local
-        break
+        // All config fields removed - reserved for future use
     }
 
     // MARK: - Refresh
