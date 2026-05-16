@@ -113,52 +113,80 @@ class StreamingLLM: NSObject, URLSessionDataDelegate {
         // 按行处理SSE数据
         let lines = buffer.components(separatedBy: "\n")
         // 最后一行可能不完整，保留在buffer中
-        if !text.hasSuffix("\n") {
-            buffer = lines.last ?? ""
-        } else {
+        // 如果buffer以\n结尾，所有行都是完整的（最后一行是空字符串）
+        if buffer.hasSuffix("\n") {
             buffer = ""
-        }
-
-        let processLines = buffer.isEmpty ? lines : Array(lines.dropLast())
-
-        for line in processLines {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            guard trimmed.hasPrefix("data: ") else { continue }
-
-            let jsonStr = String(trimmed.dropFirst(6))
-
-            // SSE结束标记
-            if jsonStr == "[DONE]" {
-                finishWithAccumulated()
-                return
+            // 过滤掉空行
+            let processLines = lines.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+            for line in processLines {
+                processSSELine(line)
             }
-
-            // 解析SSE JSON
-            guard let jsonData = jsonStr.data(using: .utf8),
-                  let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any] else {
-                continue
-            }
-
-            // 检查错误
-            if let error = json["error"] as? [String: Any] {
-                let msg = error["message"] as? String ?? "未知错误"
-                let nsError = NSError(domain: "StarCore", code: -1, userInfo: [NSLocalizedDescriptionKey: msg])
-                completion?(.failure(nsError))
-                return
-            }
-
-            // 提取delta content
-            if let choices = json["choices"] as? [[String: Any]],
-               let firstChoice = choices.first,
-               let delta = firstChoice["delta"] as? [String: Any],
-               let content = delta["content"] as? String {
-                accumulated += content
-                onToken?(content)
+        } else {
+            // 最后一行不完整，保留在buffer中
+            buffer = lines.last ?? ""
+            let processLines = lines.dropLast().filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+            for line in processLines {
+                processSSELine(line)
             }
         }
     }
 
+    /// 处理单行SSE数据
+    private func processSSELine(_ line: String) {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        guard trimmed.hasPrefix("data: ") else { return }
+
+        let jsonStr = String(trimmed.dropFirst(6))
+
+        // SSE结束标记
+        if jsonStr == "[DONE]" {
+            finishWithAccumulated()
+            return
+        }
+
+        // 解析SSE JSON
+        guard let jsonData = jsonStr.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any] else {
+            return
+        }
+
+        // 检查错误
+        if let error = json["error"] as? [String: Any] {
+            let msg = error["message"] as? String ?? "未知错误"
+            let nsError = NSError(domain: "StarCore", code: -1, userInfo: [NSLocalizedDescriptionKey: msg])
+            completion?(.failure(nsError))
+            return
+        }
+
+        // 提取delta content（标准OpenAI兼容格式）
+        if let choices = json["choices"] as? [[String: Any]],
+           let firstChoice = choices.first,
+           let delta = firstChoice["delta"] as? [String: Any],
+           let content = delta["content"] as? String {
+            accumulated += content
+            onToken?(content)
+        }
+    }
+
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        // 检查HTTP状态码错误
+        if let httpResponse = task.response as? HTTPURLResponse, httpResponse.statusCode >= 400 {
+            if accumulated.isEmpty {
+                let msg: String
+                switch httpResponse.statusCode {
+                case 401: msg = "API Key无效或未填写，请在设置中检查"
+                case 402: msg = "API余额不足，请充值或切换Provider"
+                case 429: msg = "API速率限制，请稍后重试或切换Provider"
+                case 500...599: msg = "服务器错误(\(httpResponse.statusCode))，请稍后重试"
+                default: msg = "HTTP错误(\(httpResponse.statusCode))"
+                }
+                let nsError = NSError(domain: "StarCore", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: msg])
+                completion?(.failure(nsError))
+                session.invalidateAndCancel()
+                return
+            }
+        }
+
         if let error = error {
             // 如果已经积累了一些内容，说明是中途断开，返回已有内容
             if !accumulated.isEmpty {
@@ -626,7 +654,8 @@ class GuestLLM: NSObject, URLSessionDataDelegate {
 
     private func finishWithAccumulated() {
         if accumulated.isEmpty {
-            completion?(.success("（访客模式空回复，可能需要PoW验证或频率限制）"))
+            let nsError = NSError(domain: "GuestLLM", code: -13, userInfo: [NSLocalizedDescriptionKey: "访客模式暂不可用，建议切换到DeepSeek免费API（platform.deepseek.com获取免费Key）"])
+            completion?(.failure(nsError))
         } else {
             completion?(.success(accumulated))
         }

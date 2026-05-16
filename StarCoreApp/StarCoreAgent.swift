@@ -113,7 +113,7 @@ class StarCoreAgent {
     var currentProvider: LLMProvider {
         let idx = currentProviderIndex
         let all = providers
-        guard idx >= 0 && idx < all.count else { return .guestDeepseek }
+        guard idx >= 0 && idx < all.count else { return .deepseek }
         return all[idx]
     }
 
@@ -1162,7 +1162,18 @@ class StarCoreAgent {
     ) {
         callLLMWithFallback(messages: messages) { [weak self] result in
             guard let self = self else { return }
-            let reply = (try? result.get()) ?? "处理出错"
+            let reply: String
+            switch result {
+            case .success(let text):
+                reply = text
+            case .failure(let error):
+                let errMsg = error.localizedDescription
+                if StarCoreAgent.shared.currentProvider.isGuestMode {
+                    reply = "⚠️ 访客模式暂不可用：\(errMsg)\n\n💡 建议切换到DeepSeek免费API：\n1. 去 platform.deepseek.com 注册\n2. 获取免费API Key（500万token免费）\n3. 在设置中切换Provider并填入Key"
+                } else {
+                    reply = "❌ 请求失败：\(errMsg)\n\n请检查：\n1. API Key是否正确\n2. 网络是否通畅\n3. 在设置中切换其他Provider试试"
+                }
+            }
             let clean = self.processLLMReply(reply)
 
             var newAllReplies = allReplies
@@ -1389,7 +1400,19 @@ class StarCoreAgent {
             completion: { [weak self] result in
                 guard let self = self else { return }
 
-                let reply = (try? result.get()) ?? "处理出错"
+                let reply: String
+                switch result {
+                case .success(let text):
+                    reply = text
+                case .failure(let error):
+                    // 访客模式失败时，给出友好提示
+                    let errMsg = error.localizedDescription
+                    if StarCoreAgent.shared.currentProvider.isGuestMode {
+                        reply = "⚠️ 访客模式暂不可用：\(errMsg)\n\n💡 建议切换到DeepSeek免费API：\n1. 去 platform.deepseek.com 注册\n2. 获取免费API Key（500万token免费）\n3. 在设置中切换Provider并填入Key"
+                    } else {
+                        reply = "❌ 请求失败：\(errMsg)\n\n请检查：\n1. API Key是否正确\n2. 网络是否通畅\n3. 在设置中切换其他Provider试试"
+                    }
+                }
 
                 // 如果streaming没有回调任何token（比如fallback或错误），手动触发
                 if accumulated.isEmpty && !reply.isEmpty && reply != "（空回复）" {
@@ -1479,7 +1502,18 @@ class StarCoreAgent {
             },
             completion: { [weak self] result in
                 guard let self = self else { return }
-                let reply = (try? result.get()) ?? "处理出错"
+                let reply: String
+                switch result {
+                case .success(let text):
+                    reply = text
+                case .failure(let error):
+                    let errMsg = error.localizedDescription
+                    if self.currentProvider.isGuestMode {
+                        reply = "⚠️ 访客模式暂不可用：\(errMsg)\n\n💡 建议切换到DeepSeek免费API（platform.deepseek.com获取免费Key）"
+                    } else {
+                        reply = "❌ 请求失败：\(errMsg)\n\n请检查API Key和网络设置"
+                    }
+                }
                 if accumulated.isEmpty {
                     accumulated = reply
                     onToken(reply)

@@ -440,10 +440,16 @@ class ChatViewController: UIViewController {
                     self.streamingDebounceTimer?.invalidate()
                     self.streamingDebounceTimer = nil
 
+                    // 如果流式输出没有任何token，确保最终回复被显示
+                    var displayReply = finalReply
+                    if finalReply.isEmpty || finalReply == "（空回复）" {
+                        displayReply = "❌ 未收到回复，请检查网络和API Key设置"
+                    }
+
                     // 最终完整渲染
                     self.messages[placeholderIndex] = ChatMessage(
                         role: .assistant,
-                        content: finalReply,
+                        content: displayReply,
                         actionResults: actionResults
                     )
                     self.tableView.reloadRows(at: [IndexPath(row: placeholderIndex, section: 0)], with: .none)
@@ -546,7 +552,11 @@ class ChatViewController: UIViewController {
                         guard let self = self else { return }
                         self.streamingDebounceTimer?.invalidate()
                         self.streamingDebounceTimer = nil
-                        self.messages[placeholderIndex] = ChatMessage(role: .assistant, content: reply, actionResults: actionResults)
+                        var displayReply = reply
+                        if reply.isEmpty || reply == "（空回复）" {
+                            displayReply = "❌ 未收到回复，请检查网络和API Key设置"
+                        }
+                        self.messages[placeholderIndex] = ChatMessage(role: .assistant, content: displayReply, actionResults: actionResults)
                         self.tableView.reloadRows(at: [IndexPath(row: placeholderIndex, section: 0)], with: .none)
                         self.scrollToBottom()
                         self.setWaiting(false)

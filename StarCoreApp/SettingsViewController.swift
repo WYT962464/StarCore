@@ -65,6 +65,7 @@ class SettingsViewController: UIViewController {
         lastView = addProviderPicker(below: lastView)
         lastView = addKeyHint(below: lastView)
         lastView = addAPIKeyField(below: lastView)
+        lastView = addGetFreeKeyButton(below: lastView)
         lastView = addModelField(below: lastView)
 
         // Divider
@@ -329,6 +330,73 @@ class SettingsViewController: UIViewController {
         guard idx >= 0 && idx < providers.count else { return }
         providers[idx].apiKey = sender.text ?? ""
         StarCoreAgent.shared.providers = providers
+    }
+
+    // MARK: - Get Free Key Button
+
+    private var getFreeKeyButton: UIButton!
+
+    private func addGetFreeKeyButton(below aboveView: UIView) -> UIView {
+        let button = UIButton(type: .system)
+        button.setTitle("🔑 获取免费API Key", for: .normal)
+        button.setTitleColor(.white, for: .normal)
+        button.titleLabel?.font = UIFont.systemFont(ofSize: 14, weight: .medium)
+        button.backgroundColor = UIColor(red: 0x25/255, green: 0x63/255, blue: 0xeb/255, alpha: 1.0)
+        button.layer.cornerRadius = 10
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.addTarget(self, action: #selector(openGetFreeKey), for: .touchUpInside)
+        contentView.addSubview(button)
+
+        NSLayoutConstraint.activate([
+            button.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+            button.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
+            button.topAnchor.constraint(equalTo: aboveView.bottomAnchor, constant: rowGap),
+            button.heightAnchor.constraint(equalToConstant: 46)
+        ])
+
+        getFreeKeyButton = button
+        updateGetFreeKeyButton()
+
+        return button
+    }
+
+    private func updateGetFreeKeyButton() {
+        let idx = StarCoreAgent.shared.currentProviderIndex
+        let all = StarCoreAgent.shared.providers
+        guard idx >= 0 && idx < all.count else { return }
+        let provider = all[idx]
+
+        // Hide button for guest mode and custom provider
+        if provider.isGuestMode || provider.name == "自定义" {
+            getFreeKeyButton?.isHidden = true
+        } else {
+            getFreeKeyButton?.isHidden = false
+            let urls: [Int: (String, String)] = [
+                1: ("🔑 获取DeepSeek免费Key（500万token）", "https://platform.deepseek.com"),
+                2: ("🔑 获取Gemini免费Key（1500次/天）", "https://aistudio.google.com"),
+                3: ("🔑 获取Groq免费Key（30RPM）", "https://console.groq.com"),
+                4: ("🔑 获取硅基流动Key", "https://siliconflow.cn"),
+            ]
+            if let (title, _) = urls[idx] {
+                getFreeKeyButton?.setTitle(title, for: .normal)
+            }
+        }
+    }
+
+    @objc private func openGetFreeKey() {
+        let idx = StarCoreAgent.shared.currentProviderIndex
+        let urls: [Int: String] = [
+            1: "https://platform.deepseek.com",
+            2: "https://aistudio.google.com",
+            3: "https://console.groq.com",
+            4: "https://siliconflow.cn",
+        ]
+        guard let urlString = urls[idx], let url = URL(string: urlString) else { return }
+        if #available(iOS 10.0, *) {
+            UIApplication.shared.open(url, options: [:])
+        } else {
+            UIApplication.shared.openURL(url)
+        }
     }
 
     private func addModelField(below aboveView: UIView) -> UIView {
@@ -697,7 +765,7 @@ class SettingsViewController: UIViewController {
 
     private func addVersionInfo(below aboveView: UIView) -> UIView {
         let label = UILabel()
-        label.text = "星核 v8.4 | StarCore Native\n免费LLM · 自研Tweak · Agent循环 · 记忆管理"
+        label.text = "星核 v9.1 | StarCore Native\n免费LLM · 自研Tweak · Agent循环 · 记忆管理"
         label.font = UIFont.systemFont(ofSize: 13)
         label.textColor = UIColor(white: 1, alpha: 0.3)
         label.textAlignment = .center

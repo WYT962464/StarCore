@@ -49,7 +49,7 @@ struct LLMProvider: Codable {
 
     // ★ v9.0: DeepSeek访客模式 - 无需API Key的免费LLM
     static let guestDeepseek = LLMProvider(
-        name: "DeepSeek(访客)",
+        name: "DeepSeek(访客·实验)",
         url: "https://chat.deepseek.com/api/v0/guest/chat/completion",
         model: "deepseek-chat",
         apiKey: "GUEST"  // 特殊标记，表示访客模式
@@ -107,7 +107,7 @@ struct LLMProvider: Codable {
     // 根据Provider索引返回API Key获取提示
     static func keyHint(forProviderIndex index: Int) -> String {
         switch index {
-        case 0: return "🎉 无需Key！访客模式直接使用，有频率限制"
+        case 0: return "⚠️ 实验功能！访客模式不稳定，建议使用DeepSeek免费API"
         case 1: return "平台：platform.deepseek.com → 500万免费token"
         case 2: return "平台：aistudio.google.com → 1500次/天免费"
         case 3: return "平台：console.groq.com → 30RPM免费"
@@ -161,7 +161,7 @@ struct AppSettings: Codable {
     var systemPromptOverride: String
 
     static let `default` = AppSettings(
-        currentProviderIndex: 0,  // 默认使用访客模式
+        currentProviderIndex: 1,  // 默认使用DeepSeek免费API（访客模式为实验功能）
         providers: LLMProvider.allProviders,
         cloudBrain: .default,
         memoryPath: "/var/mobile/StarCoreAgent",
