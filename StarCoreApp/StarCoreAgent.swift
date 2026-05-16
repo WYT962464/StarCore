@@ -1223,4 +1223,46 @@ class StarCoreAgent {
             }
         )
     }
+
+    // MARK: - 纯非流式对话（v10.3: 20步Agent循环）
+    func chatNonStreaming(userInput: String, completion: @escaping (String, [String]) -> Void) {
+        var messages: [[String: String]] = [["role": "system", "content": systemPrompt]]
+        if isTweakConnected, let screen = tweakCmd(action: "getScreenSize"),
+           let success = screen["success"] as? Bool, success {
+            let w = screen["width"] as? Int ?? 375
+            let h = screen["height"] as? Int ?? 812
+            let s = screen["scale"] as? Int ?? 3
+            messages[0]["content"]! += "\n屏幕: \(w)x\(h), scale=\(s)"
+        }
+        if isMcpInitialized { messages[0]["content"]! += "\nios-mcp: 已连接" }
+        for msg in chatHistory.suffix(20) { messages.append(["role": msg.role.rawValue, "content": msg.content]) }
+        messages.append(["role": "user", "content": userInput])
+        addToHistory(ChatMessage(role: .user, content: userInput))
+        nonStreamingAgentLoop(messages: messages, step: 1, maxSteps: 20, allReplies: [], allActionResults: [], completion: completion)
+    }
+
+    private func nonStreamingAgentLoop(messages: [[String: String]], step: Int, maxSteps: Int, allReplies: [String], allActionResults: [String], completion: @escaping (String, [String]) -> Void) {
+        callLLMWithFallback(messages: messages) { [weak self] result in
+            guard let self = self else { return }
+            let reply: String
+            switch result {
+            case .success(let text): reply = text
+            case .failure(let error): reply = "❌ 请求失败：\(error.localizedDescription)\n请检查API Key和Model Endpoint"
+            }
+            let clean = self.processLLMReply(reply)
+            var newReplies = allReplies; var newActions = allActionResults
+            if !clean.0.isEmpty && clean.0 != "..." && clean.0 != "已执行 ✓" { newReplies.append(clean.0) }
+            newActions.append(contentsOf: clean.1)
+            if !clean.1.isEmpty && step < maxSteps {
+                var next = messages
+                next.append(["role": "assistant", "content": reply])
+                next.append(["role": "user", "content": self.buildActionResultMessage(actions: clean.1, step: step)])
+                self.nonStreamingAgentLoop(messages: next, step: step+1, maxSteps: maxSteps, allReplies: newReplies, allActionResults: newActions, completion: completion)
+            } else {
+                let final = newReplies.isEmpty ? clean.0 : newReplies.joined(separator: "\n\n")
+                self.addToHistory(ChatMessage(role: .assistant, content: final, actionResults: newActions))
+                completion(final, newActions)
+            }
+        }
+    }
 }
