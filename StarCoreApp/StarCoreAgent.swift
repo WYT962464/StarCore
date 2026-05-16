@@ -382,8 +382,9 @@ class StarCoreAgent {
     }
 
     private func rawTCPSend(jsonString: String, timeout: TimeInterval = 5) -> String? {
-        var result: String? = nil
+        var accumulatedData = Data()
         let semaphore = DispatchSemaphore(value: 0)
+        let maxResponseSize = 2 * 1024 * 1024 // 2MB上限（截图base64可能很大）
 
         let queue = DispatchQueue(label: "com.starcore.tcp")
         let host = NWEndpoint.Host(tweakHost)
@@ -392,6 +393,36 @@ class StarCoreAgent {
         let connection = NWConnection(host: host, port: port, using: .tcp)
         let sendData = (jsonString + "\n").data(using: .utf8)!
 
+        // 递归读取函数 - 循环读取直到收到完整响应
+        func receiveLoop() {
+            connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { data, _, isComplete, error in
+                if let data = data, !data.isEmpty {
+                    accumulatedData.append(data)
+                    
+                    // 检查是否收到完整JSON（以}结尾）
+                    if let str = String(data: accumulatedData, encoding: .utf8) {
+                        let trimmed = str.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if trimmed.hasSuffix("}") {
+                            semaphore.signal()
+                            return
+                        }
+                    }
+                    
+                    // 数据太大，强制停止
+                    if accumulatedData.count > maxResponseSize {
+                        semaphore.signal()
+                        return
+                    }
+                    
+                    // 继续读取
+                    receiveLoop()
+                } else {
+                    // 连接关闭或出错
+                    semaphore.signal()
+                }
+            }
+        }
+
         var stateHandler: ((NWConnection.State) -> Void)?
         stateHandler = { state in
             switch state {
@@ -401,12 +432,7 @@ class StarCoreAgent {
                         semaphore.signal()
                         return
                     }
-                    connection.receive(minimumIncompleteLength: 1, maximumLength: 4096) { data, _, _, error in
-                        if let data = data, let str = String(data: data, encoding: .utf8) {
-                            result = str.trimmingCharacters(in: .whitespacesAndNewlines)
-                        }
-                        semaphore.signal()
-                    }
+                    receiveLoop()
                 })
             case .failed, .cancelled:
                 semaphore.signal()
@@ -419,13 +445,18 @@ class StarCoreAgent {
 
         _ = semaphore.wait(timeout: .now() + timeout)
         connection.cancel()
+        
+        if accumulatedData.isEmpty { return nil }
+        let result = String(data: accumulatedData, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         return result
     }
 
-    // ★ v6.0: 发送到指定端口的TCP命令
+    // ★ v6.0: 发送到指定端口的TCP命令（支持大响应循环读取）
     private func rawTCPSendToPort(jsonString: String, port: UInt16, timeout: TimeInterval = 5) -> String? {
-        var result: String? = nil
+        var accumulatedData = Data()
         let semaphore = DispatchSemaphore(value: 0)
+        let maxResponseSize = 2 * 1024 * 1024
 
         let queue = DispatchQueue(label: "com.starcore.tcp")
         let host = NWEndpoint.Host(tweakHost)
@@ -434,6 +465,28 @@ class StarCoreAgent {
         let connection = NWConnection(host: host, port: nwPort, using: .tcp)
         let sendData = (jsonString + "\n").data(using: .utf8)!
 
+        func receiveLoop() {
+            connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { data, _, isComplete, error in
+                if let data = data, !data.isEmpty {
+                    accumulatedData.append(data)
+                    if let str = String(data: accumulatedData, encoding: .utf8) {
+                        let trimmed = str.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if trimmed.hasSuffix("}") {
+                            semaphore.signal()
+                            return
+                        }
+                    }
+                    if accumulatedData.count > maxResponseSize {
+                        semaphore.signal()
+                        return
+                    }
+                    receiveLoop()
+                } else {
+                    semaphore.signal()
+                }
+            }
+        }
+
         var stateHandler: ((NWConnection.State) -> Void)?
         stateHandler = { state in
             switch state {
@@ -443,12 +496,7 @@ class StarCoreAgent {
                         semaphore.signal()
                         return
                     }
-                    connection.receive(minimumIncompleteLength: 1, maximumLength: 4096) { data, _, _, error in
-                        if let data = data, let str = String(data: data, encoding: .utf8) {
-                            result = str.trimmingCharacters(in: .whitespacesAndNewlines)
-                        }
-                        semaphore.signal()
-                    }
+                    receiveLoop()
                 })
             case .failed, .cancelled:
                 semaphore.signal()
@@ -461,7 +509,10 @@ class StarCoreAgent {
 
         _ = semaphore.wait(timeout: .now() + timeout)
         connection.cancel()
-        return result
+        
+        if accumulatedData.isEmpty { return nil }
+        return String(data: accumulatedData, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     // v7.0: 触摸命令 - 直接走6000端口(senderID修复后不再需要双进程)

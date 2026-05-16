@@ -1,10 +1,10 @@
 Package: com.starcore.tweak
 Name: StarCoreTweak
-Description: StarCore Tweak v5.7 - plist改Bundles格式(ElleKit兼容)
+Description: StarCore Tweak v8.4 - ios-mcp功能移植(screenshot/inputText/按键/getScreenInfo/ios-mcp触摸)
 Maintainer: StarCore
 Author: StarCore
 Section: Tweaks
-Depends: mobilesubstrate
+Depends: ellekit
 Architecture: iphoneos-arm64
-Version: 5.7.0-1+debug
-Installed-Size: 139
+Version: 8.4.0-2+debug
+Installed-Size: 220

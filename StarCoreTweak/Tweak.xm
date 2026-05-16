@@ -1465,46 +1465,58 @@ static UIImage *screenshotFromWindowCapture() {
     return image;
 }
 
-// ★ v8.4: 截图主函数（必须在主线程执行）
+// ★ v8.5: 截图主函数 - 超时保护版
+// 在TCP线程发起，主线程执行截图，用semaphore+超时避免永久阻塞
 static NSDictionary *doScreenshot() {
     __block NSDictionary *result = nil;
+    dispatch_semaphore_t sema = dispatch_semaphore_create(0);
     
-    runOnMainThreadSync(^{
+    dispatch_async(dispatch_get_main_queue(), ^{
         @try {
             UIImage *image = nil;
             NSString *source = @"none";
             
             // 降级策略1: CARenderServerCaptureDisplay
             image = screenshotFromRenderServer();
+            NSLog(@"[StarCoreTweak] 📸 method1 renderServer: %@", image ? [NSString stringWithFormat:@"%.0fx%.0f scale=%.1f", image.size.width, image.size.height, image.scale] : @"nil");
             if (image) source = @"CARenderServerCaptureDisplay";
             
             // 降级策略2: _UICreateScreenUIImage
             if (!image) {
                 image = screenshotFromUICreateScreenUIImage();
+                NSLog(@"[StarCoreTweak] 📸 method2 UICreateScreen: %@", image ? [NSString stringWithFormat:@"%.0fx%.0f scale=%.1f", image.size.width, image.size.height, image.scale] : @"nil");
                 if (image) source = @"_UICreateScreenUIImage";
             }
             
             // 降级策略3: IOSurface
             if (!image) {
                 image = screenshotFromIOSurface();
+                NSLog(@"[StarCoreTweak] 📸 method3 IOSurface: %@", image ? [NSString stringWithFormat:@"%.0fx%.0f scale=%.1f", image.size.width, image.size.height, image.scale] : @"nil");
                 if (image) source = @"IOSurface";
             }
             
             // 降级策略4: Window capture
             if (!image) {
                 image = screenshotFromWindowCapture();
+                NSLog(@"[StarCoreTweak] 📸 method4 windowCapture: %@", image ? [NSString stringWithFormat:@"%.0fx%.0f scale=%.1f", image.size.width, image.size.height, image.scale] : @"nil");
                 if (image) source = @"window_capture";
             }
             
             if (!image) {
                 result = @{@"success": @NO, @"error": @"All screenshot methods failed"};
+                dispatch_semaphore_signal(sema);
                 return;
             }
             
             // 编码图片
+            NSLog(@"[StarCoreTweak] 📸 encoding image: %.0fx%.0f scale=%.1f", image.size.width, image.size.height, image.scale);
+            NSData *pngData = UIImagePNGRepresentation(image);
+            NSLog(@"[StarCoreTweak] 📸 PNG size: %lu bytes", (unsigned long)pngData.length);
             NSDictionary *payload = encodedPayloadForImage(image);
+            NSLog(@"[StarCoreTweak] 📸 payload: %@", payload ? [NSString stringWithFormat:@"mimeType=%@ dataLen=%lu", payload[@"mimeType"], (unsigned long)[payload[@"data"] length]] : @"nil");
             if (!payload) {
-                result = @{@"success": @NO, @"error": @"Failed to encode screenshot"};
+                result = @{@"success": @NO, @"error": [NSString stringWithFormat:@"Failed to encode screenshot (image size: %.0fx%.0f, scale: %.1f)", image.size.width, image.size.height, image.scale]};
+                dispatch_semaphore_signal(sema);
                 return;
             }
             
@@ -1517,7 +1529,15 @@ static NSDictionary *doScreenshot() {
         } @catch (NSException *e) {
             result = @{@"success": @NO, @"error": [NSString stringWithFormat:@"Screenshot exception: %@", e]};
         }
+        dispatch_semaphore_signal(sema);
     });
+    
+    // ★ 超时等待8秒
+    long waitResult = dispatch_semaphore_wait(sema, dispatch_time(DISPATCH_TIME_NOW, 8 * NSEC_PER_SEC));
+    if (waitResult != 0) {
+        NSLog(@"[StarCoreTweak] ⚠️ Screenshot timed out after 8s");
+        return @{@"success": @NO, @"error": @"Screenshot timed out (8s)"};
+    }
     
     return result ?: @{@"success": @NO, @"error": @"Screenshot returned nil"};
 }
@@ -1753,7 +1773,7 @@ static StarCoreTCPServer *_server = nil;
     if(!req||![req isKindOfClass:[NSDictionary class]]) return @{@"success":@NO,@"error":@"invalid JSON"};
     NSString *action=req[@"action"]; NSNumber *mid=req[@"id"]?:@0; NSMutableDictionary *resp=[@{@"id":mid} mutableCopy];
     
-    if([action isEqualToString:@"ping"]) { resp[@"success"]=@YES; resp[@"message"]=@"pong"; resp[@"version"]=@"8.4"; }
+    if([action isEqualToString:@"ping"]) { resp[@"success"]=@YES; resp[@"message"]=@"pong"; resp[@"version"]=@"8.5"; }
     
     // ★ v5.1: tap - 优先使用ios-mcp方案，再虚拟设备，最后旧方案
     else if([action isEqualToString:@"tap"]) {
@@ -1891,7 +1911,7 @@ static StarCoreTCPServer *_server = nil;
         }
     }
     
-    // ★ v8.4: screenshot - 截图
+    // ★ v8.5: screenshot - 截图
     else if([action isEqualToString:@"screenshot"]) {
         NSDictionary *screenshotResult = doScreenshot();
         [resp addEntriesFromDictionary:screenshotResult];
@@ -1943,28 +1963,78 @@ static StarCoreTCPServer *_server = nil;
         }
     }
     
-    // ★ v5.7: openApp
+    // ★ v8.5: openApp - 三级降级策略（参考ios-mcp验证过的方案）
     else if([action isEqualToString:@"openApp"]) {
         NSString *bid=req[@"bundleId"];
         if(!bid) { resp[@"success"]=@NO; resp[@"error"]=@"bundleId required"; }
         else {
             __block BOOL ok = NO;
-            __block NSString *errMsg = @"no workspace";
+            __block NSString *errMsg = @"all methods failed";
+            __block NSString *method = @"none";
             runOnMainThreadSync(^{
-                Class wc = objc_getClass("LSApplicationWorkspace");
-                if (wc) {
-                    id ws = [wc performSelector:@selector(defaultWorkspace)];
-                    if (ws) {
-                        ok = (BOOL)((BOOL(*)(id,SEL,NSString*))objc_msgSend)(ws, @selector(openApplicationWithBundleID:), bid);
-                        if (!ok) errMsg = @"openApplication returned NO";
-                    } else errMsg = @"defaultWorkspace returned nil";
+                // 策略1: SBUIController activateApplication（SpringBoard内部，最可靠）
+                Class SBAppCtrl = objc_getClass("SBApplicationController");
+                if (SBAppCtrl) {
+                    id appCtrl = [SBAppCtrl performSelector:@selector(sharedInstance)];
+                    if (appCtrl) {
+                        id sbApp = [appCtrl performSelector:@selector(applicationWithBundleIdentifier:) withObject:bid];
+                        if (sbApp) {
+                            Class SBUICtrlClass = objc_getClass("SBUIController");
+                            if (SBUICtrlClass) {
+                                id ctrl = [SBUICtrlClass performSelector:@selector(sharedInstance)];
+                                SEL activateSel = @selector(activateApplication:);
+                                if ([ctrl respondsToSelector:activateSel]) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+                                    [ctrl performSelector:activateSel withObject:sbApp];
+#pragma clang diagnostic pop
+                                    ok = YES;
+                                    method = @"SBUIController";
+                                }
+                            }
+                        } else {
+                            errMsg = @"app not installed or not found by SBApplicationController";
+                        }
+                    }
+                }
+                
+                // 策略2: FBSSystemService openApplication（FrontBoard服务）
+                if (!ok) {
+                    Class fbsClass = objc_getClass("FBSSystemService");
+                    if (fbsClass) {
+                        id fbs = [fbsClass performSelector:@selector(sharedService)];
+                        SEL openSel = @selector(openApplication:options:withResult:);
+                        if (fbs && [fbs respondsToSelector:openSel]) {
+                            ((void(*)(id,SEL,NSString*,id,void(^)(void)))objc_msgSend)(fbs, openSel, bid, nil, nil);
+                            ok = YES;
+                            method = @"FBSSystemService";
+                        }
+                    }
+                }
+                
+                // 策略3: LSApplicationWorkspace（降级方案）
+                if (!ok) {
+                    Class wc = objc_getClass("LSApplicationWorkspace");
+                    if (wc) {
+                        id ws = [wc performSelector:@selector(defaultWorkspace)];
+                        if (ws) {
+                            ok = (BOOL)((BOOL(*)(id,SEL,NSString*))objc_msgSend)(ws, @selector(openApplicationWithBundleID:), bid);
+                            if (ok) {
+                                method = @"LSApplicationWorkspace";
+                            } else {
+                                errMsg = @"openApplication returned NO";
+                            }
+                        } else errMsg = @"defaultWorkspace returned nil";
+                    }
                 }
             });
-            resp[@"success"]=@(ok); if (!ok) resp[@"error"]=errMsg;
+            resp[@"success"]=@(ok); 
+            if (ok) resp[@"method"]=method;
+            if (!ok) resp[@"error"]=errMsg;
         }
     }
     
-    // ★ v5.7: getScreenSize
+        // ★ v5.7: getScreenSize
     else if([action isEqualToString:@"getScreenSize"]) {
         CGRect b = getScreenBoundsSafe();
         CGFloat scale = getScreenScaleSafe();
@@ -1990,7 +2060,7 @@ static StarCoreTCPServer *_server = nil;
         
         resp[@"success"]=@YES;
         resp[@"diagnostics"]=@{
-            @"version": @"8.4",
+            @"version": @"8.5",
             @"iokitHandle": g_iokitHandle?@"OK":@"NULL",
             @"bbsHandle": g_bbsHandle?@"OK":@"NULL",
             @"quartzCoreHandle": g_quartzCoreHandle?@"OK":@"NULL",
@@ -2087,7 +2157,7 @@ static StarCoreTCPServer *_server = nil;
     loadFunctions();
     _server = [[StarCoreTCPServer alloc] init];
     [_server start];
-    NSLog(@"[StarCoreTweak] v8.4: screenshot, inputText, pressPower, pressVolume, getScreenInfo, ios-mcp触摸");
+    NSLog(@"[StarCoreTweak] v8.5: screenshot, inputText, pressPower, pressVolume, getScreenInfo, ios-mcp触摸");
 }
 %end
 
