@@ -158,13 +158,20 @@ class StreamingLLM: NSObject, URLSessionDataDelegate {
             return
         }
 
-        // 提取delta content（标准OpenAI兼容格式）
+        // 提取delta content（标准OpenAI兼容格式 + reasoning_content深度思考）
         if let choices = json["choices"] as? [[String: Any]],
            let firstChoice = choices.first,
-           let delta = firstChoice["delta"] as? [String: Any],
-           let content = delta["content"] as? String {
-            accumulated += content
-            onToken?(content)
+           let delta = firstChoice["delta"] as? [String: Any] {
+            // reasoning_content: 深度思考模型的思考过程（如doubao-seed）
+            if let reasoning = delta["reasoning_content"] as? String, !reasoning.isEmpty {
+                accumulated += reasoning
+                onToken?(reasoning)
+            }
+            // content: 正式回复内容
+            if let content = delta["content"] as? String, !content.isEmpty {
+                accumulated += content
+                onToken?(content)
+            }
         }
     }
 
