@@ -55,6 +55,14 @@ struct LLMProvider: Codable {
         apiKey: "GUEST"  // 特殊标记，表示访客模式
     )
 
+    // ★ v9.2: 火山方舟预设 - 每模型50万tokens免费额度
+    static let volcengine = LLMProvider(
+        name: "火山方舟（免费额度）",
+        url: "https://ark.cn-beijing.volces.com/api/v3/chat/completions",
+        model: "ep-20260509234308-mclcb",
+        apiKey: ""
+    )
+
     static let deepseek = LLMProvider(
         name: "DeepSeek（免费）",
         url: "https://api.deepseek.com/v1/chat/completions",
@@ -91,12 +99,12 @@ struct LLMProvider: Codable {
     )
 
     static var allProviders: [LLMProvider] {
-        return [.guestDeepseek, .deepseek, .gemini, .groq, .siliconflow, .custom]
+        return [.guestDeepseek, .volcengine, .deepseek, .gemini, .groq, .siliconflow, .custom]
     }
 
     // 访客模式 + 前3个Provider是免费的
     static var freeProviderIndices: [Int] {
-        return [0, 1, 2, 3]
+        return [0, 1, 2, 3, 4]  // v9.2: 火山方舟免费，前5个都免费
     }
 
     // 判断是否为访客模式Provider
@@ -107,12 +115,13 @@ struct LLMProvider: Codable {
     // 根据Provider索引返回API Key获取提示
     static func keyHint(forProviderIndex index: Int) -> String {
         switch index {
-        case 0: return "⚠️ 实验功能！访客模式不稳定，建议使用DeepSeek免费API"
-        case 1: return "平台：platform.deepseek.com → 500万免费token"
-        case 2: return "平台：aistudio.google.com → 1500次/天免费"
-        case 3: return "平台：console.groq.com → 30RPM免费"
-        case 4: return "平台：siliconflow.cn → 有免费额度"
-        case 5: return "填入自定义OpenAI兼容API地址"
+        case 0: return "⚠️ 实验功能！访客模式不稳定，建议切换其他Provider"
+        case 1: return "平台：火山方舟 volcengine.com → 每模型50万tokens免费"
+        case 2: return "平台：platform.deepseek.com → 500万免费token"
+        case 3: return "平台：aistudio.google.com → 1500次/天免费"
+        case 4: return "平台：console.groq.com → 30RPM免费"
+        case 5: return "平台：siliconflow.cn → 有免费额度"
+        case 6: return "填入自定义OpenAI兼容API地址"
         default: return ""
         }
     }
@@ -161,7 +170,7 @@ struct AppSettings: Codable {
     var systemPromptOverride: String
 
     static let `default` = AppSettings(
-        currentProviderIndex: 1,  // 默认使用DeepSeek免费API（访客模式为实验功能）
+        currentProviderIndex: 1,  // v9.2: 默认使用火山方舟（免费额度，开箱即用）
         providers: LLMProvider.allProviders,
         cloudBrain: .default,
         memoryPath: "/var/mobile/StarCoreAgent",

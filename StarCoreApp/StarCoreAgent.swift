@@ -113,7 +113,7 @@ class StarCoreAgent {
     var currentProvider: LLMProvider {
         let idx = currentProviderIndex
         let all = providers
-        guard idx >= 0 && idx < all.count else { return .deepseek }
+        guard idx >= 0 && idx < all.count else { return .volcengine }
         return all[idx]
     }
 
@@ -240,7 +240,7 @@ class StarCoreAgent {
 
         // Gemini特殊处理：URL中追加?key=API_KEY
         var urlString = provider.url
-        if providerIndex == 1 { // Gemini
+        if provider.name.contains("Gemini") { // Gemini: URL中追加key参数
             let separator = urlString.contains("?") ? "&" : "?"
             urlString += "\(separator)key=\(provider.apiKey)"
         }
@@ -255,7 +255,7 @@ class StarCoreAgent {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
         // Gemini不使用Bearer Authorization，key已在URL中
-        if providerIndex != 1 {
+        if !provider.name.contains("Gemini") {
             request.setValue("Bearer \(provider.apiKey)", forHTTPHeaderField: "Authorization")
         }
 

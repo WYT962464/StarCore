@@ -256,10 +256,11 @@ class SettingsViewController: UIViewController {
         let urlString: String
         switch idx {
         case 0: return  // 访客模式无需打开注册页面
-        case 1: urlString = "https://platform.deepseek.com"
-        case 2: urlString = "https://aistudio.google.com"
-        case 3: urlString = "https://console.groq.com"
-        case 4: urlString = "https://siliconflow.cn"
+        case 1: urlString = "https://console.volcengine.com/ark"
+        case 2: urlString = "https://platform.deepseek.com"
+        case 3: urlString = "https://aistudio.google.com"
+        case 4: urlString = "https://console.groq.com"
+        case 5: urlString = "https://siliconflow.cn"
         default: return
         }
         if let url = URL(string: urlString) {
@@ -372,10 +373,11 @@ class SettingsViewController: UIViewController {
         } else {
             getFreeKeyButton?.isHidden = false
             let urls: [Int: (String, String)] = [
-                1: ("🔑 获取DeepSeek免费Key（500万token）", "https://platform.deepseek.com"),
-                2: ("🔑 获取Gemini免费Key（1500次/天）", "https://aistudio.google.com"),
-                3: ("🔑 获取Groq免费Key（30RPM）", "https://console.groq.com"),
-                4: ("🔑 获取硅基流动Key", "https://siliconflow.cn"),
+                1: ("🔑 获取火山方舟免费Key（50万tokens/模型）", "https://console.volcengine.com/ark"),
+                2: ("🔑 获取DeepSeek免费Key（500万token）", "https://platform.deepseek.com"),
+                3: ("🔑 获取Gemini免费Key（1500次/天）", "https://aistudio.google.com"),
+                4: ("🔑 获取Groq免费Key（30RPM）", "https://console.groq.com"),
+                5: ("🔑 获取硅基流动Key", "https://siliconflow.cn"),
             ]
             if let (title, _) = urls[idx] {
                 getFreeKeyButton?.setTitle(title, for: .normal)
@@ -386,10 +388,11 @@ class SettingsViewController: UIViewController {
     @objc private func openGetFreeKey() {
         let idx = StarCoreAgent.shared.currentProviderIndex
         let urls: [Int: String] = [
-            1: "https://platform.deepseek.com",
-            2: "https://aistudio.google.com",
-            3: "https://console.groq.com",
-            4: "https://siliconflow.cn",
+            1: "https://console.volcengine.com/ark",
+            2: "https://platform.deepseek.com",
+            3: "https://aistudio.google.com",
+            4: "https://console.groq.com",
+            5: "https://siliconflow.cn",
         ]
         guard let urlString = urls[idx], let url = URL(string: urlString) else { return }
         if #available(iOS 10.0, *) {
