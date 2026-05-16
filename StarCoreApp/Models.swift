@@ -57,9 +57,9 @@ struct LLMProvider: Codable {
 
     // ★ v9.2: 火山方舟预设 - 每模型50万tokens免费额度
     static let volcengine = LLMProvider(
-        name: "火山方舟（免费额度）",
+        name: "火山方舟-DeepSeek-V3",
         url: "https://ark.cn-beijing.volces.com/api/v3/chat/completions",
-        model: "ep-20260509234308-mclcb",
+        model: "ep-20260510055844-7bsvl",
         apiKey: ""
     )
 
