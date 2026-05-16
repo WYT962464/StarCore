@@ -715,7 +715,7 @@ class StarCoreAgent {
         case "screenshot":
             // 优先Tweak截图（快），失败后fallback到ios-mcp
             if isTweakConnected {
-                if let tweakResult = tweakCmd(action: "screenshot", timeout: 10),
+                if let tweakResult = tweakCmd(action: "screenshot", timeout: 30),
                    let base64Str = tweakResult["image"] as? String ?? tweakResult["data"] as? String,
                    !base64Str.isEmpty {
                     let filePath = MemoryManager.shared.saveScreenshot(data: Data(base64Encoded: base64Str) ?? Data())
