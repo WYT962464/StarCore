@@ -85,6 +85,13 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             StarCoreAgent.shared.initializeMcp()
         }
 
+        // Auto-connect XiaoZhi if token is configured
+        DispatchQueue.global().asyncAfter(deadline: .now() + 5) {
+            if !XiaoZhiManager.shared.token.isEmpty {
+                XiaoZhiManager.shared.connect()
+            }
+        }
+
         // Start silent audio keepalive
         startKeepalive()
 
@@ -158,5 +165,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     func applicationWillResignActive(_ application: UIApplication) {}
     func applicationDidEnterBackground(_ application: UIApplication) {}
     func applicationWillEnterForeground(_ application: UIApplication) {}
-    func applicationDidBecomeActive(_ application: UIApplication) {}
+
+    func applicationDidBecomeActive(_ application: UIApplication) {
+        // 小智自动重连：token已配置但未连接时自动连接
+        if !XiaoZhiManager.shared.token.isEmpty && XiaoZhiManager.shared.state == .disconnected {
+            XiaoZhiManager.shared.connect()
+        }
+    }
 }

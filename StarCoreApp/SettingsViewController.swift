@@ -16,6 +16,7 @@ class SettingsViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         setupUI()
+        setupXiaoZhiCallbacks()
     }
 
     override func viewDidAppear(_ animated: Bool) {
@@ -79,6 +80,16 @@ class SettingsViewController: UIViewController {
         lastView = addSectionHeader("📱 ios-mcp", below: lastView)
         lastView = addMcpStatus(below: lastView)
         lastView = addMcpReconnectButton(below: lastView)
+
+        // Divider
+        lastView = addDivider(below: lastView)
+
+        // Section: XiaoZhi AI
+        lastView = addSectionHeader("🎤 小智AI", below: lastView)
+        lastView = addXiaoZhiTokenField(below: lastView)
+        lastView = addXiaoZhiStatus(below: lastView)
+        lastView = addXiaoZhiButton(below: lastView)
+        lastView = addXiaoZhiLogView(below: lastView)
 
         // Divider
         lastView = addDivider(below: lastView)
@@ -379,6 +390,175 @@ class SettingsViewController: UIViewController {
         }
     }
 
+    // MARK: - XiaoZhi AI Section
+
+    private var xiaozhiTokenField: UITextField!
+    private var xiaozhiStatusLabel: UILabel!
+    private var xiaozhiConnectButton: UIButton!
+    private var xiaozhiLogLabel: UILabel!
+
+    private func addXiaoZhiTokenField(below aboveView: UIView) -> UIView {
+        let rowView = UIView()
+        rowView.backgroundColor = UIColor(white: 1, alpha: 0.04)
+        rowView.layer.cornerRadius = 10
+        rowView.translatesAutoresizingMaskIntoConstraints = false
+        contentView.addSubview(rowView)
+
+        let titleLabel = UILabel()
+        titleLabel.text = "Token"
+        titleLabel.font = UIFont.systemFont(ofSize: 14)
+        titleLabel.textColor = UIColor(white: 1, alpha: 0.8)
+        titleLabel.translatesAutoresizingMaskIntoConstraints = false
+        rowView.addSubview(titleLabel)
+
+        xiaozhiTokenField = UITextField()
+        xiaozhiTokenField.placeholder = "粘贴小智MCP Token"
+        xiaozhiTokenField.attributedPlaceholder = NSAttributedString(
+            string: "粘贴小智MCP Token",
+            attributes: [.foregroundColor: UIColor(white: 1, alpha: 0.25)]
+        )
+        xiaozhiTokenField.font = UIFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+        xiaozhiTokenField.textColor = .white
+        xiaozhiTokenField.backgroundColor = UIColor(white: 1, alpha: 0.06)
+        xiaozhiTokenField.layer.cornerRadius = 6
+        xiaozhiTokenField.layer.borderWidth = 1
+        xiaozhiTokenField.layer.borderColor = UIColor(white: 1, alpha: 0.08).cgColor
+        xiaozhiTokenField.autocapitalizationType = .none
+        xiaozhiTokenField.autocorrectionType = .no
+        xiaozhiTokenField.isSecureTextEntry = true
+        xiaozhiTokenField.translatesAutoresizingMaskIntoConstraints = false
+        xiaozhiTokenField.leftView = UIView(frame: CGRect(x: 0, y: 0, width: 8, height: 1))
+        xiaozhiTokenField.leftViewMode = .always
+        xiaozhiTokenField.rightView = UIView(frame: CGRect(x: 0, y: 0, width: 8, height: 1))
+        xiaozhiTokenField.rightViewMode = .always
+        xiaozhiTokenField.text = XiaoZhiManager.shared.token
+        xiaozhiTokenField.addTarget(self, action: #selector(xiaozhiTokenChanged), for: .editingDidEnd)
+        rowView.addSubview(xiaozhiTokenField)
+
+        NSLayoutConstraint.activate([
+            rowView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+            rowView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
+            rowView.topAnchor.constraint(equalTo: aboveView.bottomAnchor, constant: rowGap),
+            rowView.heightAnchor.constraint(equalToConstant: 46),
+
+            titleLabel.leadingAnchor.constraint(equalTo: rowView.leadingAnchor, constant: 16),
+            titleLabel.centerYAnchor.constraint(equalTo: rowView.centerYAnchor),
+
+            xiaozhiTokenField.leadingAnchor.constraint(equalTo: titleLabel.trailingAnchor, constant: 8),
+            xiaozhiTokenField.trailingAnchor.constraint(equalTo: rowView.trailingAnchor, constant: -8),
+            xiaozhiTokenField.centerYAnchor.constraint(equalTo: rowView.centerYAnchor),
+            xiaozhiTokenField.heightAnchor.constraint(equalToConstant: 30)
+        ])
+
+        return rowView
+    }
+
+    @objc private func xiaozhiTokenChanged() {
+        XiaoZhiManager.shared.token = xiaozhiTokenField?.text ?? ""
+    }
+
+    private func addXiaoZhiStatus(below aboveView: UIView) -> UIView {
+        let (label, rowView) = addRow(label: "连接状态", below: aboveView)
+        xiaozhiStatusLabel = label
+        updateXiaoZhiStatusLabel(XiaoZhiManager.shared.state)
+        return rowView
+    }
+
+    private func updateXiaoZhiStatusLabel(_ state: XiaoZhiManager.ConnectionState) {
+        switch state {
+        case .disconnected:
+            let token = XiaoZhiManager.shared.token
+            xiaozhiStatusLabel?.text = token.isEmpty ? "⚪ 未配置" : "❌ 已断开"
+            xiaozhiStatusLabel?.textColor = token.isEmpty ? UIColor(white: 1, alpha: 0.4) : UIColor(red: 0xf5/255, green: 0x9e/255, blue: 0x0b/255, alpha: 1)
+        case .connecting:
+            xiaozhiStatusLabel?.text = "🔄 连接中..."
+            xiaozhiStatusLabel?.textColor = UIColor(red: 0x60/255, green: 0xa5/255, blue: 0xfa, alpha: 1.0)
+        case .connected:
+            xiaozhiStatusLabel?.text = "✅ 已连接"
+            xiaozhiStatusLabel?.textColor = UIColor(red: 0x4e/255, green: 0xca/255, blue: 0x80/255, alpha: 1)
+        }
+        // 更新按钮文字
+        xiaozhiConnectButton?.setTitle(state == .connected ? "断开连接" : "连接小智", for: .normal)
+    }
+
+    private func addXiaoZhiButton(below aboveView: UIView) -> UIView {
+        xiaozhiConnectButton = UIButton(type: .system)
+        let isConnected = XiaoZhiManager.shared.state == .connected
+        xiaozhiConnectButton.setTitle(isConnected ? "断开连接" : "连接小智", for: .normal)
+        xiaozhiConnectButton.setTitleColor(UIColor(red: 0x60/255, green: 0xa5/255, blue: 0xfa, alpha: 1.0), for: .normal)
+        xiaozhiConnectButton.titleLabel?.font = UIFont.systemFont(ofSize: 14)
+        xiaozhiConnectButton.backgroundColor = UIColor(white: 1, alpha: 0.04)
+        xiaozhiConnectButton.layer.cornerRadius = 10
+        xiaozhiConnectButton.translatesAutoresizingMaskIntoConstraints = false
+        xiaozhiConnectButton.addTarget(self, action: #selector(xiaozhiButtonTapped), for: .touchUpInside)
+        contentView.addSubview(xiaozhiConnectButton)
+
+        NSLayoutConstraint.activate([
+            xiaozhiConnectButton.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+            xiaozhiConnectButton.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
+            xiaozhiConnectButton.topAnchor.constraint(equalTo: aboveView.bottomAnchor, constant: rowGap),
+            xiaozhiConnectButton.heightAnchor.constraint(equalToConstant: 46)
+        ])
+
+        return xiaozhiConnectButton
+    }
+
+    @objc private func xiaozhiButtonTapped() {
+        if XiaoZhiManager.shared.state == .connected {
+            XiaoZhiManager.shared.disconnect()
+        } else {
+            XiaoZhiManager.shared.connect()
+        }
+    }
+
+    private func addXiaoZhiLogView(below aboveView: UIView) -> UIView {
+        let logContainer = UIView()
+        logContainer.backgroundColor = UIColor(red: 0x0f/255, green: 0x14/255, blue: 0x32/255, alpha: 1.0)
+        logContainer.layer.cornerRadius = 10
+        logContainer.layer.borderWidth = 1
+        logContainer.layer.borderColor = UIColor(white: 1, alpha: 0.06).cgColor
+        logContainer.translatesAutoresizingMaskIntoConstraints = false
+        contentView.addSubview(logContainer)
+
+        xiaozhiLogLabel = UILabel()
+        xiaozhiLogLabel.font = UIFont.monospacedSystemFont(ofSize: 11, weight: .regular)
+        xiaozhiLogLabel.textColor = UIColor(white: 1, alpha: 0.5)
+        xiaozhiLogLabel.numberOfLines = 5
+        xiaozhiLogLabel.translatesAutoresizingMaskIntoConstraints = false
+        logContainer.addSubview(xiaozhiLogLabel)
+
+        // 显示最近的日志
+        refreshXiaoZhiLog()
+
+        NSLayoutConstraint.activate([
+            logContainer.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+            logContainer.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
+            logContainer.topAnchor.constraint(equalTo: aboveView.bottomAnchor, constant: rowGap),
+
+            xiaozhiLogLabel.leadingAnchor.constraint(equalTo: logContainer.leadingAnchor, constant: 10),
+            xiaozhiLogLabel.trailingAnchor.constraint(equalTo: logContainer.trailingAnchor, constant: -10),
+            xiaozhiLogLabel.topAnchor.constraint(equalTo: logContainer.topAnchor, constant: 8),
+            xiaozhiLogLabel.bottomAnchor.constraint(equalTo: logContainer.bottomAnchor, constant: -8)
+        ])
+
+        return logContainer
+    }
+
+    private func refreshXiaoZhiLog() {
+        let logs = XiaoZhiManager.shared.recentLogs
+        let last5 = logs.suffix(5)
+        xiaozhiLogLabel?.text = last5.isEmpty ? "暂无日志" : last5.joined(separator: "\n")
+    }
+
+    private func setupXiaoZhiCallbacks() {
+        XiaoZhiManager.shared.onStateChanged = { [weak self] state in
+            self?.updateXiaoZhiStatusLabel(state)
+        }
+        XiaoZhiManager.shared.onLog = { [weak self] _ in
+            self?.refreshXiaoZhiLog()
+        }
+    }
+
     // MARK: - Clear History
 
     private func addClearHistoryButton(below aboveView: UIView) -> UIView {
@@ -457,9 +637,12 @@ class SettingsViewController: UIViewController {
     private func refreshUI() {
         updateTweakStatusLabel(StarCoreAgent.shared.getTweakStatus())
         updateMcpStatusLabel(StarCoreAgent.shared.getMcpStatus())
+        updateXiaoZhiStatusLabel(XiaoZhiManager.shared.state)
+        refreshXiaoZhiLog()
         if let provider = StarCoreAgent.shared.providers.first(where: { !$0.apiKey.isEmpty }) {
             apiKeyField?.text = provider.apiKey
             modelField?.text = provider.model
         }
+        xiaozhiTokenField?.text = XiaoZhiManager.shared.token
     }
 }
