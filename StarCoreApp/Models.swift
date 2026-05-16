@@ -218,12 +218,14 @@ struct CloudBridgeConfig: Codable {
     var enabled: Bool
     var serverUrl: String
     var authToken: String
+    var hmacSecret: String
     var timeoutSeconds: Int
 
     static let `default` = CloudBridgeConfig(
         enabled: false,
         serverUrl: "",
         authToken: "",
+        hmacSecret: "",
         timeoutSeconds: 30
     )
 }
