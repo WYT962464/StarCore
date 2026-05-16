@@ -1,7 +1,7 @@
 import Foundation
 
 // ★ v10.3: 设置版本号，升级时自动重置UserDefaults
-let SETTINGS_VERSION = "10.3.1"
+let SETTINGS_VERSION = "10.3.2"
 
 // MARK: - Chat Message
 struct ChatMessage: Codable {

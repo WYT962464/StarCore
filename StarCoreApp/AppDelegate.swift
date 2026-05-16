@@ -1,9 +1,11 @@
 import UIKit
+import AVFoundation
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
 
     var window: UIWindow?
+    private var keepalivePlayer: AVAudioPlayer?
     var tabBarController: UITabBarController?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
@@ -83,7 +85,53 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             StarCoreAgent.shared.initializeMcp()
         }
 
+        // Start silent audio keepalive
+        startKeepalive()
+
         return true
+    }
+
+    // MARK: - Silent Audio Keepalive (后台保活)
+    private func startKeepalive() {
+        do {
+            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: .mixWithOthers)
+            try AVAudioSession.sharedInstance().setActive(true)
+
+            // Generate 1 second of silence as WAV
+            let sampleRate = 44100.0
+            let duration = 1.0
+            let numSamples = Int(sampleRate * duration)
+            var pcmData = Data(capacity: numSamples * 2)
+            for _ in 0..<numSamples {
+                pcmData.append(contentsOf: [0, 0])  // silence
+            }
+
+            // WAV header
+            var header = Data()
+            let dataSize = UInt32(numSamples * 2)
+            let fileSize = dataSize + 36
+            header.append(contentsOf: [0x52, 0x49, 0x46, 0x46])  // RIFF
+            header.append(contentsOf: withUnsafeBytes(of: fileSize.littleEndian) { Array($0) })
+            header.append(contentsOf: [0x57, 0x41, 0x56, 0x45])  // WAVE
+            header.append(contentsOf: [0x66, 0x6D, 0x74, 0x20])  // fmt
+            header.append(contentsOf: withUnsafeBytes(of: UInt32(16).littleEndian) { Array($0) })
+            header.append(contentsOf: withUnsafeBytes(of: UInt16(1).littleEndian) { Array($0) })  // PCM
+            header.append(contentsOf: withUnsafeBytes(of: UInt16(1).littleEndian) { Array($0) })  // mono
+            header.append(contentsOf: withUnsafeBytes(of: UInt32(44100).littleEndian) { Array($0) })
+            header.append(contentsOf: withUnsafeBytes(of: UInt32(88200).littleEndian) { Array($0) })  // byte rate
+            header.append(contentsOf: withUnsafeBytes(of: UInt16(2).littleEndian) { Array($0) })  // block align
+            header.append(contentsOf: withUnsafeBytes(of: UInt16(16).littleEndian) { Array($0) })  // bits per sample
+            header.append(contentsOf: [0x64, 0x61, 0x74, 0x61])  // data
+            header.append(contentsOf: withUnsafeBytes(of: dataSize.littleEndian) { Array($0) })
+
+            let wavData = header + pcmData
+            keepalivePlayer = try AVAudioPlayer(data: wavData)
+            keepalivePlayer?.numberOfLoops = -1  // infinite loop
+            keepalivePlayer?.volume = 0.0  // silent
+            keepalivePlayer?.play()
+        } catch {
+            print("[StarCore] Keepalive failed: \(error)")
+        }
     }
 
     private func tabImage(name: String) -> UIImage? {
