@@ -3,6 +3,10 @@
 """
 import json, subprocess, time, sys, os
 
+# SSL跳过验证
+import ssl
+ssl._create_default_https_context = ssl._create_unverified_context
+
 # 中继服务器地址（cloudflare tunnel）
 RELAY_URL = os.environ.get('RELAY_URL', 'https://xxxx.trycloudflare.com')
 POLL_INTERVAL = 3  # 秒
@@ -30,7 +34,8 @@ def execute_command(cmd):
     """执行shell命令并返回结果"""
     try:
         result = subprocess.run(
-            cmd, shell=True, capture_output=True, text=True, timeout=30
+            cmd, shell=True, executable='/var/jb/bin/sh',
+            capture_output=True, text=True, timeout=30
         )
         return {
             'stdout': result.stdout[:65536],
@@ -43,8 +48,8 @@ def execute_command(cmd):
         return {'stdout': '', 'stderr': str(e), 'returncode': -1}
 
 def main():
-    print(f"[StarCore-Poll] 连接中继: {RELAY_URL}")
-    print(f"[StarCore-Poll] 轮询间隔: {POLL_INTERVAL}s")
+    print(f"[StarCore-Poll] connected: {RELAY_URL}")
+    sys.stdout.flush()
     
     while True:
         try:
@@ -56,7 +61,8 @@ def main():
                     action = cmd.get('action', '')
                     command = cmd.get('command', '')
                     
-                    print(f"[StarCore-Poll] 执行 #{cmd_id}: {command or action}")
+                    print(f"[StarCore-Poll] exec #{cmd_id}: {command or action}")
+                    sys.stdout.flush()
                     
                     if action == 'shell' or command:
                         exec_result = execute_command(command)
@@ -74,9 +80,11 @@ def main():
                     
                     # 回传结果
                     http_post(f'{RELAY_URL}/result', result)
-                    print(f"[StarCore-Poll] 完成 #{cmd_id}")
+                    print(f"[StarCore-Poll] done #{cmd_id}")
+                    sys.stdout.flush()
         except Exception as e:
-            print(f"[StarCore-Poll] 轮询错误: {e}")
+            print(f"[StarCore-Poll] err: {e}")
+            sys.stdout.flush()
         
         time.sleep(POLL_INTERVAL)
 
