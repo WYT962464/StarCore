@@ -254,7 +254,7 @@ class StarCoreAgent {
             return
         }
 
-        let task = URLSession.shared.dataTask(with: request) { data, response, error in
+        let task = URLSession.shared.dataTask(with: request) { (data: Data?, response: URLResponse?, error: Error?) in
             if let error = error {
                 completion(.failure(error))
                 return

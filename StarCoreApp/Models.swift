@@ -86,6 +86,17 @@ struct LLMProvider: Codable {
     }
 }
 
+// MARK: - LLM Response (OpenAI-compatible)
+struct LLMResponse: Codable {
+    struct Choice: Codable {
+        struct Message: Codable {
+            let content: String?
+        }
+        let message: Message?
+    }
+    let choices: [Choice]?
+}
+
 // MARK: - App Settings
 struct AppSettings: Codable {
     var currentProviderIndex: Int
