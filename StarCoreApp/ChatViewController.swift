@@ -408,6 +408,7 @@ class ChatViewController: UIViewController {
             onToken: { [weak self] token in
                 DispatchQueue.main.async {
                     guard let self = self else { return }
+                    NSLog("[StarCore] ChatVC onToken: \(token.prefix(30)), total=\(self.streamingAccumulated.count + token.count)")
                     self.streamingAccumulated += token
 
                     // 防抖：300ms内只渲染一次
@@ -441,6 +442,7 @@ class ChatViewController: UIViewController {
                     self.streamingDebounceTimer = nil
 
                     // 如果流式输出没有任何token，确保最终回复被显示
+                    NSLog("[StarCore] ChatVC completion: finalReply=\(finalReply.prefix(80)), len=\(finalReply.count)")
                     var displayReply = finalReply
                     if finalReply.isEmpty || finalReply == "（空回复）" {
                         displayReply = "❌ 未收到回复，请检查网络和API Key设置"

@@ -1400,10 +1400,12 @@ class StarCoreAgent {
             completion: { [weak self] result in
                 guard let self = self else { return }
 
+                NSLog("[StarCore] Agent completion received, accumulated=\(accumulated.count)chars")
                 let reply: String
                 switch result {
                 case .success(let text):
                     reply = text
+                    NSLog("[StarCore] Agent success reply: \(text.prefix(80))")
                 case .failure(let error):
                     // 访客模式失败时，给出友好提示
                     let errMsg = error.localizedDescription
@@ -1453,6 +1455,7 @@ class StarCoreAgent {
                     )
                 } else {
                     // Agent循环结束
+                    NSLog("[StarCore] Agent loop done, finalReply preview: \(newAllReplies.first?.prefix(50) ?? "nil")")
                     onStatus?("")
                     let finalReply = newAllReplies.isEmpty ? clean.0 : newAllReplies.joined(separator: "\n\n")
                     let assistantMsg = ChatMessage(role: .assistant, content: finalReply, actionResults: newAllActionResults)
@@ -1502,10 +1505,12 @@ class StarCoreAgent {
             },
             completion: { [weak self] result in
                 guard let self = self else { return }
+                NSLog("[StarCore] Agent completion received, accumulated=\(accumulated.count)chars")
                 let reply: String
                 switch result {
                 case .success(let text):
                     reply = text
+                    NSLog("[StarCore] Agent success reply: \(text.prefix(80))")
                 case .failure(let error):
                     let errMsg = error.localizedDescription
                     if self.currentProvider.isGuestMode {
