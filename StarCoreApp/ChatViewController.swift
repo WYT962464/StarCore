@@ -155,7 +155,7 @@ class ChatViewController: UIViewController {
         NSLayoutConstraint.activate([
             inputContainerView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             inputContainerView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            inputContainerView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            inputContainerView.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
             inputContainerView.heightAnchor.constraint(equalToConstant: 56)
         ])
 

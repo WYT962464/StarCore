@@ -389,8 +389,16 @@ class MemoryViewController: UIViewController {
         navigationStack = []
         currentPathLabel.text = "📂 \(rootPath)"
 
+        // ★ v10.3-hotfix: Tweak未连接时检查是否有权限读文件
+        let tweakConnected = StarCoreAgent.shared.isTweakConnected
         memoryFiles = MemoryManager.shared.listMemoryFiles()
         fileItems = MemoryManager.shared.listFiles(at: rootPath)
+
+        // 如果没有读到任何文件且Tweak未连接，显示提示
+        if memoryFiles.isEmpty && fileItems.isEmpty && !tweakConnected {
+            // 添加提示行到memoryFiles
+            currentPathLabel.text = "⚠️ 请先连接Tweak才能读取文件"
+        }
 
         memoryTableView.reloadData()
         fileTableView.reloadData()

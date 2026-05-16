@@ -104,11 +104,6 @@ class StarCoreAgent {
         get {
             if let data = defaults.data(forKey: "providers"),
                let decoded = try? JSONDecoder().decode([LLMProvider].self, from: data) {
-                // ★ v9.0迁移：如果已保存的providers不包含访客模式，在最前面插入
-                if !decoded.contains(where: { $0.isGuestMode }) {
-                    var migrated = [LLMProvider.guestDeepseek] + decoded
-                    return migrated
-                }
                 return decoded
             }
             return LLMProvider.allProviders
