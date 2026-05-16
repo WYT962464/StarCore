@@ -1,25 +1,18 @@
 import Foundation
 
-// MARK: - Debug Log to file (Filza可查看)
 func starcore_log(_ msg: String) {
     NSLog("[StarCore] %@", msg)
     let path = "/var/mobile/StarCore/llm_debug.log"
-    if let handle = FileHandle(forWritingAtPath: path) {
-        handle.seekToEndOfFile()
-    } else {
-        FileManager.default.createFile(atPath: path, contents: nil)
-    }
-    if let handle = FileHandle(forWritingAtPath: path) {
-        handle.seekToEndOfFile()
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm:ss.SSS"
-        let ts = formatter.string(from: Date())
-        let line = "[\(ts)] \(msg)
-"
-        if let data = line.data(using: .utf8) {
+    let line = "[" + DateFormatter().string(from: Date()) + "] " + msg + Character(UnicodeScalar(10)).description
+    guard let data = line.data(using: .utf8) else { return }
+    if FileManager.default.fileExists(atPath: path) {
+        if let handle = FileHandle(forWritingAtPath: path) {
+            handle.seekToEndOfFile()
             handle.write(data)
+            handle.closeFile()
         }
-        handle.closeFile()
+    } else {
+        FileManager.default.createFile(atPath: path, contents: data)
     }
 }
 
