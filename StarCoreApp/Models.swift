@@ -146,33 +146,17 @@ struct TweakAction {
     }
 }
 
-// MARK: - Cloud Brain Config
-struct CloudBrainConfig: Codable {
-    var enabled: Bool
-    var apiUrl: String
-    var botId: String
-    var botToken: String
-
-    static let `default` = CloudBrainConfig(
-        enabled: false,
-        apiUrl: "https://api.coze.cn/v3/chat",
-        botId: "",
-        botToken: ""
-    )
-}
 
 // MARK: - App Settings
 struct AppSettings: Codable {
     var currentProviderIndex: Int
     var providers: [LLMProvider]
-    var cloudBrain: CloudBrainConfig
     var memoryPath: String
     var systemPromptOverride: String
 
     static let `default` = AppSettings(
         currentProviderIndex: 1,  // v9.2: 默认使用火山方舟（免费额度，开箱即用）
         providers: LLMProvider.allProviders,
-        cloudBrain: .default,
         memoryPath: "/var/mobile/StarCoreAgent",
         systemPromptOverride: ""
     )
@@ -220,47 +204,5 @@ struct MemoryFileInfo {
         let formatter = DateFormatter()
         formatter.dateFormat = "MM-dd HH:mm"
         return formatter.string(from: date)
-    }
-}
-// MARK: - Cloud Bridge Config
-struct CloudBridgeConfig: Codable {
-    var enabled: Bool
-    var serverUrl: String
-    var authToken: String
-    var hmacSecret: String
-    var timeoutSeconds: Int
-
-    static let `default` = CloudBridgeConfig(
-        enabled: false,
-        serverUrl: "",
-        authToken: "",
-        hmacSecret: "",
-        timeoutSeconds: 30
-    )
-}
-
-// MARK: - Cloud Result
-struct CloudResult: Codable {
-    let success: Bool
-    let output: String
-    let exitCode: Int
-    let executionTime: Double
-
-    init(success: Bool, output: String, exitCode: Int = 0, executionTime: Double = 0) {
-        self.success = success
-        self.output = output
-        self.exitCode = exitCode
-        self.executionTime = executionTime
-    }
-}
-
-// MARK: - Cloud Health
-struct CloudHealth: Codable {
-    let status: String
-    var uptime: Double?
-    var version: String?
-
-    var isHealthy: Bool {
-        return status == "ok" || status == "healthy"
     }
 }

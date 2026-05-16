@@ -14,7 +14,6 @@ class ChatViewController: UIViewController {
     private var statusBarView: UIView!
     private var tweakStatusLabel: UILabel!
     private var providerLabel: UILabel!
-    private var cloudStatusLabel: UILabel!
     private var mcpStatusLabel: UILabel!
     private var typingIndicatorView: UIActivityIndicatorView!
 
@@ -124,12 +123,10 @@ class ChatViewController: UIViewController {
 
         tweakStatusLabel = makeStatusLabel(text: "Tweak: ·")
         providerLabel = makeStatusLabel(text: "LLM: ·")
-        cloudStatusLabel = makeStatusLabel(text: "超脑: ·")
         mcpStatusLabel = makeStatusLabel(text: "MCP: ·")
 
         statusStack.addArrangedSubview(tweakStatusLabel)
         statusStack.addArrangedSubview(providerLabel)
-        statusStack.addArrangedSubview(cloudStatusLabel)
         statusStack.addArrangedSubview(mcpStatusLabel)
 
         let borderView = UIView()
@@ -345,9 +342,6 @@ class ChatViewController: UIViewController {
         // 访客模式(GUEST apiKey)或已配置Key的Provider显示正常色，未配置Key的显示警告色
         providerLabel.textColor = (provider.isGuestMode || !provider.apiKey.isEmpty) ? UIColor(white: 1, alpha: 0.5) : UIColor(red: 0xf5/255, green: 0x9e/255, blue: 0x0b/255, alpha: 1)
 
-        let cloudConfig = agent.cloudBrainConfig
-        cloudStatusLabel.text = cloudConfig.enabled ? "超脑: 🟢" : "超脑: ⚪"
-        cloudStatusLabel.textColor = cloudConfig.enabled ? UIColor(red: 0x60/255, green: 0xa5/255, blue: 0xfa/255, alpha: 1) : UIColor(white: 1, alpha: 0.3)
 
         let mcpConnected = agent.getMcpStatus()
         mcpStatusLabel.text = mcpConnected ? "MCP: ✅" : "MCP: ⚪"

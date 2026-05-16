@@ -52,11 +52,7 @@ class StarCoreAgent {
 {"action":"iosMcpLaunchApp","bundleId":"com.xxx"}  ios-mcp启动App
 {"action":"iosMcpListApps"}  获取App列表
 
-【云端方案】：
-{"action":"cloud","command":"ls -la"}  云端执行命令(在云电脑上执行shell命令)
-{"action":"cloudHealth"}  云桥健康检查
-
-决策规则：优先使用自研Tweak方案（速度快），Tweak不可用时ios-mcp作为备选。需要电脑环境时用cloud。手机能做的不要发到云端。输入中文必须用inputText而不是shell。
+决策规则：优先使用自研Tweak方案（速度快），Tweak不可用时ios-mcp作为备选。输入中文必须用inputText而不是shell。
 
 多步操作规则：
 - 执行多步操作时，每次只输出一个action，等待执行结果后再决定下一步
@@ -117,42 +113,11 @@ class StarCoreAgent {
         return all[idx]
     }
 
-    var cloudBrainConfig: CloudBrainConfig {
-        get {
-            if let data = defaults.data(forKey: "cloudBrainConfig"),
-               let decoded = try? JSONDecoder().decode(CloudBrainConfig.self, from: data) {
-                return decoded
-            }
-            return .default
-        }
-        set {
-            if let data = try? JSONEncoder().encode(newValue) {
-                defaults.set(data, forKey: "cloudBrainConfig")
-            }
-        }
-    }
 
-    var isCloudMode: Bool {
-        get { defaults.object(forKey: "isCloudMode") as? Bool ?? false }
-        set { defaults.set(newValue, forKey: "isCloudMode") }
-    }
 
-    // MARK: - Cloud Bridge Config
 
-    var cloudBridgeConfig: CloudBridgeConfig {
-        get {
-            if let data = defaults.data(forKey: "cloudBridgeConfig"),
-               let decoded = try? JSONDecoder().decode(CloudBridgeConfig.self, from: data) {
-                return decoded
-            }
-            return .default
-        }
-        set {
-            if let data = try? JSONEncoder().encode(newValue) {
-                defaults.set(data, forKey: "cloudBridgeConfig")
-            }
-        }
-    }
+
+
 
     // MARK: - System Prompt Builder
 
@@ -371,204 +336,6 @@ class StarCoreAgent {
 
     func callLLM(messages: [[String: String]], completion: @escaping (Result<String, Error>) -> Void) {
         callLLMWithProvider(messages: messages, providerIndex: currentProviderIndex, completion: completion)
-    }
-
-    // MARK: - Cloud Brain (Coze v3 API - Three-Step Flow)
-
-    func callCloudBrain(userMessage: String, completion: @escaping (Result<String, Error>) -> Void) {
-        let config = cloudBrainConfig
-        guard config.enabled, !config.apiUrl.isEmpty, !config.botToken.isEmpty, !config.botId.isEmpty else {
-            completion(.success("⚠️ 云端超脑未配置，请在设置中填写Bot ID和PAT。"))
-            return
-        }
-
-        guard let url = URL(string: config.apiUrl) else {
-            completion(.success("⚠️ 云端API URL格式错误。"))
-            return
-        }
-
-        // Step 1: Create chat
-        var createRequest = URLRequest(url: url)
-        createRequest.httpMethod = "POST"
-        createRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        createRequest.setValue("Bearer \(config.botToken)", forHTTPHeaderField: "Authorization")
-        createRequest.timeoutInterval = 30
-
-        let payload: [String: Any] = [
-            "bot_id": config.botId,
-            "user_id": "ateng_iphone",
-            "stream": false,
-            "auto_save_history": true,
-            "additional_messages": [
-                [
-                    "role": "user",
-                    "content": userMessage,
-                    "content_type": "text"
-                ]
-            ]
-        ]
-
-        do {
-            createRequest.httpBody = try JSONSerialization.data(withJSONObject: payload)
-        } catch {
-            completion(.failure(error))
-            return
-        }
-
-        URLSession.shared.dataTask(with: createRequest) { [weak self] data, response, error in
-            guard let self = self else { return }
-
-            if let error = error {
-                completion(.success("❌ 云端创建对话失败: \(error.localizedDescription)"))
-                return
-            }
-
-            guard let data = data else {
-                completion(.success("❌ 云端创建对话收到空响应"))
-                return
-            }
-
-            if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode != 200 {
-                let body = String(data: data, encoding: .utf8) ?? "unknown"
-                completion(.success("❌ 云端创建对话错误 \(httpResponse.statusCode): \(String(body.prefix(300)))"))
-                return
-            }
-
-            // Parse create response
-            guard let createJson = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let createData = createJson["data"] as? [String: Any],
-                  let chatId = createData["id"] as? String,
-                  let conversationId = createData["conversation_id"] as? String else {
-                let body = String(data: data, encoding: .utf8) ?? "unknown"
-                completion(.success("❌ 解析创建对话响应失败: \(String(body.prefix(300)))"))
-                return
-            }
-
-            // Step 2: Poll until completed
-            self.pollCloudChatStatus(chatId: chatId, conversationId: conversationId, config: config, completion: completion)
-        }.resume()
-    }
-
-    private func pollCloudChatStatus(chatId: String, conversationId: String, config: CloudBrainConfig, attempt: Int = 0, completion: @escaping (Result<String, Error>) -> Void) {
-        let maxAttempts = 30 // 60 seconds timeout
-
-        if attempt >= maxAttempts {
-            completion(.success("❌ 云端超脑响应超时（60秒）"))
-            return
-        }
-
-        // Build retrieve URL
-        var components = URLComponents(string: config.apiUrl.replacingOccurrences(of: "/v3/chat", with: "/v3/chat/retrieve"))
-        components?.queryItems = [
-            URLQueryItem(name: "conversation_id", value: conversationId),
-            URLQueryItem(name: "chat_id", value: chatId)
-        ]
-
-        guard let retrieveUrl = components?.url else {
-            completion(.success("❌ 构建轮询URL失败"))
-            return
-        }
-
-        var retrieveRequest = URLRequest(url: retrieveUrl)
-        retrieveRequest.httpMethod = "GET"
-        retrieveRequest.setValue("Bearer \(config.botToken)", forHTTPHeaderField: "Authorization")
-        retrieveRequest.timeoutInterval = 10
-
-        URLSession.shared.dataTask(with: retrieveRequest) { [weak self] data, response, error in
-            guard let self = self else { return }
-
-            if let error = error {
-                completion(.success("❌ 轮询状态失败: \(error.localizedDescription)"))
-                return
-            }
-
-            guard let data = data else {
-                completion(.success("❌ 轮询收到空响应"))
-                return
-            }
-
-            guard let retrieveJson = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let retrieveData = retrieveJson["data"] as? [String: Any],
-                  let status = retrieveData["status"] as? String else {
-                completion(.success("❌ 解析轮询响应失败"))
-                return
-            }
-
-            switch status {
-            case "completed":
-                // Step 3: Fetch messages
-                self.fetchCloudMessages(chatId: chatId, conversationId: conversationId, config: config, completion: completion)
-
-            case "created", "in_progress":
-                // Wait 2 seconds then poll again
-                DispatchQueue.global().asyncAfter(deadline: .now() + 2) {
-                    self.pollCloudChatStatus(chatId: chatId, conversationId: conversationId, config: config, attempt: attempt + 1, completion: completion)
-                }
-
-            case "failed":
-                let errorMsg = retrieveData["last_error"] as? [String: Any]
-                let msg = errorMsg?["msg"] as? String ?? "未知错误"
-                completion(.success("❌ 云端超脑处理失败: \(msg)"))
-
-            case "requires_action":
-                completion(.success("❌ 云端超脑需要人工介入"))
-
-            default:
-                // Unknown status, keep polling
-                DispatchQueue.global().asyncAfter(deadline: .now() + 2) {
-                    self.pollCloudChatStatus(chatId: chatId, conversationId: conversationId, config: config, attempt: attempt + 1, completion: completion)
-                }
-            }
-        }.resume()
-    }
-
-    private func fetchCloudMessages(chatId: String, conversationId: String, config: CloudBrainConfig, completion: @escaping (Result<String, Error>) -> Void) {
-        var components = URLComponents(string: config.apiUrl.replacingOccurrences(of: "/v3/chat", with: "/v3/chat/message/list"))
-        components?.queryItems = [
-            URLQueryItem(name: "conversation_id", value: conversationId),
-            URLQueryItem(name: "chat_id", value: chatId)
-        ]
-
-        guard let messagesUrl = components?.url else {
-            completion(.success("❌ 构建消息列表URL失败"))
-            return
-        }
-
-        var messagesRequest = URLRequest(url: messagesUrl)
-        messagesRequest.httpMethod = "GET"
-        messagesRequest.setValue("Bearer \(config.botToken)", forHTTPHeaderField: "Authorization")
-        messagesRequest.timeoutInterval = 15
-
-        URLSession.shared.dataTask(with: messagesRequest) { data, response, error in
-            if let error = error {
-                completion(.success("❌ 获取云端消息失败: \(error.localizedDescription)"))
-                return
-            }
-
-            guard let data = data else {
-                completion(.success("❌ 获取云端消息收到空响应"))
-                return
-            }
-
-            do {
-                if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                   let messages = json["data"] as? [[String: Any]] {
-                    // Filter for type == "answer"
-                    let answers = messages
-                        .filter { ($0["type"] as? String) == "answer" }
-                        .compactMap { $0["content"] as? String }
-                        .joined(separator: "\n")
-
-                    if !answers.isEmpty {
-                        completion(.success(answers))
-                        return
-                    }
-                }
-                completion(.success("❌ 云端超脑未返回有效回答"))
-            } catch {
-                completion(.success("❌ 解析云端消息失败: \(error.localizedDescription)"))
-            }
-        }.resume()
     }
 
     // MARK: - Tweak TCP Communication
@@ -1006,42 +773,6 @@ class StarCoreAgent {
         case "iosMcpListApps":
             return callMcpToolSync(name: "list_apps", arguments: [:])
 
-
-        // Cloud Bridge actions
-        case "cloud":
-            let command = action["command"] as? String ?? ""
-            let timeout = action["timeout"] as? Double
-            let result = CloudBridgeClient.shared.executeSync(command: command, timeout: timeout)
-            switch result {
-            case .success(let cloudResult):
-                var dict: [String: Any] = [
-                    "success": cloudResult.success,
-                    "output": cloudResult.output,
-                    "exitCode": cloudResult.exitCode,
-                    "executionTime": cloudResult.executionTime
-                ]
-                if !cloudResult.success {
-                    dict["error"] = "云端命令执行失败 (exit=\(cloudResult.exitCode))"
-                }
-                return dict
-            case .failure(let error):
-                return ["success": false, "error": "云桥错误: \(error.localizedDescription)"]
-            }
-
-        case "cloudHealth":
-            var healthResult: [String: Any] = [:]
-            let semaphore = DispatchSemaphore(value: 0)
-            CloudBridgeClient.shared.healthCheck { result in
-                switch result {
-                case .success(let health):
-                    healthResult = ["success": true, "status": health.status, "isHealthy": health.isHealthy]
-                case .failure(let error):
-                    healthResult = ["success": false, "error": error.localizedDescription]
-                }
-                semaphore.signal()
-            }
-            _ = semaphore.wait(timeout: .now() + 15)
-            return healthResult.isEmpty ? ["success": false, "error": "健康检查超时"] : healthResult
         default:
             return ["error": "未知动作: \(act)"]
         }
@@ -1115,12 +846,6 @@ class StarCoreAgent {
             messages[0]["content"]! += "\nios-mcp: 已连接 (备选方案, localhost:8090)"
         }
 
-        // Add cloud bridge availability info
-        if CloudBridgeClient.shared.isAvailable {
-            let cfg = cloudBridgeConfig
-            messages[0]["content"]! += "\n云桥: 已启用 (\(cfg.serverUrl))"
-        }
-
         // Add history
         let history = chatHistory
         for msg in history.suffix(20) {
@@ -1134,20 +859,8 @@ class StarCoreAgent {
         let userMsg = ChatMessage(role: .user, content: userInput)
         addToHistory(userMsg)
 
-        if isCloudMode {
-            // Cloud mode - no agent loop, just call cloud brain
-            callCloudBrain(userMessage: userInput) { [weak self] result in
-                guard let self = self else { return }
-                let reply = (try? result.get()) ?? "处理出错"
-                let clean = self.processLLMReply(reply)
-                let assistantMsg = ChatMessage(role: .assistant, content: clean.0, actionResults: clean.1)
-                self.addToHistory(assistantMsg)
-                completion(clean.0, clean.1)
-            }
-        } else {
-            // Local LLM mode - with agent loop
-            agentLoop(messages: messages, step: 1, maxSteps: 20, allReplies: [], allActionResults: [], onPartialReply: onPartialReply, completion: completion)
-        }
+        // Local LLM mode - with agent loop
+        agentLoop(messages: messages, step: 1, maxSteps: 20, allReplies: [], allActionResults: [], onPartialReply: onPartialReply, completion: completion)
     }
 
     /// Agent loop: call LLM, execute actions, feed results back, repeat
@@ -1325,12 +1038,6 @@ class StarCoreAgent {
             messages[0]["content"]! += "\nios-mcp: 已连接 (备选方案, localhost:8090)"
         }
 
-        // 添加云桥信息
-        if CloudBridgeClient.shared.isAvailable {
-            let cfg = cloudBridgeConfig
-            messages[0]["content"]! += "\n云桥: 已启用 (\(cfg.serverUrl))"
-        }
-
         // 添加历史
         let history = chatHistory
         for msg in history.suffix(20) {
@@ -1344,32 +1051,18 @@ class StarCoreAgent {
         let userMsg = ChatMessage(role: .user, content: userInput)
         addToHistory(userMsg)
 
-        if isCloudMode {
-            // 云端模式不支持流式，使用普通调用
-            onStatus?("☁️ 连接云端超脑...")
-            callCloudBrain(userMessage: userInput) { [weak self] result in
-                guard let self = self else { return }
-                let reply = (try? result.get()) ?? "处理出错"
-                let clean = self.processLLMReply(reply)
-                let assistantMsg = ChatMessage(role: .assistant, content: clean.0, actionResults: clean.1)
-                self.addToHistory(assistantMsg)
-                onStatus?("✅ 完成")
-                completion(clean.0, clean.1)
-            }
-        } else {
-            // 本地LLM流式模式 - 带Agent循环
-            onStatus?("🤔 思考中...")
-            agentLoopStreaming(
-                messages: messages,
-                step: 1,
-                maxSteps: 20,
-                allReplies: [],
-                allActionResults: [],
-                onToken: onToken,
-                onStatus: onStatus,
-                completion: completion
-            )
-        }
+        // 本地LLM流式模式 - 带Agent循环
+        onStatus?("🤔 思考中...")
+        agentLoopStreaming(
+            messages: messages,
+            step: 1,
+            maxSteps: 20,
+            allReplies: [],
+            allActionResults: [],
+            onToken: onToken,
+            onStatus: onStatus,
+            completion: completion
+        )
     }
 
     /// 流式Agent循环
