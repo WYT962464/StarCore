@@ -11,7 +11,7 @@ class ChatViewController: UIViewController {
     private var statusBarView: UIView!
     private var tweakStatusLabel: UILabel!
     private var llmStatusLabel: UILabel!
-    private var mcpStatusLabel: UILabel!
+    private var tweakStatusLabel: UILabel!
 
     // MARK: - Data
     private var messages: [ChatMessage] = []
@@ -100,10 +100,10 @@ class ChatViewController: UIViewController {
 
         tweakStatusLabel = makeStatusLabel()
         llmStatusLabel = makeStatusLabel()
-        mcpStatusLabel = makeStatusLabel()
+        tweakStatusLabel = makeStatusLabel()
         stack.addArrangedSubview(tweakStatusLabel)
         stack.addArrangedSubview(llmStatusLabel)
-        stack.addArrangedSubview(mcpStatusLabel)
+        stack.addArrangedSubview(tweakStatusLabel)
 
         let border = UIView()
         border.backgroundColor = UIColor(white: 1, alpha: 0.06)
@@ -213,9 +213,6 @@ class ChatViewController: UIViewController {
     // MARK: - Status Bar
 
     private func updateStatusBar() {
-        let tc = StarCoreAgent.shared.getTweakStatus()
-        tweakStatusLabel?.text = tc ? "Tweak ✅" : "Tweak ❌"
-        tweakStatusLabel?.textColor = tc ? UIColor(red: 0x4e/255, green: 0xca/255, blue: 0x80/255, alpha: 1) : UIColor(red: 0xf5/255, green: 0x9e/255, blue: 0x0b/255, alpha: 1)
 
         let p = StarCoreAgent.shared.currentProvider
         let llmOk = !p.apiKey.isEmpty
@@ -223,8 +220,8 @@ class ChatViewController: UIViewController {
         llmStatusLabel?.textColor = llmOk ? UIColor(red: 0x4e/255, green: 0xca/255, blue: 0x80/255, alpha: 1) : UIColor(red: 0xf5/255, green: 0x9e/255, blue: 0x0b/255, alpha: 1)
 
         let tc = StarCoreAgent.shared.isTweakConnected
-        mcpStatusLabel?.text = tc ? "Tweak ✅" : "Tweak ⚪"
-        mcpStatusLabel?.textColor = tc ? UIColor(red: 0x4e/255, green: 0xca/255, blue: 0x80/255, alpha: 1) : UIColor(white: 1, alpha: 0.4)
+        tweakStatusLabel?.text = tc ? "Tweak ✅" : "Tweak ⚪"
+        tweakStatusLabel?.textColor = tc ? UIColor(red: 0x4e/255, green: 0xca/255, blue: 0x80/255, alpha: 1) : UIColor(white: 1, alpha: 0.4)
     }
 
     // MARK: - Data
