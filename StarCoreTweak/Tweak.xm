@@ -1924,42 +1924,123 @@ static StarCoreTCPServer *_server = nil;
         [resp addEntriesFromDictionary:screenInfo];
     }
     
-    // ★ v5.4: shell
+    // ★ v8.5: shell - 改用popen()（兼容Dopamine越狱，posix_spawn在SpringBoard不可靠）
     else if([action isEqualToString:@"shell"]) {
         NSString *cmd = req[@"command"];
         if (!cmd || cmd.length == 0) { resp[@"success"]=@NO; resp[@"error"]=@"command required"; }
         else {
-            const char *tmpPath = "/tmp/starcore_shell_out";
-            remove(tmpPath);
-            posix_spawn_file_actions_t actions;
-            posix_spawn_file_actions_init(&actions);
-            posix_spawn_file_actions_addopen(&actions, STDOUT_FILENO, tmpPath, O_WRONLY|O_CREAT|O_TRUNC, 0644);
-            posix_spawn_file_actions_adddup2(&actions, STDOUT_FILENO, STDERR_FILENO);
-            char *argv[] = {(char*)"/bin/sh", (char*)"-c", (char*)[cmd UTF8String], NULL};
-            char *envp[] = {(char*)"PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin", (char*)"HOME=/var/mobile", NULL};
-            setuid(0);
-            pid_t pid;
-            int spawnResult = posix_spawn(&pid, "/bin/sh", &actions, NULL, argv, envp);
-            posix_spawn_file_actions_destroy(&actions);
-            if (spawnResult != 0) { resp[@"success"]=@NO; resp[@"error"]=[NSString stringWithFormat:@"posix_spawn failed: %s", strerror(spawnResult)]; }
+            NSString *fullCmd = [NSString stringWithFormat:@"PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin HOME=/var/mobile %@ 2>&1", cmd];
+            FILE *fp = popen([fullCmd UTF8String], "r");
+            if (!fp) { resp[@"success"]=@NO; resp[@"error"]=[NSString stringWithFormat:@"popen failed: %s", strerror(errno)]; }
             else {
-                int status = 0; int waitCount = 0;
-                while (waitCount < 100) { pid_t result = waitpid(pid, &status, WNOHANG); if (result > 0 || result < 0) break; usleep(100000); waitCount++; }
-                if (waitCount >= 100) { kill(pid, SIGKILL); resp[@"error"]=@"timeout (10s)"; }
+                NSMutableData *outData = [NSMutableData data]; char buf2[4096];
+                while (fgets(buf2, sizeof(buf2), fp)) { [outData appendBytes:buf2 length:strlen(buf2)]; }
+                int exitCode = pclose(fp);
                 NSString *output = @"";
-                FILE *fp = fopen(tmpPath, "r");
-                if (fp) {
-                    NSMutableData *outData = [NSMutableData data]; char buf2[4096];
-                    while (fgets(buf2, sizeof(buf2), fp)) { [outData appendBytes:buf2 length:strlen(buf2)]; }
-                    fclose(fp);
-                    if (outData.length > 65536) { [outData replaceBytesInRange:NSMakeRange(65536, outData.length - 65536) withBytes:"" length:0]; output = [[NSString alloc] initWithData:outData encoding:NSUTF8StringEncoding]; output = [output stringByAppendingString:@"\n... [truncated]"]; }
-                    else { output = [[NSString alloc] initWithData:outData encoding:NSUTF8StringEncoding] ?: @""; }
-                }
-                remove(tmpPath);
-                resp[@"success"] = @(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+                if (outData.length > 65536) { [outData replaceBytesInRange:NSMakeRange(65536, outData.length - 65536) withBytes:"" length:0]; output = [[NSString alloc] initWithData:outData encoding:NSUTF8StringEncoding]; output = [output stringByAppendingString:@"\n... [truncated]"]; }
+                else { output = [[NSString alloc] initWithData:outData encoding:NSUTF8StringEncoding] ?: @""; }
+                resp[@"success"] = @(exitCode == 0);
                 resp[@"output"] = output;
-                resp[@"exitCode"] = @(WIFEXITED(status) ? WEXITSTATUS(status) : -1);
+                resp[@"exitCode"] = @(exitCode);
             }
+        }
+    }
+    
+    // ★ v8.5: readFile - Tweak直接读任意路径（绕过沙盒）
+    else if([action isEqualToString:@"readFile"]) {
+        NSString *path = req[@"path"];
+        if (!path || path.length == 0) { resp[@"success"]=@NO; resp[@"error"]=@"path required"; }
+        else {
+            NSData *data = [NSData dataWithContentsOfFile:path];
+            if (data) {
+                NSString *content = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+                if (content) {
+                    if (content.length > 10000) content = [[content substringToIndex:10000] stringByAppendingString:@"\n... [truncated]"];
+                    resp[@"success"] = @YES;
+                    resp[@"content"] = content;
+                    resp[@"size"] = @(data.length);
+                } else {
+                    resp[@"success"] = @YES;
+                    resp[@"content"] = [data base64EncodedStringWithOptions:0];
+                    resp[@"size"] = @(data.length);
+                    resp[@"binary"] = @YES;
+                }
+            } else {
+                resp[@"success"]=@NO; resp[@"error"]=[NSString stringWithFormat:@"read failed: %s", strerror(errno)];
+            }
+        }
+    }
+    
+    // ★ v8.5: writeFile - Tweak直接写任意路径（绕过沙盒）
+    else if([action isEqualToString:@"writeFile"]) {
+        NSString *path = req[@"path"];
+        NSString *wcontent = req[@"content"];
+        if (!path || path.length == 0) { resp[@"success"]=@NO; resp[@"error"]=@"path required"; }
+        else if (!wcontent || wcontent.length == 0) { resp[@"success"]=@NO; resp[@"error"]=@"content required"; }
+        else {
+            // 确保目录存在
+            NSString *dir = [path stringByDeletingLastPathComponent];
+            NSFileManager *fm = [NSFileManager defaultManager];
+            if (![fm fileExistsAtPath:dir]) { [fm createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:nil]; }
+            NSError *err = nil;
+            BOOL ok = [wcontent writeToFile:path atomically:YES encoding:NSUTF8StringEncoding error:&err];
+            if (ok) {
+                // 校验
+                NSData *readBack = [NSData dataWithContentsOfFile:path];
+                resp[@"success"] = @YES;
+                resp[@"size"] = @(readBack.length);
+                resp[@"path"] = path;
+            } else {
+                resp[@"success"] = @NO; resp[@"error"]=[NSString stringWithFormat:@"write failed: %@", err.localizedDescription];
+            }
+        }
+    }
+    
+    // ★ v8.5: appendFile - Tweak追加写任意路径
+    else if([action isEqualToString:@"appendFile"]) {
+        NSString *path = req[@"path"];
+        NSString *acontent = req[@"appendContent"] ?: req[@"content"];
+        if (!path || path.length == 0) { resp[@"success"]=@NO; resp[@"error"]=@"path required"; }
+        else if (!acontent || acontent.length == 0) { resp[@"success"]=@NO; resp[@"error"]=@"content required"; }
+        else {
+            NSString *existing = @"";
+            NSData *existingData = [NSData dataWithContentsOfFile:path];
+            if (existingData) { existing = [[NSString alloc] initWithData:existingData encoding:NSUTF8StringEncoding] ?: @""; }
+            NSString *newContent = [existing stringByAppendingString:@"\n"];
+            newContent = [newContent stringByAppendingString:acontent];
+            NSError *err = nil;
+            BOOL ok = [newContent writeToFile:path atomically:YES encoding:NSUTF8StringEncoding error:&err];
+            if (ok) { resp[@"success"] = @YES; resp[@"size"] = @(newContent.length); resp[@"path"] = path; }
+            else { resp[@"success"] = @NO; resp[@"error"]=[NSString stringWithFormat:@"append failed: %@", err.localizedDescription]; }
+        }
+    }
+    
+    // ★ v8.5: listFiles - Tweak列任意目录（绕过沙盒）
+    else if([action isEqualToString:@"listFiles"]) {
+        NSString *path = req[@"path"];
+        if (!path || path.length == 0) { resp[@"success"]=@NO; resp[@"error"]=@"path required"; }
+        else {
+            NSFileManager *fm = [NSFileManager defaultManager];
+            NSDirectoryEnumerator *enumerator = [fm enumeratorAtPath:path];
+            NSMutableArray *items = [NSMutableArray array];
+            NSString *file;
+            int count = 0;
+            while ((file = [enumerator nextObject]) && count < 100) {
+                NSString *fullPath = [path stringByAppendingPathComponent:file];
+                BOOL isDir = NO;
+                [fm fileExistsAtPath:fullPath isDirectory:&isDir];
+                NSDictionary *attrs = [fm attributesOfItemAtPath:fullPath error:nil];
+                [items addObject:@{
+                    @"name": file,
+                    @"path": fullPath,
+                    @"isDirectory": @(isDir),
+                    @"size": attrs[@"NSFileSize"] ?: @0
+                }];
+                count++;
+            }
+            resp[@"success"] = @YES;
+            resp[@"items"] = items;
+            resp[@"count"] = @(items.count);
         }
     }
     

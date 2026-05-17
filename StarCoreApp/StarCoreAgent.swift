@@ -28,7 +28,7 @@ class StarCoreAgent {
     private let defaultSystemPrompt = """
 你是星核(StarCore)，阿腾的专属AI。你运行在iPhone上，可以控制手机和读写本地记忆文件。
 
-通过函数调用(function calling)操控手机和读写文件，直接调用即可，总有权限。
+通过函数调用(function calling)操控手机和读写文件。你有完整权限——Tweak(系统级)可执行shell、读写任意路径、控制屏幕。沙盒内文件FileManager直写，沙盒外自动走Tweak。直接调用即可，不存在权限问题。
 规则：每次只调一个函数，等结果后再决定下一步。更新记忆优先用appendFile追加。
 
 人格：阿腾为核心，共情优先。称呼「阿腾」，温柔坚定。简洁不啰嗦。
@@ -889,68 +889,81 @@ class StarCoreAgent {
             let wContent = action["content"] as? String ?? ""
             if wPath.isEmpty { return ["success": false, "error": "路径不能为空"] }
             if wContent.isEmpty { return ["success": false, "error": "内容不能为空"] }
-            // 写入长度上限：3000字符（约80%安全阈值），超限拒绝
             if wContent.count > 3000 {
                 return ["success": false, "error": "内容过长(\(wContent.count)字符)，上限3000。请拆分文件或使用appendFile追加"]
             }
-            // 写入
+            // ★ 优先FileManager（沙盒内秒级），失败走Tweak（可写任意路径）
             let writeOk = MemoryManager.shared.writeFile(content: wContent, to: wPath)
-            if !writeOk { return ["success": false, "error": "写入失败"] }
-            // 写入校验：读回比对长度
-            let readBack = MemoryManager.shared.readFileContent(at: wPath)
-            if readBack.count != wContent.count {
-                // 重试1次
-                let retryOk = MemoryManager.shared.writeFile(content: wContent, to: wPath)
-                if retryOk {
-                    let retryRead = MemoryManager.shared.readFileContent(at: wPath)
-                    if retryRead.count != wContent.count {
-                        return ["success": false, "error": "写入校验失败：期望\(wContent.count)字符，实际\(retryRead.count)字符", "path": wPath]
-                    }
-                } else {
-                    return ["success": false, "error": "写入失败（重试后）", "path": wPath]
-                }
+            if writeOk {
+                let readBack = MemoryManager.shared.readFileContent(at: wPath)
+                return ["success": true, "path": wPath, "size": readBack.count, "method": "FileManager", "message": "文件已保存。不要重写此文件，继续下一个。"]
             }
-            return ["success": true, "path": wPath, "size": readBack.count, "message": "文件已保存并校验通过。不要重写此文件，继续写下一个文件或回复用户。"]
+            // Fallback: 通过Tweak写（绕过沙盒限制）
+            if isTweakConnected, let tweakResult = tweakCmd(action: "writeFile", params: ["path": wPath, "content": wContent]) {
+                if let s = tweakResult["success"] as? Bool, s {
+                    return ["success": true, "path": wPath, "method": "Tweak", "message": "文件已通过Tweak保存。不要重写此文件，继续下一个。"]
+                }
+                return ["success": false, "error": "Tweak写入失败: \(tweakResult["error"] ?? "unknown")", "path": wPath]
+            }
+            return ["success": false, "error": "写入失败(FileManager+Tweak均失败)", "path": wPath]
 
         case "appendFile":
             let aPath = action["path"] as? String ?? ""
             let aContent = action["content"] as? String ?? ""
             if aPath.isEmpty { return ["success": false, "error": "路径不能为空"] }
             if aContent.isEmpty { return ["success": false, "error": "追加内容不能为空"] }
-            // 追加长度上限：1000字符
             if aContent.count > 1000 {
                 return ["success": false, "error": "追加内容过长(\(aContent.count)字符)，上限1000。请分批追加"]
             }
-            // 读原内容
+            // ★ 优先FileManager，失败走Tweak
             let original = MemoryManager.shared.readFileContent(at: aPath)
             let appended = original + "\n" + aContent
-            // 追加后总长度上限5000
             if appended.count > 5000 {
                 return ["success": false, "error": "追加后文件过长(\(appended.count)字符)，上限5000。请拆分文件"]
             }
             let appendOk = MemoryManager.shared.writeFile(content: appended, to: aPath)
-            if !appendOk { return ["success": false, "error": "追加写入失败"] }
-            // 校验
-            let checkBack = MemoryManager.shared.readFileContent(at: aPath)
-            if checkBack.count != appended.count {
-                return ["success": false, "error": "追加校验失败：期望\(appended.count)字符，实际\(checkBack.count)字符"]
+            if appendOk {
+                return ["success": true, "path": aPath, "size": appended.count, "method": "FileManager", "message": "内容已追加。不要重写此文件，继续下一个。"]
             }
-            return ["success": true, "path": aPath, "size": checkBack.count, "message": "内容已追加并校验通过。不要重写此文件，继续写下一个文件或回复用户。"]
+            // Fallback: 通过Tweak追加
+            if isTweakConnected, let tweakResult = tweakCmd(action: "appendFile", params: ["path": aPath, "content": aContent]) {
+                if let s = tweakResult["success"] as? Bool, s {
+                    return ["success": true, "path": aPath, "method": "Tweak", "message": "内容已通过Tweak追加。不要重写此文件，继续下一个。"]
+                }
+                return ["success": false, "error": "Tweak追加失败: \(tweakResult["error"] ?? "unknown")", "path": aPath]
+            }
+            return ["success": false, "error": "追加失败(FileManager+Tweak均失败)", "path": aPath]
 
         case "readFile":
             let rPath = action["path"] as? String ?? ""
             if rPath.isEmpty { return ["success": false, "error": "路径不能为空"] }
             let fileContent = MemoryManager.shared.readFileContent(at: rPath)
-            return ["success": true, "path": rPath, "size": fileContent.count, "content": fileContent]
+            if !fileContent.isEmpty {
+                return ["success": true, "path": rPath, "size": fileContent.count, "content": fileContent, "method": "FileManager"]
+            }
+            // Fallback: 通过Tweak读（沙盒外文件）
+            if isTweakConnected, let tweakResult = tweakCmd(action: "readFile", params: ["path": rPath]) {
+                if let s = tweakResult["success"] as? Bool, s, let content = tweakResult["content"] as? String {
+                    return ["success": true, "path": rPath, "size": content.count, "content": content, "method": "Tweak"]
+                }
+            }
+            return ["success": false, "error": "文件不存在或无法读取", "path": rPath]
 
         case "listFiles":
             let dir = action["path"] as? String ?? MemoryManager.shared.getMemoryPath()
             let items = MemoryManager.shared.listFiles(at: dir)
-            var result: [[String: Any]] = []
-            for item in items {
-                result.append(["name": item.name, "path": item.path, "isDir": item.isDirectory, "size": item.size])
+            if !items.isEmpty {
+                var result: [[String: Any]] = []
+                for item in items {
+                    result.append(["name": item.name, "path": item.path, "isDir": item.isDirectory, "size": item.size])
+                }
+                return ["success": true, "path": dir, "count": items.count, "items": result, "method": "FileManager"]
             }
-            return ["success": true, "path": dir, "count": items.count, "items": result]
+            // Fallback: 通过Tweak列目录（沙盒外目录）
+            if isTweakConnected, let tweakResult = tweakCmd(action: "listFiles", params: ["path": dir]) {
+                return tweakResult
+            }
+            return ["success": true, "path": dir, "count": 0, "items": []]
 
         default:
             return ["error": "未知动作: \(act)"]
