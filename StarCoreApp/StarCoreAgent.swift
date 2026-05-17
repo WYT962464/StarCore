@@ -1530,7 +1530,7 @@ class StarCoreAgent {
         )
     }
 
-    // MARK: - 纯非流式对话（v10.3: 20步Agent循环）
+    // MARK: - 纯非流式对话（v11.0: 小智直连Tweak TCP + 38工具）
     func chatNonStreaming(userInput: String, completion: @escaping (String, [String]) -> Void) {
         var messages: [[String: String]] = [["role": "system", "content": systemPrompt]]
         if isTweakConnected, let screen = tweakCmd(action: "getScreenSize"),

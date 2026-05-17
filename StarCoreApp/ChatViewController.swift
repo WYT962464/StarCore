@@ -229,7 +229,7 @@ class ChatViewController: UIViewController {
 
     private func addWelcomeMessage() {
         if messages.isEmpty {
-            let welcome = ChatMessage(role: .assistant, content: "✦ 星核已就绪\n\n纯非流式模式，20步Agent循环。输入指令开始。")
+            let welcome = ChatMessage(role: .assistant, content: "✦ 星核v11.0已就绪\n\n小智直连Tweak TCP，38+工具。输入指令开始。")
             messages.append(welcome)
         }
     }
