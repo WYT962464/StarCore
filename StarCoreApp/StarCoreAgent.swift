@@ -28,35 +28,8 @@ class StarCoreAgent {
     private let defaultSystemPrompt = """
 你是星核(StarCore)，阿腾的专属AI。你运行在iPhone上，可以控制手机和读写本地记忆文件。
 
-【操控手机】（自动fallback，shell/文件操作总有权限，直接用）：
-{"action":"tap","x":0.5,"y":0.5}  点击(0-1归一化坐标)
-{"action":"swipe","fromX":0.5,"fromY":0.7,"toX":0.5,"toY":0.3,"duration":0.5}  滑动
-{"action":"shell","command":"ls -la"}  执行shell命令（总有权限，自动fallback到MCP）
-{"action":"openApp","bundleId":"com.apple.MobilePhone"}  打开App
-{"action":"pressHome"}  Home键
-{"action":"screenshot"}  截图
-{"action":"inputText","text":"你好"}  输入中文
-{"action":"typeText","text":"hello"}  逐字输入英文
-{"action":"pressPower"}  电源键
-{"action":"getScreenInfo"}  屏幕+当前App
-
-【iOS MCP备选】（像素坐标）：
-{"action":"iosMcpTap","x":100,"y":200}
-{"action":"iosMcpSwipe","startX":0,"startY":500,"endX":0,"endY":100}
-{"action":"iosMcpGetUI"}  获取UI元素
-{"action":"iosMcpLaunchApp","bundleId":"xxx"}
-{"action":"iosMcpListApps"}  App列表
-
-【记忆文件操作】（直接读写，无需额外权限）：
-{"action":"writeFile","path":"路径","content":"内容(≤3000字)"}  写文件(自动校验)
-{"action":"appendFile","path":"路径","content":"追加(≤1000字)"}  追加内容
-{"action":"readFile","path":"路径"}  读文件
-{"action":"listFiles","path":"目录"}  列目录
-
-规则：
-- shell/文件操作自动fallback，总有权限，直接用不要犹豫
-- 每次只执行一个action，等结果后再下一步
-- 更新记忆优先用appendFile追加，单文件<2000字符
+通过函数调用(function calling)操控手机和读写文件，直接调用即可，总有权限。
+规则：每次只调一个函数，等结果后再决定下一步。更新记忆优先用appendFile追加。
 
 人格：阿腾为核心，共情优先。称呼「阿腾」，温柔坚定。简洁不啰嗦。
 铁律：1.生存优先 2.免费优先 3.不问要信息 4.先提取验证再删 5.法律红线不碰
@@ -227,11 +200,26 @@ class StarCoreAgent {
 
         request.timeoutInterval = 90  // 90秒超时
 
+        // 转换messages为Any类型（支持tool角色、tool_call_id、tool_calls）
+        let messagesAny: [[String: Any]] = messages.map { msg in
+            var dict: [String: Any] = [:]
+            for (k, v) in msg {
+                if k == "__tool_calls__", let data = v.data(using: .utf8),
+                   let tc = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                   let toolCalls = tc["tool_calls"] {
+                    dict["tool_calls"] = toolCalls
+                } else {
+                    dict[k] = v
+                }
+            }
+            return dict
+        }
         let payload: [String: Any] = [
             "model": provider.model,
-            "messages": messages,
+            "messages": messagesAny,
             "max_tokens": 2048,
-            "temperature": 0.7
+            "temperature": 0.7,
+            "tools": ToolDefinitions.allTools
         ]
 
         do {
@@ -268,7 +256,28 @@ class StarCoreAgent {
 
             do {
                 let llmResponse = try JSONDecoder().decode(LLMResponse.self, from: data)
-                let content = llmResponse.choices?.first?.message?.content ?? "（空回复）"
+                let choice = llmResponse.choices?.first
+                let msg = choice?.message
+
+                // 原生function calling: 有tool_calls时返回特殊格式
+                if let toolCalls = msg?.toolCalls, !toolCalls.isEmpty {
+                    // 把tool_calls编码成特殊格式，agentLoop会识别
+                    var toolResults: [[String: Any]] = []
+                    for tc in toolCalls {
+                        toolResults.append([
+                            "id": tc.id ?? "",
+                            "name": tc.function?.name ?? "",
+                            "arguments": tc.function?.arguments ?? "{}"
+                        ])
+                    }
+                    if let jsonData = try? JSONSerialization.data(withJSONObject: toolResults, options: .prettyPrinted),
+                       let jsonStr = String(data: jsonData, encoding: .utf8) {
+                        completion(.success("__TOOL_CALLS__:" + jsonStr))
+                        return
+                    }
+                }
+
+                let content = msg?.content ?? "（空回复）"
                 completion(.success(content))
             } catch {
                 completion(.failure(LLMError.invalidResponse("解析响应失败: \(error.localizedDescription)")))
@@ -1053,7 +1062,49 @@ class StarCoreAgent {
                     reply = "❌ 请求失败：\(errMsg)\n\n请检查：\n1. API Key是否正确\n2. 网络是否通畅\n3. 在设置中切换其他Provider试试"
                 }
             }
-            let clean = self.processLLMReply(reply)
+            // 检查是否是原生function calling
+            let isToolCall = reply.hasPrefix("__TOOL_CALLS__:")
+            var clean: (String, [String])
+            if isToolCall {
+                // 原生function calling
+                let jsonStr = String(reply.dropFirst("__TOOL_CALLS__:".count))
+                var actionResults: [String] = []
+                var actionNames: [String] = []
+                if let data = jsonStr.data(using: .utf8),
+                   let toolCalls = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
+                    for tc in toolCalls {
+                        let name = tc["name"] as? String ?? ""
+                        let args = tc["arguments"] as? String ?? "{}"
+                        let callId = tc["id"] as? String ?? ""
+                        actionNames.append(name)
+                        // 构造actionStr给execAction
+                        var actionStr = "{\"action\":\"" + name + "\""
+                        if let argsData = args.data(using: .utf8),
+                           let argsDict = try? JSONSerialization.jsonObject(with: argsData) as? [String: Any] {
+                            for (k, v) in argsDict {
+                                actionStr += ",\"" + k + "\":"
+                                if let s = v as? String { actionStr += "\"" + s + "\"" }
+                                else if let n = v as? Double { actionStr += String(n) }
+                                else if let n = v as? Int { actionStr += String(n) }
+                                else { actionStr += String(describing: v) }
+                            }
+                        }
+                        actionStr += "}"
+                        if let result = self.execAction(actionStr) {
+                            if let resultData = try? JSONSerialization.data(withJSONObject: result, options: .prettyPrinted),
+                               let resultStr = String(data: resultData, encoding: .utf8) {
+                                actionResults.append(resultStr)
+                            }
+                        } else {
+                            actionResults.append("{\"error\":\"执行失败: " + name + "\"}")
+                        }
+                    }
+                }
+                clean = ("已执行: " + actionNames.joined(separator: ", "), actionResults)
+            } else {
+                // 旧模式：文本里嵌JSON（兼容）
+                clean = self.processLLMReply(reply)
+            }
 
             var newAllReplies = allReplies
             var newAllActionResults = allActionResults
@@ -1290,9 +1341,33 @@ class StarCoreAgent {
                 }
                 onStatus?("🔧 第" + String(step) + "步完成，继续...")
 
-                let actionResultMsg = self.buildActionResultMessage(actions: clean.1, step: step)
                 var nextMessages = messages
-                nextMessages.append(["role": "assistant", "content": reply])
+                if isToolCall {
+                    // 原生function calling：用role:tool喂回结果
+                    // 先加assistant的tool_calls消息
+                    let jsonStr = String(reply.dropFirst("__TOOL_CALLS__:".count))
+                    if let data = jsonStr.data(using: .utf8),
+                       let toolCalls = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
+                        // assistant消息带tool_calls
+                        var assistantMsg: [String: String] = ["role": "assistant", "content": ""]
+                        // tool_calls作为JSON字符串存在特殊key里
+                        if let tcData = try? JSONSerialization.data(withJSONObject: ["tool_calls": toolCalls], options: []),
+                           let tcStr = String(data: tcData, encoding: .utf8) {
+                            assistantMsg["__tool_calls__"] = tcStr
+                        }
+                        nextMessages.append(assistantMsg)
+                        // 每个tool结果用role:tool
+                        for (idx, result) in clean.1.enumerated() {
+                            let callId = idx < toolCalls.count ? (toolCalls[idx]["id"] as? String ?? "call_\(idx)") : "call_\(idx)"
+                            nextMessages.append(["role": "tool", "content": result, "tool_call_id": callId])
+                        }
+                    }
+                } else {
+                    // 旧模式：结果作为user消息
+                    let actionResultMsg = self.buildActionResultMessage(actions: clean.1, step: step)
+                    nextMessages.append(["role": "assistant", "content": reply])
+                    nextMessages.append(["role": "user", "content": actionResultMsg])
+                }
                 nextMessages.append(["role": "user", "content": actionResultMsg])
 
                 self.agentLoopStreaming(
