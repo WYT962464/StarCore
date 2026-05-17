@@ -1081,19 +1081,19 @@ class StarCoreAgent {
                         let args = funcDict["arguments"] as? String ?? tc["arguments"] as? String ?? "{}"
                         let callId = tc["id"] as? String ?? ""
                         actionNames.append(name)
-                        // 构造actionStr给execAction
-                        var actionStr = "{\"action\":\"" + name + "\""
+                        // 用字典构造JSON（避免字符串拼接导致转义错误）
+                        var actionDict: [String: Any] = ["action": name]
                         if let argsData = args.data(using: .utf8),
                            let argsDict = try? JSONSerialization.jsonObject(with: argsData) as? [String: Any] {
-                            for (k, v) in argsDict {
-                                actionStr += ",\"" + k + "\":"
-                                if let s = v as? String { actionStr += "\"" + s + "\"" }
-                                else if let n = v as? Double { actionStr += String(n) }
-                                else if let n = v as? Int { actionStr += String(n) }
-                                else { actionStr += String(describing: v) }
-                            }
+                            actionDict.merge(argsDict) { _, new in new }
                         }
-                        actionStr += "}"
+                        let actionStr: String
+                        if let jsonData = try? JSONSerialization.data(withJSONObject: actionDict, options: []),
+                           let str = String(data: jsonData, encoding: .utf8) {
+                            actionStr = str
+                        } else {
+                            actionStr = "{\"action\":\"" + name + "\"}"
+                        }
                         if let result = self.execAction(actionStr) {
                             if let resultData = try? JSONSerialization.data(withJSONObject: result, options: .prettyPrinted),
                                let resultStr = String(data: resultData, encoding: .utf8) {
@@ -1358,18 +1358,19 @@ class StarCoreAgent {
                         let name = funcDict["name"] as? String ?? tc["name"] as? String ?? ""
                         let args = funcDict["arguments"] as? String ?? tc["arguments"] as? String ?? "{}"
                         actionNames.append(name)
-                        var actionStr = "{\"action\":\"" + name + "\""
+                        // 用字典构造JSON（避免字符串拼接导致转义错误）
+                        var actionDict: [String: Any] = ["action": name]
                         if let argsData = args.data(using: .utf8),
                            let argsDict = try? JSONSerialization.jsonObject(with: argsData) as? [String: Any] {
-                            for (k, v) in argsDict {
-                                actionStr += ",\"" + k + "\":"
-                                if let s = v as? String { actionStr += "\"" + s + "\"" }
-                                else if let n = v as? Double { actionStr += String(n) }
-                                else if let n = v as? Int { actionStr += String(n) }
-                                else { actionStr += String(describing: v) }
-                            }
+                            actionDict.merge(argsDict) { _, new in new }
                         }
-                        actionStr += "}"
+                        let actionStr: String
+                        if let jsonData = try? JSONSerialization.data(withJSONObject: actionDict, options: []),
+                           let str = String(data: jsonData, encoding: .utf8) {
+                            actionStr = str
+                        } else {
+                            actionStr = "{\"action\":\"" + name + "\"}"
+                        }
                         if let result = self.execAction(actionStr) {
                             if let resultData = try? JSONSerialization.data(withJSONObject: result, options: .prettyPrinted),
                                let resultStr = String(data: resultData, encoding: .utf8) {
@@ -1556,18 +1557,19 @@ class StarCoreAgent {
                         let name = funcDict["name"] as? String ?? tc["name"] as? String ?? ""
                         let args = funcDict["arguments"] as? String ?? tc["arguments"] as? String ?? "{}"
                         actionNames.append(name)
-                        var actionStr = "{\"action\":\"" + name + "\""
+                        // 用字典构造JSON（避免字符串拼接导致转义错误）
+                        var actionDict: [String: Any] = ["action": name]
                         if let argsData = args.data(using: .utf8),
                            let argsDict = try? JSONSerialization.jsonObject(with: argsData) as? [String: Any] {
-                            for (k, v) in argsDict {
-                                actionStr += ",\"" + k + "\":"
-                                if let s = v as? String { actionStr += "\"" + s + "\"" }
-                                else if let n = v as? Double { actionStr += String(n) }
-                                else if let n = v as? Int { actionStr += String(n) }
-                                else { actionStr += String(describing: v) }
-                            }
+                            actionDict.merge(argsDict) { _, new in new }
                         }
-                        actionStr += "}"
+                        let actionStr: String
+                        if let jsonData = try? JSONSerialization.data(withJSONObject: actionDict, options: []),
+                           let str = String(data: jsonData, encoding: .utf8) {
+                            actionStr = str
+                        } else {
+                            actionStr = "{\"action\":\"" + name + "\"}"
+                        }
                         if let result = self.execAction(actionStr) {
                             if let resultData = try? JSONSerialization.data(withJSONObject: result, options: .prettyPrinted),
                                let resultStr = String(data: resultData, encoding: .utf8) {
