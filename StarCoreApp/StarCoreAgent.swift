@@ -896,7 +896,7 @@ class StarCoreAgent {
                     return ["success": false, "error": "写入失败（重试后）", "path": wPath]
                 }
             }
-            return ["success": true, "path": wPath, "size": readBack.count, "message": "文件已保存并校验通过"]
+            return ["success": true, "path": wPath, "size": readBack.count, "message": "文件已保存并校验通过。不要重写此文件，继续写下一个文件或回复用户。"]
 
         case "appendFile":
             let aPath = action["path"] as? String ?? ""
@@ -921,7 +921,7 @@ class StarCoreAgent {
             if checkBack.count != appended.count {
                 return ["success": false, "error": "追加校验失败：期望\(appended.count)字符，实际\(checkBack.count)字符"]
             }
-            return ["success": true, "path": aPath, "size": checkBack.count, "message": "内容已追加并校验通过"]
+            return ["success": true, "path": aPath, "size": checkBack.count, "message": "内容已追加并校验通过。不要重写此文件，继续写下一个文件或回复用户。"]
 
         case "readFile":
             let rPath = action["path"] as? String ?? ""
@@ -1025,7 +1025,7 @@ class StarCoreAgent {
         addToHistory(userMsg)
 
         // Local LLM mode - with agent loop
-        agentLoop(messages: messages, step: 1, maxSteps: 20, allReplies: [], allActionResults: [], onPartialReply: onPartialReply, completion: completion)
+        agentLoop(messages: messages, step: 1, maxSteps: 5, allReplies: [], allActionResults: [], onPartialReply: onPartialReply, completion: completion)
     }
 
     /// Agent loop: call LLM, execute actions, feed results back, repeat
@@ -1221,7 +1221,7 @@ class StarCoreAgent {
         agentLoopStreaming(
             messages: messages,
             step: 1,
-            maxSteps: 20,
+            maxSteps: 5,
             allReplies: [],
             allActionResults: [],
             onToken: onToken,
