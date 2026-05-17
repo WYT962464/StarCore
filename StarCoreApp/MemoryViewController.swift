@@ -21,7 +21,6 @@ class MemoryViewController: UIViewController {
     private var searchBar: UISearchBar!
     private var memoryTableView: UITableView!
     private var searchResultsTableView: UITableView!
-    private var memoryPathField: UITextField!
 
     // File browser section
     private var fileBrowserContainer: UIView!
@@ -158,7 +157,6 @@ class MemoryViewController: UIViewController {
 
         // Section: Memory
         lastView = addSectionHeader("🧠 记忆区", below: lastView, isFirst: true)
-        lastView = addMemoryPathRow(below: lastView)
         lastView = addSearchBar(below: lastView)
         lastView = addMemoryTable(below: lastView)
         lastView = addSearchResultsTable(below: lastView)
@@ -214,57 +212,7 @@ class MemoryViewController: UIViewController {
 
     // MARK: - Memory Path Row
 
-    private func addMemoryPathRow(below aboveView: UIView) -> UIView {
-        let container = UIView()
-        container.translatesAutoresizingMaskIntoConstraints = false
-        contentView.addSubview(container)
 
-        let label = UILabel()
-        label.text = "记忆路径"
-        label.font = UIFont.systemFont(ofSize: 13)
-        label.textColor = UIColor(white: 1, alpha: 0.6)
-        label.translatesAutoresizingMaskIntoConstraints = false
-        container.addSubview(label)
-
-        memoryPathField = UITextField()
-        memoryPathField.font = UIFont.monospacedSystemFont(ofSize: 13, weight: .regular)
-        memoryPathField.textColor = .white
-        memoryPathField.backgroundColor = UIColor(white: 1, alpha: 0.06)
-        memoryPathField.layer.cornerRadius = 8
-        memoryPathField.layer.borderWidth = 1
-        memoryPathField.layer.borderColor = UIColor(white: 1, alpha: 0.1).cgColor
-        memoryPathField.text = MemoryManager.shared.getMemoryPath()
-        memoryPathField.translatesAutoresizingMaskIntoConstraints = false
-        memoryPathField.leftView = UIView(frame: CGRect(x: 0, y: 0, width: 8, height: 1))
-        memoryPathField.leftViewMode = .always
-        memoryPathField.rightView = UIView(frame: CGRect(x: 0, y: 0, width: 8, height: 1))
-        memoryPathField.rightViewMode = .always
-        memoryPathField.addTarget(self, action: #selector(memoryPathEdited), for: .editingDidEnd)
-        container.addSubview(memoryPathField)
-
-        NSLayoutConstraint.activate([
-            container.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
-            container.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
-            container.topAnchor.constraint(equalTo: aboveView.bottomAnchor, constant: 10),
-
-            label.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-            label.topAnchor.constraint(equalTo: container.topAnchor),
-
-            memoryPathField.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-            memoryPathField.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-            memoryPathField.topAnchor.constraint(equalTo: label.bottomAnchor, constant: 6),
-            memoryPathField.heightAnchor.constraint(equalToConstant: 36),
-            memoryPathField.bottomAnchor.constraint(equalTo: container.bottomAnchor)
-        ])
-        return container
-    }
-
-    @objc private func memoryPathEdited() {
-        if let path = memoryPathField.text, !path.isEmpty {
-            MemoryManager.shared.updateMemoryPath(path)
-            loadData()
-        }
-    }
 
     // MARK: - Search Bar
 
