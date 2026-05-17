@@ -64,21 +64,30 @@ class MemoryManager {
     }
 
     /// 通过iOS MCP执行shell命令（备选方案，当Tweak不可用时）
+    /// iOS MCP工具: run_command, 参数: command
     @discardableResult
     private func mcpShell(_ cmd: String) -> String? {
         debugLog("mcp-shell: \(cmd.prefix(80))")
-        if let result = StarCoreAgent.shared.callMcpToolSync(name: "run_shell", arguments: ["command": cmd]),
-           let output = result["output"] as? String, !output.isEmpty {
-            return output
-        }
-        // 尝试另一种返回格式
-        if let result = StarCoreAgent.shared.callMcpToolSync(name: "shell", arguments: ["command": cmd]) {
-            if let output = result["output"] as? String, !output.isEmpty { return output }
+        // iOS MCP的正确工具名是 run_command
+        if let result = StarCoreAgent.shared.callMcpToolSync(name: "run_command", arguments: ["command": cmd]) {
+            // 解析MCP返回格式: {"result": {"content": [{"type": "text", "text": "..."}]}}
+            if let rpcResult = result["result"] as? [String: Any],
+               let content = rpcResult["content"] as? [[String: Any]],
+               let first = content.first,
+               let text = first["text"] as? String, !text.isEmpty {
+                return text
+            }
+            // 也尝试直接取output
+            if let output = result["output"] as? String, !output.isEmpty {
+                return output
+            }
+            // 也尝试直接取content
             if let content = result["content"] as? [[String: Any]],
                let first = content.first,
                let text = first["text"] as? String, !text.isEmpty {
                 return text
             }
+            debugLog("mcp-shell: unexpected format: \(String(describing: result).prefix(200))")
         }
         return nil
     }
