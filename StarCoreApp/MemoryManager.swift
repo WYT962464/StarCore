@@ -12,7 +12,25 @@ class MemoryManager {
         return NSSearchPathForDirectoriesInDomains(.documentDirectory, .userDomainMask, true).first ?? "/var/mobile/StarCore"
     }
 
-    private init() {}
+    private init() {
+        // 写沙盒路径到/var/mobile/StarCore/app_sandbox_path.txt
+        // 方便iOS MCP/云端找到App沙盒目录
+        let sandboxPath = NSSearchPathForDirectoriesInDomains(.documentDirectory, .userDomainMask, true).first ?? ""
+        if !sandboxPath.isEmpty {
+            let markerDir = "/var/mobile/StarCore"
+            let markerPath = markerDir + "/app_sandbox_path.txt"
+            // 先尝试直接写（可能没权限）
+            if !FileManager.default.fileExists(atPath: markerDir) {
+                try? FileManager.default.createDirectory(atPath: markerDir, withIntermediateDirectories: true)
+            }
+            try? sandboxPath.write(toFile: markerPath, atomically: true, encoding: .utf8)
+            // 如果没权限，通过MCP写
+            if !FileManager.default.fileExists(atPath: markerPath) {
+                let escaped = "'" + sandboxPath.replacingOccurrences(of: "'", with: "'\"'\"'") + "'"
+                _ = smartShell("echo " + escaped + " > /var/mobile/StarCore/app_sandbox_path.txt")
+            }
+        }
+    }
 
     private func debugLog(_ msg: String) {
         print("[Memory] \(msg)")

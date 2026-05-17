@@ -133,6 +133,9 @@ class MemoryViewController: UIViewController {
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.backgroundColor = .clear
         scrollView.alwaysBounceVertical = true
+        let refreshControl = UIRefreshControl()
+        refreshControl.addTarget(self, action: #selector(handleRefresh), for: .valueChanged)
+        scrollView.refreshControl = refreshControl
         scrollView.keyboardDismissMode = .interactive
         view.addSubview(scrollView)
 
