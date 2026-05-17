@@ -62,9 +62,14 @@ jobs:
           echo "Final app contents:"
           ls -laR "$APP_DIR/"
           
-          # Create proper IPA
+          # Create proper IPA (rename to StarCore.app for 全能签 compatibility)
           mkdir -p /tmp/IPA/Payload
           cp -R "$APP_DIR" /tmp/IPA/Payload/
+          # Rename StarCoreApp.app -> StarCore.app
+          if [ -d "/tmp/IPA/Payload/StarCoreApp.app" ]; then
+            mv /tmp/IPA/Payload/StarCoreApp.app /tmp/IPA/Payload/StarCore.app
+            echo "Renamed StarCoreApp.app -> StarCore.app"
+          fi
           cd /tmp/IPA
           zip -r /tmp/StarCoreApp.ipa Payload/
           echo "IPA created!"

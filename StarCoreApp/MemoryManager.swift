@@ -9,6 +9,9 @@ class MemoryManager {
     private let fileManager = FileManager.default
     private let defaults = UserDefaults.standard
 
+    /// 调试日志回调
+    var onDebugLog: ((String) -> Void)?
+
     private var memoryPath: String {
         return defaults.string(forKey: "memoryPath") ?? "/var/mobile/StarCore"
     }
@@ -17,11 +20,10 @@ class MemoryManager {
 
     // MARK: - Memory File Definitions
 
-    /// 记忆文件定义：文件名 + 是否在子目录下
     private struct MemoryFile {
-        let name: String        // 显示名（也是文件名）
-        let subdirectory: String? // 子目录，nil 表示根目录
-        let displayName: String // 在设置页显示的名称
+        let name: String
+        let subdirectory: String?
+        let displayName: String
 
         func fullPath(relativeTo root: String) -> String {
             if let sub = subdirectory {
@@ -42,124 +44,96 @@ class MemoryManager {
         MemoryFile(name: "EMAIL_RULES.md",subdirectory: nil,       displayName: "EMAIL_RULES.md"),
     ]
 
+    // MARK: - Debug Log
+
+    private func debugLog(_ msg: String) {
+        print("[Memory] \(msg)")
+        onDebugLog?(msg)
+    }
+
+    // MARK: - Tweak Shell (单命令封装)
+
+    @discardableResult
+    private func tweakShell(_ cmd: String, timeout: TimeInterval = 5) -> String? {
+        debugLog("shell: \(cmd.prefix(80))")
+        if let result = StarCoreAgent.shared.tweakCmd(action: "shell", params: ["command": cmd], timeout: timeout),
+           let output = result["output"] as? String, !output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return output
+        }
+        return nil
+    }
+
     // MARK: - Load Memory Content
 
     func loadSOULContent() -> String {
-        let withSub = (memoryPath as NSString).appendingPathComponent("基础设定")
-        let soulPath = (withSub as NSString).appendingPathComponent("SOUL.md")
-        return readFile(at: soulPath, maxChars: 2000)
+        let path = (memoryPath as NSString).appendingPathComponent("基础设定/SOUL.md")
+        return readFile(at: path, maxChars: 2000)
     }
 
     func loadUserContent() -> String {
-        let userPath = (memoryPath as NSString).appendingPathComponent("USER.md")
-        return readFile(at: userPath, maxChars: 2000)
+        let path = (memoryPath as NSString).appendingPathComponent("USER.md")
+        return readFile(at: path, maxChars: 2000)
     }
 
     func loadMemoryContent() -> String {
-        let memoryPathFile = (memoryPath as NSString).appendingPathComponent("MEMORY.md")
-        return readFile(at: memoryPathFile, maxChars: 3000)
+        let path = (memoryPath as NSString).appendingPathComponent("MEMORY.md")
+        return readFile(at: path, maxChars: 3000)
     }
 
     func loadToolsContent() -> String {
-        let withSub = (memoryPath as NSString).appendingPathComponent("基础设定")
-        let toolsPath = (withSub as NSString).appendingPathComponent("TOOLS.md")
-        return readFile(at: toolsPath, maxChars: 2000)
+        let path = (memoryPath as NSString).appendingPathComponent("基础设定/TOOLS.md")
+        return readFile(at: path, maxChars: 2000)
     }
 
-    // MARK: - Build Full System Prompt with Memory
+    // MARK: - Build System Prompt
 
     func buildSystemPrompt(basePrompt: String) -> String {
         var parts = [basePrompt]
-
-        let soul = loadSOULContent()
-        if !soul.isEmpty {
-            parts.append("\n\n【灵魂】\n" + soul)
-        }
-
-        let user = loadUserContent()
-        if !user.isEmpty {
-            parts.append("\n\n【阿腾】\n" + user)
-        }
-
-        let memory = loadMemoryContent()
-        if !memory.isEmpty {
-            parts.append("\n\n【当前状态】\n" + memory)
-        }
-
-        let tools = loadToolsContent()
-        if !tools.isEmpty {
-            parts.append("\n\n【经验】\n" + tools)
-        }
-
+        let soul = loadSOULContent(); if !soul.isEmpty { parts.append("\n\n【灵魂】\n" + soul) }
+        let user = loadUserContent(); if !user.isEmpty { parts.append("\n\n【阿腾】\n" + user) }
+        let memory = loadMemoryContent(); if !memory.isEmpty { parts.append("\n\n【当前状态】\n" + memory) }
+        let tools = loadToolsContent(); if !tools.isEmpty { parts.append("\n\n【经验】\n" + tools) }
         return parts.joined(separator: "")
     }
 
-    // MARK: - Check Memory Directory (with Tweak fallback)
+    // MARK: - Get Memory Path
 
-    func memoryDirectoryExists() -> Bool {
-        // First try FileManager
-        if fileManager.fileExists(atPath: memoryPath) {
-            return true
-        }
-        // Fallback: use Tweak shell command (works in sandboxed全能签 App)
-        let cmd = "ls -d \(memoryPath) 2>/dev/null && echo EXISTS"
-        if let result = StarCoreAgent.shared.tweakCmd(action: "shell", params: ["command": cmd]),
-           let raw = result["output"] as? String, raw.contains("EXISTS") {
-            return true
-        }
-        return false
-    }
-
-    func memoryFilesInfo() -> [(name: String, exists: Bool, size: Int)] {
-        return memoryFiles.map { file in
-            let path = file.fullPath(relativeTo: memoryPath)
-
-            // Try FileManager first
-            var exists = fileManager.fileExists(atPath: path)
-            var size = 0
-            if exists {
-                size = readFile(at: path).count
-            } else {
-                // Fallback: use Tweak shell to check existence and get size
-                let checkCmd = "stat -f%z \(shellEscape(path)) 2>/dev/null"
-                if let result = StarCoreAgent.shared.tweakCmd(action: "shell", params: ["command": checkCmd]),
-                   let raw = result["output"] as? String {
-                    let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-                    if let fileSize = Int(trimmed), fileSize > 0 {
-                        exists = true
-                        size = fileSize
-                    }
-                }
-            }
-            return (file.displayName, exists, size)
-        }
-    }
+    func getMemoryPath() -> String { return memoryPath }
 
     func updateMemoryPath(_ newPath: String) {
         defaults.set(newPath, forKey: "memoryPath")
     }
 
-    // MARK: - Get Memory Path
+    // MARK: - Check Memory Directory
 
-    func getMemoryPath() -> String {
-        return memoryPath
+    func memoryDirectoryExists() -> Bool {
+        if fileManager.fileExists(atPath: memoryPath) { return true }
+        if let output = tweakShell("test -d \(shellEscape(memoryPath)) && echo YES") {
+            return output.contains("YES")
+        }
+        return false
     }
 
-    // MARK: - List All Memory Files (for Memory Tab)
+    // MARK: - List Memory Files (记忆区tab)
 
     func listMemoryFiles() -> [MemoryFileInfo] {
-        return memoryFiles.compactMap { file -> MemoryFileInfo? in
+        var results: [MemoryFileInfo] = []
+        for file in memoryFiles {
             let path = file.fullPath(relativeTo: memoryPath)
-            return getFileInfo(at: path)
+            if let info = getFileInfo(at: path) {
+                results.append(info)
+            }
         }
+        debugLog("listMemoryFiles: \(results.count) files")
+        return results
     }
 
-    // MARK: - File Browsing (for File Browser)
+    // MARK: - List Files (文件浏览器tab)
 
     func listFiles(at directoryPath: String) -> [MemoryFileInfo] {
         var results: [MemoryFileInfo] = []
 
-        // Try FileManager first
+        // Try FileManager first (sandbox accessible paths)
         if let contents = try? fileManager.contentsOfDirectory(atPath: directoryPath) {
             for name in contents.sorted() {
                 let fullPath = (directoryPath as NSString).appendingPathComponent(name)
@@ -167,37 +141,27 @@ class MemoryManager {
                     results.append(info)
                 }
             }
+            debugLog("FileManager: \(results.count) items in \(directoryPath)")
             return results
         }
 
-        // Fallback: use Tweak shell — ls -p appends / to directories
+        // ★ Fallback: 单条命令获取所有文件信息（避免逐文件tweakCmd）
+        // ls -la 输出: drwxr-xr-x  5 user staff  160 May 17 10:00 基础设定
         let escapedPath = shellEscape(directoryPath)
-        let cmd = "ls -1p \(escapedPath) 2>/dev/null"
-        if let result = StarCoreAgent.shared.tweakCmd(action: "shell", params: ["command": cmd]),
-           let raw = result["output"] as? String {
-            let lines = raw.components(separatedBy: "\n").filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+        if let output = tweakShell("ls -la \(escapedPath) 2>/dev/null") {
+            let lines = output.components(separatedBy: "\n")
             for line in lines {
                 let trimmed = line.trimmingCharacters(in: .whitespaces)
-                let isDir = trimmed.hasSuffix("/")
-                let name = isDir ? String(trimmed.dropLast()) : trimmed
-                let fullPath = (directoryPath as NSString).appendingPathComponent(name)
-                
-                // Get file size via stat
-                var size: Int64 = 0
-                let statCmd = "stat -f%z \(shellEscape(fullPath)) 2>/dev/null"
-                if let statResult = StarCoreAgent.shared.tweakCmd(action: "shell", params: ["command": statCmd]),
-                   let statRaw = statResult["output"] as? String {
-                    size = Int64(statRaw.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
+                // 跳过 total 行和 . ..
+                if trimmed.isEmpty || trimmed.hasPrefix("total") || trimmed.hasSuffix(" .") || trimmed.hasSuffix(" ..") {
+                    continue
                 }
-                
-                results.append(MemoryFileInfo(
-                    name: name,
-                    path: fullPath,
-                    isDirectory: isDir,
-                    size: size,
-                    modDate: nil
-                ))
+                // 解析 ls -la 格式
+                if let info = parseLsLine(trimmed, basePath: directoryPath) {
+                    results.append(info)
+                }
             }
+            debugLog("Tweak ls -la: \(results.count) items in \(directoryPath)")
         }
 
         // Sort: directories first, then alphabetically
@@ -207,6 +171,37 @@ class MemoryManager {
         }
 
         return results
+    }
+
+    /// 解析 ls -la 的一行
+    /// 格式: drwxr-xr-x  5 user staff  160 May 17 10:00 dirname
+    /// 格式: -rw-r--r--  1 user staff  4096 May 17 10:00 file.md
+    private func parseLsLine(_ line: String, basePath: String) -> MemoryFileInfo? {
+        // 至少要有权限+链接数+所有者+组+大小+日期+时间+文件名
+        let parts = line.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+        guard parts.count >= 8 else { return nil }
+
+        let perms = parts[0]
+        let isDir = perms.hasPrefix("d")
+        // size是第4个字段 (0:perms 1:links 2:owner 3:group 4:size 5:month 6:day 7:time/year 8+:name)
+        let size = Int64(parts[4]) ?? 0
+        // 文件名是第8个字段开始，可能包含空格
+        let nameStart = parts[7].contains(":") ? 8 : 7 // 有时间是8，否则7
+        guard parts.count > nameStart else { return nil }
+        let name = parts[nameStart...].joined(separator: " ")
+
+        // 跳过 . 和 ..
+        if name == "." || name == ".." { return nil }
+
+        let fullPath = (basePath as NSString).appendingPathComponent(name)
+
+        return MemoryFileInfo(
+            name: name,
+            path: fullPath,
+            isDirectory: isDir,
+            size: size,
+            modDate: nil
+        )
     }
 
     // MARK: - Get File Info
@@ -219,66 +214,48 @@ class MemoryManager {
             let name = (path as NSString).lastPathComponent
             var size: Int64 = 0
             var modDate: Date? = nil
-
             if let attrs = try? fileManager.attributesOfItem(atPath: path) {
                 size = (attrs[.size] as? Int64) ?? 0
                 modDate = attrs[.modificationDate] as? Date
             }
-
-            return MemoryFileInfo(
-                name: name,
-                path: path,
-                isDirectory: isDir.boolValue,
-                size: size,
-                modDate: modDate
-            )
+            return MemoryFileInfo(name: name, path: path, isDirectory: isDir.boolValue, size: size, modDate: modDate)
         }
 
-        // Fallback: use Tweak shell — test -d for directory, stat for size
-        let escapedPath = shellEscape(path)
-        let name = (path as NSString).lastPathComponent
-        
-        // Check if directory
-        let dirCmd = "test -d \(escapedPath) && echo ISDIR || echo NOTDIR"
-        var isDirectory = false
-        if let dirResult = StarCoreAgent.shared.tweakCmd(action: "shell", params: ["command": dirCmd]),
-           let dirRaw = dirResult["output"] as? String, dirRaw.contains("ISDIR") {
-            isDirectory = true
-        }
-        
-        // Get size
-        var size: Int64 = 0
-        let statCmd = "stat -f%z \(escapedPath) 2>/dev/null"
-        if let statResult = StarCoreAgent.shared.tweakCmd(action: "shell", params: ["command": statCmd]),
-           let statRaw = statResult["output"] as? String {
-            size = Int64(statRaw.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
-        }
-        
-        // Check existence: if stat returned a size OR it's a directory, file exists
-        if size > 0 || isDirectory {
-            return MemoryFileInfo(
-                name: name,
-                path: path,
-                isDirectory: isDirectory,
-                size: size,
-                modDate: nil
-            )
-        }
-        
-        // One more check: test -e
-        let existCmd = "test -e \(escapedPath) && echo EXISTS || echo NOEXIST"
-        if let existResult = StarCoreAgent.shared.tweakCmd(action: "shell", params: ["command": existCmd]),
-           let existRaw = existResult["output"] as? String, existRaw.contains("EXISTS") {
-            return MemoryFileInfo(
-                name: name,
-                path: path,
-                isDirectory: isDirectory,
-                size: 0,
-                modDate: nil
-            )
+        // Fallback: Tweak shell - 单次 test + stat
+        let escaped = shellEscape(path)
+        if let output = tweakShell("test -e \(escaped) && stat -f '%z' \(escaped) 2>/dev/null && echo EXISTS") {
+            let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.hasSuffix("EXISTS") {
+                let name = (path as NSString).lastPathComponent
+                let sizeStr = trimmed.replacingOccurrences(of: "EXISTS", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+                let size = Int64(sizeStr) ?? 0
+                let isDir = tweakShell("test -d \(escaped) && echo DIR")?.contains("DIR") ?? false
+                return MemoryFileInfo(name: name, path: path, isDirectory: isDir, size: size, modDate: nil)
+            }
         }
 
         return nil
+    }
+
+    // MARK: - Memory Files Info
+
+    func memoryFilesInfo() -> [(name: String, exists: Bool, size: Int)] {
+        return memoryFiles.map { file in
+            let path = file.fullPath(relativeTo: memoryPath)
+            var exists = fileManager.fileExists(atPath: path)
+            var size = 0
+            if exists {
+                size = readFile(at: path).count
+            } else {
+                let escaped = shellEscape(path)
+                if let result = tweakShell("stat -f%z \(escaped) 2>/dev/null"),
+                   let fileSize = Int(result.trimmingCharacters(in: .whitespacesAndNewlines)), fileSize > 0 {
+                    exists = true
+                    size = fileSize
+                }
+            }
+            return (file.displayName, exists, size)
+        }
     }
 
     // MARK: - Read File Content
@@ -287,92 +264,64 @@ class MemoryManager {
         return readFile(at: path, maxChars: 0)
     }
 
-    // MARK: - Write File Content (via Tweak shell, base64-safe)
-
-    /// 写文件到指定路径。沙盒App无法直接写，必须通过Tweak shell。
-    /// 使用base64编码传输内容，避免shell特殊字符转义问题。
-    /// 返回true表示写入成功。
-    @discardableResult
-    func writeFile(content: String, to path: String) -> Bool {
-        // 先尝试FileManager（沙盒内可能可用）
-        if let data = content.data(using: .utf8) {
-            // 检查是否在沙盒可写范围内
-            if fileManager.fileExists(atPath: path) || fileManager.createFile(atPath: path, contents: data) {
-                // 验证写入成功
-                if let verify = fileManager.contents(atPath: path),
-                   let verifyStr = String(data: verify, encoding: .utf8),
-                   verifyStr == content {
-                    return true
-                }
-                // FileManager写入失败或不在沙盒内，继续Tweak
-            }
+    private func readFile(at path: String, maxChars: Int = 0) -> String {
+        // Try FileManager first
+        if fileManager.fileExists(atPath: path),
+           let data = fileManager.contents(atPath: path),
+           let content = String(data: data, encoding: .utf8) {
+            return maxChars > 0 ? truncate(content, maxChars: maxChars) : content
         }
 
-        // Tweak fallback: base64编码写入
-        guard StarCoreAgent.shared.isTweakConnected else { return false }
-        
-        guard let data = content.data(using: .utf8) else { return false }
-        let base64Str = data.base64EncodedString(options: [.lineLength64Characters, .endLineWithLineFeed])
-        
-        // 分块写入：大文件base64可能很长，用临时文件方式
-        // 先写base64到临时文件，再decode到目标路径
-        let tmpBase64 = "/tmp/sc_write_\(Int(Date().timeIntervalSince1970)).b64"
-        
-        // 用printf分块写入base64到临时文件（避免命令行太长）
-        // 先清空目标
-        let resetCmd = "echo -n '' > \(shellEscape(tmpBase64))"
-        _ = StarCoreAgent.shared.tweakCmd(action: "shell", params: ["command": resetCmd])
-        
-        // 分块追加base64内容（每块4000字符，确保shell命令不会太长）
-        let chunkSize = 4000
-        var offset = base64Str.startIndex
-        while offset < base64Str.endIndex {
-            let end = base64Str.index(offset, offsetBy: min(chunkSize, base64Str.distance(from: offset, to: base64Str.endIndex)))
-            let chunk = String(base64Str[offset..<end])
-            // 用printf安全追加，避免echo解释特殊字符
-            let appendCmd = "printf '%s' \(shellEscape(chunk)) >> \(shellEscape(tmpBase64))"
-            if let result = StarCoreAgent.shared.tweakCmd(action: "shell", params: ["command": appendCmd]),
-               let success = result["success"] as? Bool, !success {
-                return false
-            }
-            offset = end
+        // Fallback: Tweak shell cat
+        let escaped = shellEscape(path)
+        if let content = tweakShell("cat \(escaped) 2>/dev/null", timeout: 8) {
+            return maxChars > 0 ? truncate(content, maxChars: maxChars) : content
         }
-        
-        // decode base64并写入目标文件
-        let decodeCmd = "base64 -d < \(shellEscape(tmpBase64)) > \(shellEscape(path)) 2>/dev/null && echo WRITE_OK || echo WRITE_FAIL"
-        if let result = StarCoreAgent.shared.tweakCmd(action: "shell", params: ["command": decodeCmd], timeout: 10),
-           let raw = result["output"] as? String, raw.contains("WRITE_OK") {
-            // 清理临时文件
-            _ = StarCoreAgent.shared.tweakCmd(action: "shell", params: ["command": "rm -f \(shellEscape(tmpBase64))"])
-            return true
-        }
-        
-        // 清理临时文件
-        _ = StarCoreAgent.shared.tweakCmd(action: "shell", params: ["command": "rm -f \(shellEscape(tmpBase64))"])
-        return false
+
+        return ""
     }
 
-    // MARK: - Search Memory Files
+    // MARK: - Write File Content (via Tweak shell, base64 encoding)
 
-    func searchMemoryFiles(query: String) -> [(fileName: String, lineNumber: Int, line: String)] {
-        var results: [(fileName: String, lineNumber: Int, line: String)] = []
-        let lowercaseQuery = query.lowercased()
+    func writeFile(content: String, to path: String) -> Bool {
+        let escaped = shellEscape(path)
 
-        for file in memoryFiles {
-            let path = file.fullPath(relativeTo: memoryPath)
-            let content = readFile(at: path, maxChars: 0)
-            if content.isEmpty { continue }
-
-            let lines = content.components(separatedBy: "\n")
-            for (idx, line) in lines.enumerated() {
-                if line.lowercased().contains(lowercaseQuery) {
-                    results.append((file.displayName, idx + 1, line))
-                    if results.count >= 50 { return results } // limit results
-                }
+        // 方案1: 小文件直接echo
+        if content.count < 1000 && !content.contains("'") {
+            let escapedContent = content.replacingOccurrences(of: "'", with: "'\\\"'\\\"'")
+            if let result = tweakShell("echo '\(escapedContent)' > \(escaped) 2>/dev/null && echo WRITE_OK") {
+                return result.contains("WRITE_OK")
             }
         }
 
-        return results
+        // 方案2: 大文件走base64
+        guard let data = content.data(using: .utf8) else { return false }
+        let base64 = data.base64EncodedString()
+
+        let tmpBase64 = "/tmp/starcore_write.b64"
+
+        // 清空临时文件
+        _ = tweakShell("echo -n '' > \(shellEscape(tmpBase64))")
+
+        // 分块写入（每块4000字符避免shell命令行过长）
+        let chunkSize = 4000
+        var offset = base64.startIndex
+        while offset < base64.endIndex {
+            let end = base64.index(offset, offsetBy: chunkSize, limitedBy: base64.endIndex) ?? base64.endIndex
+            let chunk = String(base64[offset..<end])
+            let escapedChunk = chunk.replacingOccurrences(of: "'", with: "'\\\"'\\\"'")
+            _ = tweakShell("printf '%s' '\(escapedChunk)' >> \(shellEscape(tmpBase64))")
+            offset = end
+        }
+
+        // base64解码到目标文件
+        if let result = tweakShell("base64 -d < \(shellEscape(tmpBase64)) > \(escaped) 2>/dev/null && echo WRITE_OK || echo WRITE_FAIL") {
+            _ = tweakShell("rm -f \(shellEscape(tmpBase64))")
+            return result.contains("WRITE_OK")
+        }
+
+        _ = tweakShell("rm -f \(shellEscape(tmpBase64))")
+        return false
     }
 
     // MARK: - Save Screenshot
@@ -380,8 +329,6 @@ class MemoryManager {
     @discardableResult
     func saveScreenshot(data: Data) -> String? {
         let screenshotsDir = (memoryPath as NSString).appendingPathComponent("screenshots")
-
-        // Create directory if needed
         if !fileManager.fileExists(atPath: screenshotsDir) {
             try? fileManager.createDirectory(atPath: screenshotsDir, withIntermediateDirectories: true)
         }
@@ -395,85 +342,79 @@ class MemoryManager {
             return filePath
         }
 
-        // Fallback: use Tweak shell
-        let tmpPath = NSTemporaryDirectory() + filename
-        fileManager.createFile(atPath: tmpPath, contents: data)
-        let cmd = "cp \(shellEscape(tmpPath)) \(shellEscape(filePath)) 2>/dev/null && echo OK"
-        if let result = StarCoreAgent.shared.tweakCmd(action: "shell", params: ["command": cmd]),
-           let raw = result["output"] as? String, raw.contains("OK") {
+        // Fallback: Tweak shell
+        let base64Str = data.base64EncodedString()
+        let tmpPath = "/tmp/starcore_screenshot.png"
+
+        // Write base64 chunks
+        let tmpB64 = "/tmp/starcore_scr.b64"
+        _ = tweakShell("echo -n '' > \(shellEscape(tmpB64))")
+        let chunkSize = 4000
+        var offset = base64Str.startIndex
+        while offset < base64Str.endIndex {
+            let end = base64Str.index(offset, offsetBy: chunkSize, limitedBy: base64Str.endIndex) ?? base64Str.endIndex
+            let chunk = String(base64Str[offset..<end])
+            let escapedChunk = chunk.replacingOccurrences(of: "'", with: "'\\\"'\\\"'")
+            _ = tweakShell("printf '%s' '\(escapedChunk)' >> \(shellEscape(tmpB64))")
+            offset = end
+        }
+
+        if let result = tweakShell("base64 -d < \(shellEscape(tmpB64)) > \(shellEscape(filePath)) 2>/dev/null && echo OK"),
+           result.contains("OK") {
+            _ = tweakShell("rm -f \(shellEscape(tmpB64))")
             return filePath
         }
 
+        _ = tweakShell("rm -f \(shellEscape(tmpB64))")
         return nil
     }
 
     // MARK: - Save Uploaded Image
 
-    @discardableResult
-    func saveUploadedImage(image: UIImage, to directory: String? = nil) -> String? {
-        let targetDir = directory ?? (memoryPath as NSString).appendingPathComponent("uploads")
-
-        // Create directory if needed
-        if !fileManager.fileExists(atPath: targetDir) {
-            try? fileManager.createDirectory(atPath: targetDir, withIntermediateDirectories: true)
-        }
-
+    func saveUploadedImage(image: UIImage, to directoryPath: String) -> String? {
+        guard let data = image.jpegData(compressionQuality: 0.8) else { return nil }
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyyMMdd_HHmmss"
-        let filename = "upload_\(formatter.string(from: Date())).png"
-        let filePath = (targetDir as NSString).appendingPathComponent(filename)
+        let filename = "upload_\(formatter.string(from: Date())).jpg"
+        let filePath = (directoryPath as NSString).appendingPathComponent(filename)
 
-        if let pngData = image.pngData() {
-            if fileManager.createFile(atPath: filePath, contents: pngData) {
-                return filePath
-            }
-
-            // Fallback via Tweak
-            let tmpPath = NSTemporaryDirectory() + filename
-            fileManager.createFile(atPath: tmpPath, contents: pngData)
-            let cmd = "cp \(shellEscape(tmpPath)) \(shellEscape(filePath)) 2>/dev/null && echo OK"
-            if let result = StarCoreAgent.shared.tweakCmd(action: "shell", params: ["command": cmd]),
-               let raw = result["output"] as? String, raw.contains("OK") {
-                return filePath
-            }
+        if fileManager.createFile(atPath: filePath, contents: data) {
+            return filePath
         }
-
         return nil
     }
 
-    // MARK: - Private Helpers
+    // MARK: - Search Memory Files
 
-    private func readFile(at path: String, maxChars: Int = 0) -> String {
-        // Try FileManager first
-        if fileManager.fileExists(atPath: path),
-           let data = fileManager.contents(atPath: path),
-           let content = String(data: data, encoding: .utf8) {
-            if maxChars > 0 && content.count > maxChars {
-                let index = content.index(content.startIndex, offsetBy: maxChars)
-                return String(content[..<index]) + "\n... (已截断)"
-            }
-            return content
-        }
+    func searchMemoryFiles(query: String) -> [(fileName: String, lineNumber: Int, line: String)] {
+        var results: [(fileName: String, lineNumber: Int, line: String)] = []
+        let lowercaseQuery = query.lowercased()
 
-        // Fallback: use Tweak shell command to read file (bypasses sandbox)
-        let escapedPath = shellEscape(path)
-        let catCmd = "cat \(escapedPath) 2>/dev/null"
-        if let result = StarCoreAgent.shared.tweakCmd(action: "shell", params: ["command": catCmd], timeout: 5),
-           let raw = result["output"] as? String, !raw.isEmpty {
-            let content = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !content.isEmpty {
-                if maxChars > 0 && content.count > maxChars {
-                    let index = content.index(content.startIndex, offsetBy: maxChars)
-                    return String(content[..<index]) + "\n... (已截断)"
+        for file in memoryFiles {
+            let path = file.fullPath(relativeTo: memoryPath)
+            let content = readFile(at: path)
+            if content.isEmpty { continue }
+
+            let lines = content.components(separatedBy: "\n")
+            for (index, line) in lines.enumerated() {
+                if line.lowercased().contains(lowercaseQuery) {
+                    results.append((file.displayName, index + 1, line))
+                    if results.count > 50 { return results }
                 }
-                return content
             }
         }
 
-        return ""
+        return results
     }
 
-    /// Shell转义：用单引号包裹，内部单引号替换为 '"'"'
+    // MARK: - Helpers
+
+    private func truncate(_ content: String, maxChars: Int) -> String {
+        if content.count <= maxChars { return content }
+        let index = content.index(content.startIndex, offsetBy: maxChars)
+        return String(content[..<index]) + "\n... (已截断)"
+    }
+
     private func shellEscape(_ s: String) -> String {
         return "'" + s.replacingOccurrences(of: "'", with: "'\"'\"'") + "'"
     }

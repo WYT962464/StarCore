@@ -443,13 +443,24 @@ class MemoryViewController: UIViewController {
         navigationStack = []
         currentPathLabel.text = "📂 \(rootPath)"
 
+        // 先检查Tweak连接
+        if !StarCoreAgent.shared.isTweakConnected {
+            StarCoreAgent.shared.checkTweakConnection()
+        }
+
         memoryFiles = MemoryManager.shared.listMemoryFiles()
         fileItems = MemoryManager.shared.listFiles(at: rootPath)
 
-        // 如果没有读到任何文件且Tweak未连接，显示提示
-        let tweakConnected = StarCoreAgent.shared.isTweakConnected
-        if memoryFiles.isEmpty && fileItems.isEmpty && !tweakConnected {
-            currentPathLabel.text = "⚠️ Tweak未连接，无法读取沙盒外文件"
+        // 调试信息
+        let tweakOK = StarCoreAgent.shared.isTweakConnected
+        print("[Memory] Tweak: \(tweakOK), memFiles: \(memoryFiles.count), fileItems: \(fileItems.count), path: \(rootPath)")
+
+        if memoryFiles.isEmpty && fileItems.isEmpty {
+            if !tweakOK {
+                currentPathLabel.text = "⚠️ Tweak未连接，点击重试"
+            } else {
+                currentPathLabel.text = "📂 \(rootPath) (空目录或路径不存在)"
+            }
         }
 
         memoryTableView.reloadData()
