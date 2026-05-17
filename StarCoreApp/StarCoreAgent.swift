@@ -881,17 +881,63 @@ class StarCoreAgent {
             return callMcpToolSync(name: "list_apps", arguments: [:])
 
         case "writeFile":
-            let path = action["path"] as? String ?? ""
-            let content = action["content"] as? String ?? ""
-            if path.isEmpty { return ["success": false, "error": "路径不能为空"] }
-            let success = MemoryManager.shared.writeFile(content: content, to: path)
-            return ["success": success, "path": path, "message": success ? "文件已保存" : "写入失败"]
+            let wPath = action["path"] as? String ?? ""
+            let wContent = action["content"] as? String ?? ""
+            if wPath.isEmpty { return ["success": false, "error": "路径不能为空"] }
+            if wContent.isEmpty { return ["success": false, "error": "内容不能为空"] }
+            // 写入长度上限：3000字符（约80%安全阈值），超限拒绝
+            if wContent.count > 3000 {
+                return ["success": false, "error": "内容过长(\(wContent.count)字符)，上限3000。请拆分文件或使用appendFile追加"]
+            }
+            // 写入
+            let writeOk = MemoryManager.shared.writeFile(content: wContent, to: wPath)
+            if !writeOk { return ["success": false, "error": "写入失败"] }
+            // 写入校验：读回比对长度
+            let readBack = MemoryManager.shared.readFileContent(at: wPath)
+            if readBack.count != wContent.count {
+                // 重试1次
+                let retryOk = MemoryManager.shared.writeFile(content: wContent, to: wPath)
+                if retryOk {
+                    let retryRead = MemoryManager.shared.readFileContent(at: wPath)
+                    if retryRead.count != wContent.count {
+                        return ["success": false, "error": "写入校验失败：期望\(wContent.count)字符，实际\(retryRead.count)字符", "path": wPath]
+                    }
+                } else {
+                    return ["success": false, "error": "写入失败（重试后）", "path": wPath]
+                }
+            }
+            return ["success": true, "path": wPath, "size": readBack.count, "message": "文件已保存并校验通过"]
+
+        case "appendFile":
+            let aPath = action["path"] as? String ?? ""
+            let aContent = action["content"] as? String ?? ""
+            if aPath.isEmpty { return ["success": false, "error": "路径不能为空"] }
+            if aContent.isEmpty { return ["success": false, "error": "追加内容不能为空"] }
+            // 追加长度上限：1000字符
+            if aContent.count > 1000 {
+                return ["success": false, "error": "追加内容过长(\(aContent.count)字符)，上限1000。请分批追加"]
+            }
+            // 读原内容
+            let original = MemoryManager.shared.readFileContent(at: aPath)
+            let appended = original + "\n" + aContent
+            // 追加后总长度上限5000
+            if appended.count > 5000 {
+                return ["success": false, "error": "追加后文件过长(\(appended.count)字符)，上限5000。请拆分文件"]
+            }
+            let appendOk = MemoryManager.shared.writeFile(content: appended, to: aPath)
+            if !appendOk { return ["success": false, "error": "追加写入失败"] }
+            // 校验
+            let checkBack = MemoryManager.shared.readFileContent(at: aPath)
+            if checkBack.count != appended.count {
+                return ["success": false, "error": "追加校验失败：期望\(appended.count)字符，实际\(checkBack.count)字符"]
+            }
+            return ["success": true, "path": aPath, "size": checkBack.count, "message": "内容已追加并校验通过"]
 
         case "readFile":
-            let path = action["path"] as? String ?? ""
-            if path.isEmpty { return ["success": false, "error": "路径不能为空"] }
-            let fileContent = MemoryManager.shared.readFileContent(at: path)
-            return ["success": true, "path": path, "content": fileContent]
+            let rPath = action["path"] as? String ?? ""
+            if rPath.isEmpty { return ["success": false, "error": "路径不能为空"] }
+            let fileContent = MemoryManager.shared.readFileContent(at: rPath)
+            return ["success": true, "path": rPath, "size": fileContent.count, "content": fileContent]
 
         case "listFiles":
             let dir = action["path"] as? String ?? MemoryManager.shared.getMemoryPath()
@@ -900,7 +946,7 @@ class StarCoreAgent {
             for item in items {
                 result.append(["name": item.name, "path": item.path, "isDir": item.isDirectory, "size": item.size])
             }
-            return ["success": true, "path": dir, "items": result]
+            return ["success": true, "path": dir, "count": items.count, "items": result]
 
         default:
             return ["error": "未知动作: \(act)"]
