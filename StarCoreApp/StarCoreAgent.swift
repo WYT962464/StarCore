@@ -261,13 +261,16 @@ class StarCoreAgent {
 
                 // 原生function calling: 有tool_calls时返回特殊格式
                 if let toolCalls = msg?.toolCalls, !toolCalls.isEmpty {
-                    // 把tool_calls编码成特殊格式，agentLoop会识别
+                    // 把tool_calls编码成原始格式（保留function嵌套，喂回API时格式正确）
                     var toolResults: [[String: Any]] = []
                     for tc in toolCalls {
                         toolResults.append([
                             "id": tc.id ?? "",
-                            "name": tc.function?.name ?? "",
-                            "arguments": tc.function?.arguments ?? "{}"
+                            "type": "function",
+                            "function": [
+                                "name": tc.function?.name ?? "",
+                                "arguments": tc.function?.arguments ?? "{}"
+                            ]
                         ])
                     }
                     if let jsonData = try? JSONSerialization.data(withJSONObject: toolResults, options: .prettyPrinted),
@@ -1073,8 +1076,9 @@ class StarCoreAgent {
                 if let data = jsonStr.data(using: .utf8),
                    let toolCalls = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
                     for tc in toolCalls {
-                        let name = tc["name"] as? String ?? ""
-                        let args = tc["arguments"] as? String ?? "{}"
+                        let funcDict = tc["function"] as? [String: Any] ?? [:]
+                        let name = funcDict["name"] as? String ?? tc["name"] as? String ?? ""
+                        let args = funcDict["arguments"] as? String ?? tc["arguments"] as? String ?? "{}"
                         let callId = tc["id"] as? String ?? ""
                         actionNames.append(name)
                         // 构造actionStr给execAction
@@ -1350,8 +1354,9 @@ class StarCoreAgent {
                 if let data = jsonStr.data(using: .utf8),
                    let toolCalls = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
                     for tc in toolCalls {
-                        let name = tc["name"] as? String ?? ""
-                        let args = tc["arguments"] as? String ?? "{}"
+                        let funcDict = tc["function"] as? [String: Any] ?? [:]
+                        let name = funcDict["name"] as? String ?? tc["name"] as? String ?? ""
+                        let args = funcDict["arguments"] as? String ?? tc["arguments"] as? String ?? "{}"
                         actionNames.append(name)
                         var actionStr = "{\"action\":\"" + name + "\""
                         if let argsData = args.data(using: .utf8),
@@ -1547,8 +1552,9 @@ class StarCoreAgent {
                 if let data = jsonStr.data(using: .utf8),
                    let toolCalls = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
                     for tc in toolCalls {
-                        let name = tc["name"] as? String ?? ""
-                        let args = tc["arguments"] as? String ?? "{}"
+                        let funcDict = tc["function"] as? [String: Any] ?? [:]
+                        let name = funcDict["name"] as? String ?? tc["name"] as? String ?? ""
+                        let args = funcDict["arguments"] as? String ?? tc["arguments"] as? String ?? "{}"
                         actionNames.append(name)
                         var actionStr = "{\"action\":\"" + name + "\""
                         if let argsData = args.data(using: .utf8),
