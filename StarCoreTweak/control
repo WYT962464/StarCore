@@ -1,8 +1,8 @@
 Package: com.starcore.tweak
 Name: StarCoreTweak
-Version: 8.4.0
+Version: 9.0.0
 Architecture: iphoneos-arm64
-Description: StarCore Tweak v8.4 - ios-mcp功能移植(screenshot/inputText/按键/getScreenInfo/ios-mcp触摸)
+Description: StarCore Tweak v9.0 - 全面超越iOS MCP (43 actions: getUIElements/screenshot fix/listApps/killApp/doubleTap/dragAndDrop/openURL/brightness/volume/installApp/uninstallApp)
 Maintainer: StarCore
 Author: StarCore
 Section: Tweaks
