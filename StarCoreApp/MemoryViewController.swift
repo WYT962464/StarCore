@@ -73,6 +73,11 @@ class MemoryViewController: UIViewController {
         }
     }
 
+    @objc private func handleRefresh() {
+        loadData()
+        scrollView.refreshControl?.endRefreshing()
+    }
+
     private func updateTweakBanner() {
         let tweakConnected = StarCoreAgent.shared.isTweakConnected
         // 也检查iOS MCP是否可用
