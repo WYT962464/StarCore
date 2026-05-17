@@ -1,7 +1,9 @@
 import Foundation
+import UIKit
 
 // MARK: - XiaoZhi WSS Connection Manager
-// 小智MCP桥接：WSS连接 → MCP协议握手 → iOS MCP转发
+// 小智MCP桥接：WSS连接 → MCP协议握手 → 工具转发
+// 截图特殊处理：走Tweak + 压缩，不走iOS MCP的大包base64
 
 class XiaoZhiManager {
 
@@ -153,7 +155,7 @@ class XiaoZhiManager {
         let result: [String: Any] = [
             "protocolVersion": "2024-11-05",
             "capabilities": ["tools": ["listChanged": false]],
-            "serverInfo": ["name": "StarCore-iOS", "version": "2.1"]
+            "serverInfo": ["name": "StarCore-iOS", "version": "2.2"]
         ]
         sendResult(id: id, result: result)
         logMsg("已回复initialize")
@@ -174,17 +176,121 @@ class XiaoZhiManager {
         }
     }
 
+    // MARK: - Tool Call Dispatcher
+
     private func handleToolsCall(id: Int, params: [String: Any]) {
         let toolName = params["name"] as? String ?? ""
         let arguments = params["arguments"] as? [String: Any] ?? [:]
         logMsg("工具调用: \(toolName)")
 
+        // ★ 截图特殊处理：走Tweak + 压缩，不走iOS MCP大包
+        if toolName == "screenshot" {
+            handleScreenshot(id: id)
+            return
+        }
+
+        // 其他工具照旧走iOS MCP
         callMcpTool(name: toolName, arguments: arguments) { [weak self] resultDict in
             guard let self = self else { return }
-            // 直接透传iOS MCP返回的result
             self.sendResult(id: id, result: resultDict)
             self.logMsg("工具\(toolName)完成")
         }
+    }
+
+    // MARK: - Screenshot Special Path
+
+    private func handleScreenshot(id: Int) {
+        logMsg("截图走Tweak路径+压缩...")
+
+        // 在后台线程执行，避免阻塞WSS接收
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+
+            var screenshotData: Data?
+            var method = "未知"
+
+            // 方案1：Tweak截图（系统级，快）
+            if let tweakResult = StarCoreAgent.shared.tweakCmd(action: "screenshot", timeout: 15),
+               let base64Str = tweakResult["image"] as? String ?? tweakResult["data"] as? String,
+               !base64Str.isEmpty {
+                screenshotData = Data(base64Encoded: base64Str)
+                method = "Tweak"
+            }
+
+            // 方案2：iOS MCP截图（fallback）
+            if screenshotData == nil {
+                logMsg("Tweak截图失败，尝试iOS MCP...")
+                let semaphore = DispatchSemaphore(value: 0)
+                self.callMcpTool(name: "screenshot", arguments: [:]) { resultDict in
+                    // 从iOS MCP result中提取base64
+                    if let content = resultDict["content"] as? [[String: Any]],
+                       let first = content.first,
+                       let b64 = first["data"] as? String {
+                        screenshotData = Data(base64Encoded: b64)
+                        method = "iOS-MCP"
+                    }
+                    semaphore.signal()
+                }
+                _ = semaphore.wait(timeout: .now() + 30)
+            }
+
+            // 截图全部失败
+            guard let rawData = screenshotData else {
+                self.logMsg("截图失败：Tweak和iOS MCP均未返回数据")
+                self.sendResult(id: id, result: [
+                    "content": [["type": "text", "text": "截图失败：无法获取屏幕图像"]],
+                    "isError": true
+                ])
+                return
+            }
+
+            self.logMsg("截图原始大小: \(rawData.count) bytes (\(method))")
+
+            // ★ 压缩：缩放+JPEG，确保WSS消息不超限
+            let compressed = self.compressScreenshot(rawData)
+            let compressedB64 = compressed.base64EncodedString()
+
+            self.logMsg("压缩后: \(compressed.count) bytes, base64: \(compressedB64.count) chars")
+
+            // 保存到本地
+            let filePath = MemoryManager.shared.saveScreenshot(data: rawData)
+
+            // 返回压缩后的图片给小智
+            self.sendResult(id: id, result: [
+                "content": [[
+                    "type": "image",
+                    "data": compressedB64,
+                    "mimeType": "image/jpeg"
+                ]]
+            ])
+            self.logMsg("截图完成(\(method))，已发送压缩版")
+        }
+    }
+
+    /// 压缩截图：缩放到800px宽 + JPEG quality 0.4
+    /// iPhone X全屏PNG约5-8MB → 压缩后约80-150KB
+    private func compressScreenshot(_ data: Data, maxWidth: CGFloat = 800, quality: CGFloat = 0.4) -> Data {
+        guard let image = UIImage(data: data) else {
+            logMsg("图片解码失败，返回原始数据")
+            return data
+        }
+
+        let scale = maxWidth / image.size.width
+        let newWidth = maxWidth
+        let newHeight = image.size.height * scale
+        let newSize = CGSize(width: newWidth, height: newHeight)
+
+        UIGraphicsBeginImageContextWithOptions(newSize, false, 1.0)
+        image.draw(in: CGRect(origin: .zero, size: newSize))
+        let resized = UIGraphicsGetImageFromCurrentImageContext()
+        UIGraphicsEndImageContext()
+
+        if let resized = resized, let jpeg = resized.jpegData(compressionQuality: quality) {
+            return jpeg
+        }
+
+        logMsg("压缩失败，返回原始数据")
+        return data
     }
 
     // MARK: - iOS MCP HTTP Calls
@@ -236,7 +342,8 @@ class XiaoZhiManager {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = data
-        request.timeoutInterval = 30
+        // ★ 截图等工具可能返回大数据，给足超时
+        request.timeoutInterval = 60
 
         session.dataTask(with: request) { data, _, error in
             if let error = error {
@@ -246,6 +353,7 @@ class XiaoZhiManager {
             }
             guard let data = data,
                   let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                self.logMsg("MCP响应解析失败，数据大小: \(data?.count ?? 0)")
                 completion(nil)
                 return
             }
@@ -266,6 +374,10 @@ class XiaoZhiManager {
     private func sendJSON(_ dict: [String: Any]) {
         guard let data = try? JSONSerialization.data(withJSONObject: dict, options: []),
               let text = String(data: data, encoding: .utf8) else { return }
+        let sizeKB = text.count / 1024
+        if sizeKB > 500 {
+            logMsg("⚠️ WSS发送大消息: \(sizeKB)KB")
+        }
         webSocketTask?.send(.string(text)) { [weak self] error in
             if let error = error {
                 self?.logMsg("WSS发送失败: \(error.localizedDescription)")
@@ -326,7 +438,7 @@ class XiaoZhiManager {
         let ts = DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium)
         let entry = "[\(ts)] \(message)"
         recentLogs.append(entry)
-        if recentLogs.count > 20 { recentLogs.removeFirst(recentLogs.count - 20) }
+        if recentLogs.count > 30 { recentLogs.removeFirst(recentLogs.count - 30) }
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             self.onLog?(entry)

@@ -384,7 +384,7 @@ class StarCoreAgent {
     private func rawTCPSend(jsonString: String, timeout: TimeInterval = 5) -> String? {
         var accumulatedData = Data()
         let semaphore = DispatchSemaphore(value: 0)
-        let maxResponseSize = 2 * 1024 * 1024 // 2MB上限（截图base64可能很大）
+        let maxResponseSize = 10 * 1024 * 1024 // 10MB上限（截图base64可能很大）
 
         let queue = DispatchQueue(label: "com.starcore.tcp")
         let host = NWEndpoint.Host(tweakHost)
@@ -456,7 +456,7 @@ class StarCoreAgent {
     private func rawTCPSendToPort(jsonString: String, port: UInt16, timeout: TimeInterval = 5) -> String? {
         var accumulatedData = Data()
         let semaphore = DispatchSemaphore(value: 0)
-        let maxResponseSize = 2 * 1024 * 1024
+        let maxResponseSize = 10 * 1024 * 1024
 
         let queue = DispatchQueue(label: "com.starcore.tcp")
         let host = NWEndpoint.Host(tweakHost)
