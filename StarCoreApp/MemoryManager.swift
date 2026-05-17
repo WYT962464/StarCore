@@ -8,7 +8,10 @@ class MemoryManager {
     var onDebugLog: ((String) -> Void)?
 
     private var memoryPath: String {
-        return defaults.string(forKey: "memoryPath") ?? "/var/mobile/StarCore"
+        // 默认用App沙盒Documents目录（FileManager直接读写，秒级）
+        // 用户可手动改为越狱路径（需iOS MCP/Tweak中转）
+        let sandboxDocs = NSSearchPathForDirectoriesInDomains(.documentDirectory, .userDomainMask, true).first ?? "/var/mobile/StarCore"
+        return defaults.string(forKey: "memoryPath") ?? sandboxDocs
     }
 
     private init() {}
