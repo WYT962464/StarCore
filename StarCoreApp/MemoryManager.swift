@@ -40,20 +40,26 @@ class MemoryManager {
     private func mcpShell(_ cmd: String) -> String? {
         debugLog("mcp: \(cmd.prefix(80))")
         if let result = StarCoreAgent.shared.callMcpToolSync(name: "run_command", arguments: ["command": cmd]) {
-            // MCP返回格式: {result: {content: [{type: "text", text: "..."}]}}
+            // run_command返回格式: {exitCode:0, output:"..."}
+            if let output = result["output"] as? String, !output.isEmpty {
+                debugLog("mcp got output: \(output.prefix(100))")
+                return output
+            }
+            // 也可能是JSON-RPC包装: {result: {content: [{text: "{exitCode:0,output:...}"}]}}
             if let rpcResult = result["result"] as? [String: Any],
                let content = rpcResult["content"] as? [[String: Any]],
                let first = content.first,
                let text = first["text"] as? String, !text.isEmpty {
+                // text本身可能是JSON: {"exitCode":0,"output":"..."}
+                if let data = text.data(using: .utf8),
+                   let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                   let output = json["output"] as? String, !output.isEmpty {
+                    return output
+                }
+                // 或者text直接就是输出
                 return text
             }
-            if let output = result["output"] as? String, !output.isEmpty { return output }
-            if let content = result["content"] as? [[String: Any]],
-               let first = content.first,
-               let text = first["text"] as? String, !text.isEmpty {
-                return text
-            }
-            debugLog("mcp unexpected: \(String(describing: result).prefix(200))")
+            debugLog("mcp unexpected: \(String(describing: result).prefix(300))")
         }
         return nil
     }
