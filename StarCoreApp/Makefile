@@ -16,7 +16,8 @@ StarCoreApp_FILES = \
 	SettingsViewController.swift \
 	MarkdownRenderer.swift \
 	StreamingLLM.swift \
-	ImagePickerHelper.swift
+	ImagePickerHelper.swift \
+	XiaoZhiManager.swift
 
 
 StarCoreApp_FRAMEWORKS = UIKit Foundation Network WebKit Photos
