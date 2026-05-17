@@ -1033,7 +1033,7 @@ class StarCoreAgent {
         messages: [[String: String]],
         step: Int,
         maxSteps: Int,
-        lastActionSignature: Substring = "",
+        var lastActionSignature: Substring = "",
         allReplies: [String],
         allActionResults: [String],
         onPartialReply: ((String, [String], Int) -> Void)?,
