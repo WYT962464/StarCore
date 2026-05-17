@@ -772,7 +772,32 @@ class StarCoreAgent {
 
         case "shell":
             let command = action["command"] as? String ?? ""
-            return tweakCmd(action: "shell", params: ["command": command])
+            // 优先Tweak，失败走iOS MCP
+            if let result = tweakCmd(action: "shell", params: ["command": command]) {
+                return result
+            }
+            // Fallback: iOS MCP run_command
+            if let mcpResult = callMcpToolSync(name: "run_command", arguments: ["command": command]) {
+                // MCP返回 {exitCode:0, output:"..."}
+                if let output = mcpResult["output"] as? String {
+                    return ["success": true, "output": output]
+                }
+                // 也可能包在result.content[0].text里
+                if let rpcResult = mcpResult["result"] as? [String: Any],
+                   let content = rpcResult["content"] as? [[String: Any]],
+                   let first = content.first,
+                   let text = first["text"] as? String {
+                    // text可能是JSON {exitCode,output}
+                    if let data = text.data(using: .utf8),
+                       let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                       let output = json["output"] as? String {
+                        return ["success": true, "output": output]
+                    }
+                    return ["success": true, "output": text]
+                }
+                return mcpResult
+            }
+            return ["success": false, "error": "shell执行失败: Tweak和MCP均不可用"]
 
         case "openApp":
             let bundleId = action["bundleId"] as? String ?? ""
@@ -854,6 +879,28 @@ class StarCoreAgent {
 
         case "iosMcpListApps":
             return callMcpToolSync(name: "list_apps", arguments: [:])
+
+        case "writeFile":
+            let path = action["path"] as? String ?? ""
+            let content = action["content"] as? String ?? ""
+            if path.isEmpty { return ["success": false, "error": "路径不能为空"] }
+            let success = MemoryManager.shared.writeFile(content: content, to: path)
+            return ["success": success, "path": path, "message": success ? "文件已保存" : "写入失败"]
+
+        case "readFile":
+            let path = action["path"] as? String ?? ""
+            if path.isEmpty { return ["success": false, "error": "路径不能为空"] }
+            let fileContent = MemoryManager.shared.readFileContent(at: path)
+            return ["success": true, "path": path, "content": fileContent]
+
+        case "listFiles":
+            let dir = action["path"] as? String ?? MemoryManager.shared.getMemoryPath()
+            let items = MemoryManager.shared.listFiles(at: dir)
+            var result: [[String: Any]] = []
+            for item in items {
+                result.append(["name": item.name, "path": item.path, "isDir": item.isDirectory, "size": item.size])
+            }
+            return ["success": true, "path": dir, "items": result]
 
         default:
             return ["error": "未知动作: \(act)"]
