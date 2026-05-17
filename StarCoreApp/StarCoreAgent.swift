@@ -1535,14 +1535,75 @@ class StarCoreAgent {
             case .success(let text): reply = text
             case .failure(let error): reply = "❌ 请求失败：\(error.localizedDescription)\n请检查API Key和Model Endpoint"
             }
-            let clean = self.processLLMReply(reply)
+
+            // ★ 原生function calling处理（与agentLoopStreaming一致）
+            let isToolCall = reply.hasPrefix("__TOOL_CALLS__:")
+            let clean: (String, [String])
+
+            if isToolCall {
+                let jsonStr = String(reply.dropFirst("__TOOL_CALLS__:".count))
+                var actionResults: [String] = []
+                var actionNames: [String] = []
+                if let data = jsonStr.data(using: .utf8),
+                   let toolCalls = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
+                    for tc in toolCalls {
+                        let name = tc["name"] as? String ?? ""
+                        let args = tc["arguments"] as? String ?? "{}"
+                        actionNames.append(name)
+                        var actionStr = "{\"action\":\"" + name + "\""
+                        if let argsData = args.data(using: .utf8),
+                           let argsDict = try? JSONSerialization.jsonObject(with: argsData) as? [String: Any] {
+                            for (k, v) in argsDict {
+                                actionStr += ",\"" + k + "\":"
+                                if let s = v as? String { actionStr += "\"" + s + "\"" }
+                                else if let n = v as? Double { actionStr += String(n) }
+                                else if let n = v as? Int { actionStr += String(n) }
+                                else { actionStr += String(describing: v) }
+                            }
+                        }
+                        actionStr += "}"
+                        if let result = self.execAction(actionStr) {
+                            if let resultData = try? JSONSerialization.data(withJSONObject: result, options: .prettyPrinted),
+                               let resultStr = String(data: resultData, encoding: .utf8) {
+                                actionResults.append(resultStr)
+                            }
+                        } else {
+                            actionResults.append("{\"error\":\"执行失败: " + name + "\"}")
+                        }
+                    }
+                }
+                clean = ("已执行: " + actionNames.joined(separator: ", "), actionResults)
+            } else {
+                clean = self.processLLMReply(reply)
+            }
+
             var newReplies = allReplies; var newActions = allActionResults
-            if !clean.0.isEmpty && clean.0 != "..." && clean.0 != "已执行 ✓" { newReplies.append(clean.0) }
+            if !clean.0.isEmpty && clean.0 != "..." && clean.0 != "已执行 ✓" && !clean.0.hasPrefix("已执行: ") { newReplies.append(clean.0) }
             newActions.append(contentsOf: clean.1)
-            if !clean.1.isEmpty && step < maxSteps {
+
+            let hadActions = !clean.1.isEmpty
+            if hadActions && step < maxSteps {
                 var next = messages
-                next.append(["role": "assistant", "content": reply])
-                next.append(["role": "user", "content": self.buildActionResultMessage(actions: clean.1, step: step)])
+                if isToolCall {
+                    // 原生function calling：用role:tool喂回结果
+                    let jsonStr = String(reply.dropFirst("__TOOL_CALLS__:".count))
+                    if let data = jsonStr.data(using: .utf8),
+                       let toolCalls = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
+                        var assistantMsg: [String: String] = ["role": "assistant", "content": ""]
+                        if let tcData = try? JSONSerialization.data(withJSONObject: ["tool_calls": toolCalls], options: []),
+                           let tcStr = String(data: tcData, encoding: .utf8) {
+                            assistantMsg["__tool_calls__"] = tcStr
+                        }
+                        next.append(assistantMsg)
+                        for (idx, result) in clean.1.enumerated() {
+                            let callId = idx < toolCalls.count ? (toolCalls[idx]["id"] as? String ?? "call_\(idx)") : "call_\(idx)"
+                            next.append(["role": "tool", "content": result, "tool_call_id": callId])
+                        }
+                    }
+                } else {
+                    next.append(["role": "assistant", "content": reply])
+                    next.append(["role": "user", "content": self.buildActionResultMessage(actions: clean.1, step: step)])
+                }
                 self.nonStreamingAgentLoop(messages: next, step: step+1, maxSteps: maxSteps, allReplies: newReplies, allActionResults: newActions, completion: completion)
             } else {
                 let final = newReplies.isEmpty ? clean.0 : newReplies.joined(separator: "\n\n")
