@@ -313,13 +313,14 @@ class MemoryManager {
         let sandboxPath = NSSearchPathForDirectoriesInDomains(.documentDirectory, .userDomainMask, true).first ?? ""
         if !sandboxPath.isEmpty {
             let pathInfo = "\n\n【App沙盒路径】" + sandboxPath
-                + "\n这是星核App的本地记忆目录，你可以直接读写："
-                + "\n- 写文件: {\"action\":\"writeFile\",\"path\":\"路径\",\"content\":\"内容\"}"
-                + "\n- 读文件: {\"action\":\"readFile\",\"path\":\"路径\"}"
-                + "\n- 列目录: {\"action\":\"listFiles\",\"path\":\"目录\"}"
+                + "\n这是星核App的本地记忆目录，你可以直接读写。"
+                + "\n重要：每次只写一个文件！写完后我会执行并返回结果，你再写下一个。不要一次写多个文件。"
+                + "\n- 写文件: {\"action\":\"writeFile\",\"path\":\"完整路径\",\"content\":\"文件内容\"}"
+                + "\n- 读文件: {\"action\":\"readFile\",\"path\":\"完整路径\"}"
+                + "\n- 列目录: {\"action\":\"listFiles\",\"path\":\"目录路径\"}"
                 + "\n- Shell: {\"action\":\"shell\",\"command\":\"命令\"}"
                 + "\n记忆文件: SOUL.md USER.md MEMORY.md TOOLS.md SECRET.md"
-                + "\n子目录: 基础设定/ (SOUL.md + TOOLS.md)"
+                + "\n子目录: 基础设定/ (存放SOUL.md和TOOLS.md)"
                 + "\n示例路径: " + sandboxPath + "/SOUL.md"
             parts.append(pathInfo)
         }
