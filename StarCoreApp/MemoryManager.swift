@@ -208,23 +208,33 @@ class MemoryManager {
             return results
         }
 
-        // ★ Fallback: 单条命令获取所有文件信息（避免逐文件tweakCmd）
-        // ls -la 输出: drwxr-xr-x  5 user staff  160 May 17 10:00 基础设定
+        // ★ Fallback: 用 find 命令获取目录内容（比ls -la更可靠，不怕中文/特殊字符）
         let escapedPath = shellEscape(directoryPath)
-        if let output = smartShell("ls -la \(escapedPath) 2>/dev/null") {
-            let lines = output.components(separatedBy: "\n")
+        // find 输出: 每行一个完整路径
+        // 同时获取文件类型和大小
+        let cmd = "find \(escapedPath) -maxdepth 1 -exec stat -f '%z %Sp %N' {} \\; 2>/dev/null | tail -n +2"
+        if let output = smartShell(cmd) {
+            let lines = output.components(separatedBy: "\n").filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
             for line in lines {
-                let trimmed = line.trimmingCharacters(in: .whitespaces)
-                // 跳过 total 行和 . ..
-                if trimmed.isEmpty || trimmed.hasPrefix("total") || trimmed.hasSuffix(" .") || trimmed.hasSuffix(" ..") {
-                    continue
-                }
-                // 解析 ls -la 格式
-                if let info = parseLsLine(trimmed, basePath: directoryPath) {
+                if let info = parseStatLine(line) {
                     results.append(info)
                 }
             }
-            debugLog("Tweak ls -la: \(results.count) items in \(directoryPath)")
+            debugLog("find+stat: \(results.count) items in \(directoryPath)")
+        }
+
+        // 如果find也失败，试最简单的ls
+        if results.isEmpty {
+            if let output = smartShell("ls -1A \(escapedPath) 2>/dev/null") {
+                let names = output.components(separatedBy: "\n").filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty && $0 != "." && $0 != ".." }
+                for name in names {
+                    let trimmed = name.trimmingCharacters(in: .whitespaces)
+                    let fullPath = (directoryPath as NSString).appendingPathComponent(trimmed)
+                    let isDir = smartShell("test -d \(shellEscape(fullPath)) && echo DIR")?.contains("DIR") ?? false
+                    results.append(MemoryFileInfo(name: trimmed, path: fullPath, isDirectory: isDir, size: 0, modDate: nil))
+                }
+                debugLog("ls -1A fallback: \(results.count) items")
+            }
         }
 
         // Sort: directories first, then alphabetically
@@ -236,36 +246,29 @@ class MemoryManager {
         return results
     }
 
-    /// 解析 ls -la 的一行
-    /// 格式: drwxr-xr-x  5 user staff  160 May 17 10:00 dirname
-    /// 格式: -rw-r--r--  1 user staff  4096 May 17 10:00 file.md
-    private func parseLsLine(_ line: String, basePath: String) -> MemoryFileInfo? {
-        // 至少要有权限+链接数+所有者+组+大小+日期+时间+文件名
-        let parts = line.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
-        guard parts.count >= 8 else { return nil }
-
-        let perms = parts[0]
+    /// 解析 stat -f '%z %Sp %N' 的输出
+    /// 格式: 4096 drwxr-xr-x /var/mobile/StarCore/基础设定
+    private func parseStatLine(_ line: String) -> MemoryFileInfo? {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return nil }
+        
+        // 格式: size perms path
+        let parts = trimmed.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+        guard parts.count >= 3 else { return nil }
+        
+        let size = Int64(parts[0]) ?? 0
+        let perms = parts[1]
         let isDir = perms.hasPrefix("d")
-        // size是第4个字段 (0:perms 1:links 2:owner 3:group 4:size 5:month 6:day 7:time/year 8+:name)
-        let size = Int64(parts[4]) ?? 0
-        // 文件名是第8个字段开始，可能包含空格
-        let nameStart = parts[7].contains(":") ? 8 : 7 // 有时间是8，否则7
-        guard parts.count > nameStart else { return nil }
-        let name = parts[nameStart...].joined(separator: " ")
-
-        // 跳过 . 和 ..
-        if name == "." || name == ".." { return nil }
-
-        let fullPath = (basePath as NSString).appendingPathComponent(name)
-
-        return MemoryFileInfo(
-            name: name,
-            path: fullPath,
-            isDirectory: isDir,
-            size: size,
-            modDate: nil
-        )
+        // 路径可能包含空格，从第2个字段开始拼
+        let pathStr = parts[2...].joined(separator: " ")
+        
+        let name = (pathStr as NSString).lastPathComponent
+        guard name != "." && name != ".." else { return nil }
+        
+        return MemoryFileInfo(name: name, path: pathStr, isDirectory: isDir, size: size, modDate: nil)
     }
+
+
 
     // MARK: - Get File Info
 
