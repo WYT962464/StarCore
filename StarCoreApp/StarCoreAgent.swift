@@ -752,7 +752,8 @@ class StarCoreAgent {
         guard let data = actionStr.data(using: .utf8),
               let action = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let act = action["action"] as? String else {
-            return nil
+            starcore_log("[execAction] 解析失败: " + String(actionStr.prefix(200)))
+            return ["success": false, "error": "JSON解析失败", "raw": String(actionStr.prefix(100))]
         }
 
         switch act {

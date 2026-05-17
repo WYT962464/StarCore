@@ -189,29 +189,37 @@ class MemoryManager {
     // MARK: - Write File
     func writeFile(content: String, to path: String) -> Bool {
         // 优先用FileManager（沙盒内直写，秒级，无需Tweak/MCP）
-        // 确保目录存在
+        guard let data = content.data(using: .utf8) else {
+            debugLog("writeFile: 内容转UTF8失败")
+            return false
+        }
+        
+        // 确保目录存在（含中文路径）
         let dir = (path as NSString).deletingLastPathComponent
         if !fileManager.fileExists(atPath: dir) {
-            try? fileManager.createDirectory(atPath: dir, withIntermediateDirectories: true)
-        }
-        // 写入
-        if let data = content.data(using: .utf8) {
-            if fileManager.createFile(atPath: path, contents: data) {
-                debugLog("FileManager写入成功: " + path)
-                return true
-            }
-            // createFile返回false可能是因为文件已存在
-            if fileManager.fileExists(atPath: path) {
-                // 尝试覆盖
-                do {
-                    try data.write(to: URL(fileURLWithPath: path), options: .atomic)
-                    debugLog("FileManager覆盖成功: " + path)
-                    return true
-                } catch {
-                    debugLog("FileManager覆盖失败: " + error.localizedDescription)
-                }
+            do {
+                try fileManager.createDirectory(atPath: dir, withIntermediateDirectories: true, attributes: nil)
+                debugLog("writeFile: 创建目录成功: " + dir)
+            } catch {
+                debugLog("writeFile: 创建目录失败: " + error.localizedDescription)
             }
         }
+        
+        // 方法1: Data.write(to:) — 最可靠的写入方式
+        do {
+            try data.write(to: URL(fileURLWithPath: path), options: .atomic)
+            debugLog("writeFile: Data.write成功: " + path)
+            return true
+        } catch {
+            debugLog("writeFile: Data.write失败: " + error.localizedDescription + " path=" + path)
+        }
+        
+        // 方法2: createFile（针对新文件）
+        if fileManager.createFile(atPath: path, contents: data) {
+            debugLog("writeFile: createFile成功: " + path)
+            return true
+        }
+        debugLog("writeFile: createFile也失败: " + path)
 
         // Fallback: smartShell（用于写沙盒外的路径）
         debugLog("FileManager失败，尝试smartShell: " + path)
@@ -340,13 +348,8 @@ class MemoryManager {
         let sandboxPath = NSSearchPathForDirectoriesInDomains(.documentDirectory, .userDomainMask, true).first ?? ""
         if !sandboxPath.isEmpty {
             let pathInfo = "\n\n【App沙盒路径】" + sandboxPath
-                + "\n这是星核App的本地记忆目录，你可以直接读写。"
-                + "\n重要规则：每次只写一个文件！写完会自动校验。"
-                + "\n- 写文件: {\"action\":\"writeFile\",\"path\":\"完整路径\",\"content\":\"内容(上限3000字)\"}"
-                + "\n- 追加文件: {\"action\":\"appendFile\",\"path\":\"完整路径\",\"content\":\"追加内容(上限1000字)\"}"
-                + "\n- 读文件: {\"action\":\"readFile\",\"path\":\"完整路径\"}"
-                + "\n- 列目录: {\"action\":\"listFiles\",\"path\":\"目录路径\"}"
-                + "\n- Shell: {\"action\":\"shell\",\"command\":\"命令\"}"
+                + "\n这是星核App的本地记忆目录，你可以通过函数调用直接读写。"
+                + "\n重要规则：每次只调一个函数！写完会自动校验。"
                 + "\n记忆文件: SOUL.md USER.md MEMORY.md TOOLS.md SECRET.md"
                 + "\n子目录: 基础设定/ (存放SOUL.md和TOOLS.md)"
                 + "\n建议：单文件控制在2000字符内，更新记忆优先用appendFile追加"
