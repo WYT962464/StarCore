@@ -12,6 +12,11 @@ class MemoryViewController: UIViewController {
     private var scrollView: UIScrollView!
     private var contentView: UIView!
 
+    // Tweak status banner
+    private var tweakBanner: UIView!
+    private var tweakBannerLabel: UILabel!
+    private var reconnectButton: UIButton!
+
     // Memory section
     private var searchBar: UISearchBar!
     private var memoryTableView: UITableView!
@@ -42,25 +47,41 @@ class MemoryViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         setupUI()
-        loadData()
     }
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
-        // ★ v10.2: Tweak连上后再loadData，否则沙盒App读不到文件
-        if StarCoreAgent.shared.isTweakConnected {
-            loadData()
-        } else {
-            // 等Tweak连上
-            StarCoreAgent.shared.checkTweakConnection()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
-                self?.loadData()
-            }
-        }
+        refreshData()
     }
 
     override var preferredStatusBarStyle: UIStatusBarStyle {
         return .lightContent
+    }
+
+    // MARK: - Data Refresh
+
+    private func refreshData() {
+        // Check Tweak connection first
+        if !StarCoreAgent.shared.isTweakConnected {
+            StarCoreAgent.shared.checkTweakConnection()
+        }
+
+        // Small delay to let connection check complete
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            self?.updateTweakBanner()
+            self?.loadData()
+        }
+    }
+
+    private func updateTweakBanner() {
+        let connected = StarCoreAgent.shared.isTweakConnected
+        tweakBanner.backgroundColor = connected
+            ? UIColor(red: 0x10/255, green: 0x60/255, blue: 0x30/255, alpha: 0.3)
+            : UIColor(red: 0x60/255, green: 0x20/255, blue: 0x10/255, alpha: 0.3)
+        tweakBannerLabel.text = connected
+            ? "✅ Tweak已连接 — 文件读写正常"
+            : "⚠️ Tweak未连接 — 无法读写沙盒外文件，点击重连"
+        reconnectButton.isHidden = connected
     }
 
     // MARK: - UI Setup
@@ -71,6 +92,39 @@ class MemoryViewController: UIViewController {
         navigationController?.navigationBar.titleTextAttributes = [
             .foregroundColor: UIColor.white
         ]
+
+        // Tweak status banner (pinned to top)
+        tweakBanner = UIView()
+        tweakBanner.translatesAutoresizingMaskIntoConstraints = false
+        tweakBanner.layer.cornerRadius = 8
+        view.addSubview(tweakBanner)
+
+        tweakBannerLabel = UILabel()
+        tweakBannerLabel.font = UIFont.systemFont(ofSize: 12)
+        tweakBannerLabel.textColor = .white
+        tweakBannerLabel.translatesAutoresizingMaskIntoConstraints = false
+        tweakBanner.addSubview(tweakBannerLabel)
+
+        reconnectButton = UIButton(type: .system)
+        reconnectButton.setTitle("重连", for: .normal)
+        reconnectButton.setTitleColor(highlightColor, for: .normal)
+        reconnectButton.titleLabel?.font = UIFont.systemFont(ofSize: 12, weight: .bold)
+        reconnectButton.translatesAutoresizingMaskIntoConstraints = false
+        reconnectButton.addTarget(self, action: #selector(reconnectTweakTapped), for: .touchUpInside)
+        tweakBanner.addSubview(reconnectButton)
+
+        NSLayoutConstraint.activate([
+            tweakBanner.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 4),
+            tweakBanner.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 12),
+            tweakBanner.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -12),
+            tweakBanner.heightAnchor.constraint(equalToConstant: 32),
+
+            tweakBannerLabel.leadingAnchor.constraint(equalTo: tweakBanner.leadingAnchor, constant: 10),
+            tweakBannerLabel.centerYAnchor.constraint(equalTo: tweakBanner.centerYAnchor),
+
+            reconnectButton.trailingAnchor.constraint(equalTo: tweakBanner.trailingAnchor, constant: -10),
+            reconnectButton.centerYAnchor.constraint(equalTo: tweakBanner.centerYAnchor)
+        ])
 
         scrollView = UIScrollView()
         scrollView.translatesAutoresizingMaskIntoConstraints = false
@@ -84,7 +138,7 @@ class MemoryViewController: UIViewController {
         scrollView.addSubview(contentView)
 
         NSLayoutConstraint.activate([
-            scrollView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            scrollView.topAnchor.constraint(equalTo: tweakBanner.bottomAnchor, constant: 4),
             scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
@@ -389,15 +443,13 @@ class MemoryViewController: UIViewController {
         navigationStack = []
         currentPathLabel.text = "📂 \(rootPath)"
 
-        // ★ v10.3-hotfix: Tweak未连接时检查是否有权限读文件
-        let tweakConnected = StarCoreAgent.shared.isTweakConnected
         memoryFiles = MemoryManager.shared.listMemoryFiles()
         fileItems = MemoryManager.shared.listFiles(at: rootPath)
 
         // 如果没有读到任何文件且Tweak未连接，显示提示
+        let tweakConnected = StarCoreAgent.shared.isTweakConnected
         if memoryFiles.isEmpty && fileItems.isEmpty && !tweakConnected {
-            // 添加提示行到memoryFiles
-            currentPathLabel.text = "⚠️ 请先连接Tweak才能读取文件"
+            currentPathLabel.text = "⚠️ Tweak未连接，无法读取沙盒外文件"
         }
 
         memoryTableView.reloadData()
@@ -472,6 +524,18 @@ class MemoryViewController: UIViewController {
     }
 
     // MARK: - Actions
+
+    @objc private func reconnectTweakTapped() {
+        reconnectButton.setTitle("⏳", for: .normal)
+        reconnectButton.isEnabled = false
+        StarCoreAgent.shared.checkTweakConnection()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+            self?.reconnectButton.setTitle("重连", for: .normal)
+            self?.reconnectButton.isEnabled = true
+            self?.updateTweakBanner()
+            self?.loadData()
+        }
+    }
 
     @objc private func uploadImageTapped() {
         let picker = UIImagePickerController()
@@ -609,7 +673,8 @@ extension MemoryViewController: UITableViewDataSource, UITableViewDelegate {
 
         if memoryFiles.isEmpty {
             let emptyLabel = UILabel()
-            emptyLabel.text = "📂 暂无记忆文件"
+            let tweakConnected = StarCoreAgent.shared.isTweakConnected
+            emptyLabel.text = tweakConnected ? "📂 暂无记忆文件" : "⚠️ Tweak未连接，无法读取文件"
             emptyLabel.font = UIFont.systemFont(ofSize: 14)
             emptyLabel.textColor = UIColor(white: 1, alpha: 0.3)
             emptyLabel.textAlignment = .center
@@ -972,7 +1037,7 @@ extension MemoryViewController: UIImagePickerControllerDelegate, UINavigationCon
     }
 }
 
-// MARK: - File Viewer Controller (Text)
+// MARK: - File Viewer Controller (Text + Edit/Save)
 
 class FileViewerViewController: UIViewController {
 
@@ -980,27 +1045,41 @@ class FileViewerViewController: UIViewController {
     var fileContent: String = ""
 
     private var textView: UITextView!
+    private var pathLabel: UILabel!
+    private var editButton: UIBarButtonItem!
+    private var saveButton: UIBarButtonItem!
+    private var isEditingFile = false
+    private var originalContent: String = ""
+
+    // Theme colors
+    private let bgDeep = UIColor(red: 10/255, green: 14/255, blue: 39/255, alpha: 1.0)
+    private let cardBg = UIColor(red: 15/255, green: 20/255, blue: 50/255, alpha: 1.0)
+    private let highlightColor = UIColor(red: 0x60/255, green: 0xa5/255, blue: 0xfa/255, alpha: 1.0)
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = UIColor(red: 10/255, green: 14/255, blue: 39/255, alpha: 1.0)
+        view.backgroundColor = bgDeep
 
+        originalContent = fileContent
+
+        // Path label
+        pathLabel = UILabel()
+        pathLabel.text = filePath
+        pathLabel.font = UIFont.monospacedSystemFont(ofSize: 10, weight: .regular)
+        pathLabel.textColor = UIColor(white: 1, alpha: 0.3)
+        pathLabel.numberOfLines = 0
+        pathLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        // Text view
         textView = UITextView()
-        textView.backgroundColor = UIColor(red: 15/255, green: 20/255, blue: 50/255, alpha: 1.0)
+        textView.backgroundColor = cardBg
         textView.textColor = .white
         textView.font = UIFont.monospacedSystemFont(ofSize: 13, weight: .regular)
         textView.isEditable = false
         textView.text = fileContent.isEmpty ? "（空文件或无法读取）" : fileContent
         textView.translatesAutoresizingMaskIntoConstraints = false
         textView.textContainerInset = UIEdgeInsets(top: 16, left: 12, bottom: 16, right: 12)
-
-        // Path label
-        let pathLabel = UILabel()
-        pathLabel.text = filePath
-        pathLabel.font = UIFont.monospacedSystemFont(ofSize: 10, weight: .regular)
-        pathLabel.textColor = UIColor(white: 1, alpha: 0.3)
-        pathLabel.numberOfLines = 0
-        pathLabel.translatesAutoresizingMaskIntoConstraints = false
+        textView.keyboardDismissMode = .interactive
 
         view.addSubview(pathLabel)
         view.addSubview(textView)
@@ -1015,10 +1094,95 @@ class FileViewerViewController: UIViewController {
             textView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -12),
             textView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
+
+        // Navigation bar buttons
+        editButton = UIBarButtonItem(title: "编辑", style: .plain, target: self, action: #selector(editTapped))
+        editButton.tintColor = highlightColor
+
+        saveButton = UIBarButtonItem(title: "保存", style: .done, target: self, action: #selector(saveTapped))
+        saveButton.tintColor = UIColor(red: 0x34/255, green: 0xd3/255, blue: 0x99/255, alpha: 1.0)
+        saveButton.isEnabled = false
+
+        navigationItem.rightBarButtonItems = [editButton]
     }
 
     override var preferredStatusBarStyle: UIStatusBarStyle {
         return .lightContent
+    }
+
+    @objc private func editTapped() {
+        if !isEditingFile {
+            // Enter edit mode
+            isEditingFile = true
+            textView.isEditable = true
+            textView.becomeFirstResponder()
+            textView.layer.borderColor = highlightColor.withAlphaComponent(0.5).cgColor
+            textView.layer.borderWidth = 1
+            textView.layer.cornerRadius = 8
+            editButton.title = "取消"
+            saveButton.isEnabled = true
+            navigationItem.rightBarButtonItems = [saveButton, editButton]
+        } else {
+            // Cancel edit mode — revert changes
+            isEditingFile = false
+            textView.isEditable = false
+            textView.resignFirstResponder()
+            textView.text = originalContent
+            textView.layer.borderWidth = 0
+            editButton.title = "编辑"
+            saveButton.isEnabled = false
+            navigationItem.rightBarButtonItems = [editButton]
+        }
+    }
+
+    @objc private func saveTapped() {
+        let newContent = textView.text ?? ""
+        textView.isEditable = false
+        textView.resignFirstResponder()
+        textView.layer.borderWidth = 0
+
+        // Show saving indicator
+        saveButton.title = "⏳"
+        saveButton.isEnabled = false
+
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            let success = MemoryManager.shared.writeFile(content: newContent, to: self.filePath)
+
+            DispatchQueue.main.async {
+                if success {
+                    self.originalContent = newContent
+                    self.fileContent = newContent
+                    self.isEditingFile = false
+                    self.editButton.title = "编辑"
+                    self.saveButton.title = "保存"
+                    self.saveButton.isEnabled = false
+                    self.navigationItem.rightBarButtonItems = [self.editButton]
+
+                    // Brief success feedback
+                    self.navigationItem.title = "✓ 已保存"
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                        self.navigationItem.title = (self.filePath as NSString).lastPathComponent
+                    }
+                } else {
+                    // Save failed
+                    self.isEditingFile = true
+                    self.textView.isEditable = true
+                    self.editButton.title = "取消"
+                    self.saveButton.title = "保存"
+                    self.saveButton.isEnabled = true
+                    self.navigationItem.rightBarButtonItems = [self.saveButton, self.editButton]
+
+                    let alert = UIAlertController(
+                        title: "保存失败",
+                        message: "无法写入文件。请确保Tweak已连接且有写入权限。",
+                        preferredStyle: .alert
+                    )
+                    alert.addAction(UIAlertAction(title: "好的", style: .cancel))
+                    self.present(alert, animated: true)
+                }
+            }
+        }
     }
 }
 
@@ -1071,8 +1235,9 @@ class ImageViewerViewController: UIViewController {
         }
 
         // Fallback: try via Tweak
-        let base64Cmd = "base64 -i \(imagePath) 2>/dev/null | head -c 100000"
-        if let result = StarCoreAgent.shared.tweakCmd(action: "shell", params: ["command": base64Cmd], timeout: 10),
+        let escapedPath = "'" + imagePath.replacingOccurrences(of: "'", with: "'\"'\"'") + "'"
+        let base64Cmd = "base64 -i \(escapedPath) 2>/dev/null | head -c 100000"
+        if let result = StarCoreAgent.shared.tweakCmd(action: "shell", params: ["command": base64Cmd]),
            let raw = result["output"] as? String,
            let data = Data(base64Encoded: raw.trimmingCharacters(in: .whitespacesAndNewlines)),
            let image = UIImage(data: data) {

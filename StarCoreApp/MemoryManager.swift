@@ -10,7 +10,7 @@ class MemoryManager {
     private let defaults = UserDefaults.standard
 
     private var memoryPath: String {
-        return defaults.string(forKey: "memoryPath") ?? "/var/mobile/StarCoreAgent"
+        return defaults.string(forKey: "memoryPath") ?? "/var/mobile/StarCore"
     }
 
     private init() {}
@@ -121,7 +121,7 @@ class MemoryManager {
                 size = readFile(at: path).count
             } else {
                 // Fallback: use Tweak shell to check existence and get size
-                let checkCmd = "stat -f%z \(path) 2>/dev/null"
+                let checkCmd = "stat -f%z \(shellEscape(path)) 2>/dev/null"
                 if let result = StarCoreAgent.shared.tweakCmd(action: "shell", params: ["command": checkCmd]),
                    let raw = result["output"] as? String {
                     let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -170,18 +170,40 @@ class MemoryManager {
             return results
         }
 
-        // Fallback: use Tweak shell
-        let cmd = "ls -1 \(directoryPath) 2>/dev/null"
+        // Fallback: use Tweak shell — ls -p appends / to directories
+        let escapedPath = shellEscape(directoryPath)
+        let cmd = "ls -1p \(escapedPath) 2>/dev/null"
         if let result = StarCoreAgent.shared.tweakCmd(action: "shell", params: ["command": cmd]),
            let raw = result["output"] as? String {
-            let names = raw.components(separatedBy: "\n").filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
-            for name in names {
-                let trimmed = name.trimmingCharacters(in: .whitespaces)
-                let fullPath = (directoryPath as NSString).appendingPathComponent(trimmed)
-                if let info = getFileInfo(at: fullPath) {
-                    results.append(info)
+            let lines = raw.components(separatedBy: "\n").filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+            for line in lines {
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                let isDir = trimmed.hasSuffix("/")
+                let name = isDir ? String(trimmed.dropLast()) : trimmed
+                let fullPath = (directoryPath as NSString).appendingPathComponent(name)
+                
+                // Get file size via stat
+                var size: Int64 = 0
+                let statCmd = "stat -f%z \(shellEscape(fullPath)) 2>/dev/null"
+                if let statResult = StarCoreAgent.shared.tweakCmd(action: "shell", params: ["command": statCmd]),
+                   let statRaw = statResult["output"] as? String {
+                    size = Int64(statRaw.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
                 }
+                
+                results.append(MemoryFileInfo(
+                    name: name,
+                    path: fullPath,
+                    isDirectory: isDir,
+                    size: size,
+                    modDate: nil
+                ))
             }
+        }
+
+        // Sort: directories first, then alphabetically
+        results.sort { a, b in
+            if a.isDirectory != b.isDirectory { return a.isDirectory }
+            return a.name.localizedCaseInsensitiveCompare(b.name) == .orderedAscending
         }
 
         return results
@@ -212,22 +234,46 @@ class MemoryManager {
             )
         }
 
-        // Fallback: use Tweak shell
-        let statCmd = "stat -f '%z %Sm' \(path) 2>/dev/null"
-        if let result = StarCoreAgent.shared.tweakCmd(action: "shell", params: ["command": statCmd]),
-           let raw = result["output"] as? String, !raw.trimmingCharacters(in: .whitespaces).isEmpty {
-            let name = (path as NSString).lastPathComponent
-            let isDir = path.hasSuffix("/")
-            var size: Int64 = 0
-            let parts = raw.trimmingCharacters(in: .whitespacesAndNewlines).components(separatedBy: " ")
-            if let s = Int64(parts.first ?? "") {
-                size = s
-            }
+        // Fallback: use Tweak shell — test -d for directory, stat for size
+        let escapedPath = shellEscape(path)
+        let name = (path as NSString).lastPathComponent
+        
+        // Check if directory
+        let dirCmd = "test -d \(escapedPath) && echo ISDIR || echo NOTDIR"
+        var isDirectory = false
+        if let dirResult = StarCoreAgent.shared.tweakCmd(action: "shell", params: ["command": dirCmd]),
+           let dirRaw = dirResult["output"] as? String, dirRaw.contains("ISDIR") {
+            isDirectory = true
+        }
+        
+        // Get size
+        var size: Int64 = 0
+        let statCmd = "stat -f%z \(escapedPath) 2>/dev/null"
+        if let statResult = StarCoreAgent.shared.tweakCmd(action: "shell", params: ["command": statCmd]),
+           let statRaw = statResult["output"] as? String {
+            size = Int64(statRaw.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
+        }
+        
+        // Check existence: if stat returned a size OR it's a directory, file exists
+        if size > 0 || isDirectory {
             return MemoryFileInfo(
                 name: name,
                 path: path,
-                isDirectory: isDir,
+                isDirectory: isDirectory,
                 size: size,
+                modDate: nil
+            )
+        }
+        
+        // One more check: test -e
+        let existCmd = "test -e \(escapedPath) && echo EXISTS || echo NOEXIST"
+        if let existResult = StarCoreAgent.shared.tweakCmd(action: "shell", params: ["command": existCmd]),
+           let existRaw = existResult["output"] as? String, existRaw.contains("EXISTS") {
+            return MemoryFileInfo(
+                name: name,
+                path: path,
+                isDirectory: isDirectory,
+                size: 0,
                 modDate: nil
             )
         }
@@ -239,6 +285,71 @@ class MemoryManager {
 
     func readFileContent(at path: String) -> String {
         return readFile(at: path, maxChars: 0)
+    }
+
+    // MARK: - Write File Content (via Tweak shell, base64-safe)
+
+    /// 写文件到指定路径。沙盒App无法直接写，必须通过Tweak shell。
+    /// 使用base64编码传输内容，避免shell特殊字符转义问题。
+    /// 返回true表示写入成功。
+    @discardableResult
+    func writeFile(content: String, to path: String) -> Bool {
+        // 先尝试FileManager（沙盒内可能可用）
+        if let data = content.data(using: .utf8) {
+            // 检查是否在沙盒可写范围内
+            if fileManager.fileExists(atPath: path) || fileManager.createFile(atPath: path, contents: data) {
+                // 验证写入成功
+                if let verify = fileManager.contents(atPath: path),
+                   let verifyStr = String(data: verify, encoding: .utf8),
+                   verifyStr == content {
+                    return true
+                }
+                // FileManager写入失败或不在沙盒内，继续Tweak
+            }
+        }
+
+        // Tweak fallback: base64编码写入
+        guard StarCoreAgent.shared.isTweakConnected else { return false }
+        
+        guard let data = content.data(using: .utf8) else { return false }
+        let base64Str = data.base64EncodedString(options: [.lineLength64Characters, .endLineWithLineFeed])
+        
+        // 分块写入：大文件base64可能很长，用临时文件方式
+        // 先写base64到临时文件，再decode到目标路径
+        let tmpBase64 = "/tmp/sc_write_\(Int(Date().timeIntervalSince1970)).b64"
+        
+        // 用printf分块写入base64到临时文件（避免命令行太长）
+        // 先清空目标
+        let resetCmd = "echo -n '' > \(shellEscape(tmpBase64))"
+        _ = StarCoreAgent.shared.tweakCmd(action: "shell", params: ["command": resetCmd])
+        
+        // 分块追加base64内容（每块4000字符，确保shell命令不会太长）
+        let chunkSize = 4000
+        var offset = base64Str.startIndex
+        while offset < base64Str.endIndex {
+            let end = base64Str.index(offset, offsetBy: min(chunkSize, base64Str.distance(from: offset, to: base64Str.endIndex)))
+            let chunk = String(base64Str[offset..<end])
+            // 用printf安全追加，避免echo解释特殊字符
+            let appendCmd = "printf '%s' \(shellEscape(chunk)) >> \(shellEscape(tmpBase64))"
+            if let result = StarCoreAgent.shared.tweakCmd(action: "shell", params: ["command": appendCmd]),
+               let success = result["success"] as? Bool, !success {
+                return false
+            }
+            offset = end
+        }
+        
+        // decode base64并写入目标文件
+        let decodeCmd = "base64 -d < \(shellEscape(tmpBase64)) > \(shellEscape(path)) 2>/dev/null && echo WRITE_OK || echo WRITE_FAIL"
+        if let result = StarCoreAgent.shared.tweakCmd(action: "shell", params: ["command": decodeCmd], timeout: 10),
+           let raw = result["output"] as? String, raw.contains("WRITE_OK") {
+            // 清理临时文件
+            _ = StarCoreAgent.shared.tweakCmd(action: "shell", params: ["command": "rm -f \(shellEscape(tmpBase64))"])
+            return true
+        }
+        
+        // 清理临时文件
+        _ = StarCoreAgent.shared.tweakCmd(action: "shell", params: ["command": "rm -f \(shellEscape(tmpBase64))"])
+        return false
     }
 
     // MARK: - Search Memory Files
@@ -285,14 +396,12 @@ class MemoryManager {
         }
 
         // Fallback: use Tweak shell
-        if let base64Str = data.base64EncodedString().data(using: .utf8) {
-            let tmpPath = NSTemporaryDirectory() + filename
-            fileManager.createFile(atPath: tmpPath, contents: data)
-            let cmd = "cp \(tmpPath) \(filePath) 2>/dev/null && echo OK"
-            if let result = StarCoreAgent.shared.tweakCmd(action: "shell", params: ["command": cmd]),
-               let raw = result["output"] as? String, raw.contains("OK") {
-                return filePath
-            }
+        let tmpPath = NSTemporaryDirectory() + filename
+        fileManager.createFile(atPath: tmpPath, contents: data)
+        let cmd = "cp \(shellEscape(tmpPath)) \(shellEscape(filePath)) 2>/dev/null && echo OK"
+        if let result = StarCoreAgent.shared.tweakCmd(action: "shell", params: ["command": cmd]),
+           let raw = result["output"] as? String, raw.contains("OK") {
+            return filePath
         }
 
         return nil
@@ -322,7 +431,7 @@ class MemoryManager {
             // Fallback via Tweak
             let tmpPath = NSTemporaryDirectory() + filename
             fileManager.createFile(atPath: tmpPath, contents: pngData)
-            let cmd = "cp \(tmpPath) \(filePath) 2>/dev/null && echo OK"
+            let cmd = "cp \(shellEscape(tmpPath)) \(shellEscape(filePath)) 2>/dev/null && echo OK"
             if let result = StarCoreAgent.shared.tweakCmd(action: "shell", params: ["command": cmd]),
                let raw = result["output"] as? String, raw.contains("OK") {
                 return filePath
@@ -347,8 +456,9 @@ class MemoryManager {
         }
 
         // Fallback: use Tweak shell command to read file (bypasses sandbox)
-        let catCmd = "cat \(path) 2>/dev/null"
-        if let result = StarCoreAgent.shared.tweakCmd(action: "shell", params: ["command": catCmd], timeout: 3),
+        let escapedPath = shellEscape(path)
+        let catCmd = "cat \(escapedPath) 2>/dev/null"
+        if let result = StarCoreAgent.shared.tweakCmd(action: "shell", params: ["command": catCmd], timeout: 5),
            let raw = result["output"] as? String, !raw.isEmpty {
             let content = raw.trimmingCharacters(in: .whitespacesAndNewlines)
             if !content.isEmpty {
@@ -361,5 +471,10 @@ class MemoryManager {
         }
 
         return ""
+    }
+
+    /// Shell转义：用单引号包裹，内部单引号替换为 '"'"'
+    private func shellEscape(_ s: String) -> String {
+        return "'" + s.replacingOccurrences(of: "'", with: "'\"'\"'") + "'"
     }
 }
