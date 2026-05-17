@@ -1025,7 +1025,7 @@ class StarCoreAgent {
         addToHistory(userMsg)
 
         // Local LLM mode - with agent loop
-        agentLoop(messages: messages, step: 1, maxSteps: 5, allReplies: [], allActionResults: [], onPartialReply: onPartialReply, completion: completion)
+        agentLoop(messages: messages, step: 1, maxSteps: 10, allReplies: [], allActionResults: [], onPartialReply: onPartialReply, completion: completion)
     }
 
     /// Agent loop: call LLM, execute actions, feed results back, repeat
@@ -1033,6 +1033,7 @@ class StarCoreAgent {
         messages: [[String: String]],
         step: Int,
         maxSteps: Int,
+        lastActionSignature: Substring = "",
         allReplies: [String],
         allActionResults: [String],
         onPartialReply: ((String, [String], Int) -> Void)?,
@@ -1069,7 +1070,12 @@ class StarCoreAgent {
             // Check if there were actions executed
             let hadActions = !clean.1.isEmpty
 
-                            if hadActions && step < maxSteps {
+                            // 重复action检测：连续相同action停止循环
+                            let actionSignature = clean.1.joined().prefix(200)
+                            let isRepeat = step > 1 && lastActionSignature == actionSignature
+                            lastActionSignature = actionSignature
+
+                            if hadActions && step < maxSteps && !isRepeat {
                     // 执行了动作，继续Agent循环
                     // 回显操作结果
                     for (idx, result) in clean.1.enumerated() {
@@ -1221,7 +1227,7 @@ class StarCoreAgent {
         agentLoopStreaming(
             messages: messages,
             step: 1,
-            maxSteps: 5,
+            maxSteps: 10,
             allReplies: [],
             allActionResults: [],
             onToken: onToken,
