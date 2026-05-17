@@ -188,6 +188,33 @@ class MemoryManager {
 
     // MARK: - Write File
     func writeFile(content: String, to path: String) -> Bool {
+        // 优先用FileManager（沙盒内直写，秒级，无需Tweak/MCP）
+        // 确保目录存在
+        let dir = (path as NSString).deletingLastPathComponent
+        if !fileManager.fileExists(atPath: dir) {
+            try? fileManager.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        }
+        // 写入
+        if let data = content.data(using: .utf8) {
+            if fileManager.createFile(atPath: path, contents: data) {
+                debugLog("FileManager写入成功: " + path)
+                return true
+            }
+            // createFile返回false可能是因为文件已存在
+            if fileManager.fileExists(atPath: path) {
+                // 尝试覆盖
+                do {
+                    try data.write(to: URL(fileURLWithPath: path), options: .atomic)
+                    debugLog("FileManager覆盖成功: " + path)
+                    return true
+                } catch {
+                    debugLog("FileManager覆盖失败: " + error.localizedDescription)
+                }
+            }
+        }
+
+        // Fallback: smartShell（用于写沙盒外的路径）
+        debugLog("FileManager失败，尝试smartShell: " + path)
         let escaped = shellEscape(path)
 
         // 小文件直接echo
