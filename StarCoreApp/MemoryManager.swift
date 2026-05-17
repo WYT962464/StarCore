@@ -51,7 +51,7 @@ class MemoryManager {
         onDebugLog?(msg)
     }
 
-    // MARK: - Tweak Shell (单命令封装)
+    // MARK: - Shell Command (Tweak优先，iOS MCP备选)
 
     @discardableResult
     private func tweakShell(_ cmd: String, timeout: TimeInterval = 5) -> String? {
@@ -61,6 +61,38 @@ class MemoryManager {
             return output
         }
         return nil
+    }
+
+    /// 通过iOS MCP执行shell命令（备选方案，当Tweak不可用时）
+    @discardableResult
+    private func mcpShell(_ cmd: String) -> String? {
+        debugLog("mcp-shell: \(cmd.prefix(80))")
+        if let result = StarCoreAgent.shared.callMcpToolSync(name: "run_shell", arguments: ["command": cmd]),
+           let output = result["output"] as? String, !output.isEmpty {
+            return output
+        }
+        // 尝试另一种返回格式
+        if let result = StarCoreAgent.shared.callMcpToolSync(name: "shell", arguments: ["command": cmd]) {
+            if let output = result["output"] as? String, !output.isEmpty { return output }
+            if let content = result["content"] as? [[String: Any]],
+               let first = content.first,
+               let text = first["text"] as? String, !text.isEmpty {
+                return text
+            }
+        }
+        return nil
+    }
+
+    /// 智能shell：Tweak优先，失败走iOS MCP
+    @discardableResult
+    private func smartShell(_ cmd: String, timeout: TimeInterval = 5) -> String? {
+        // 先试Tweak
+        if let result = tweakShell(cmd, timeout: timeout) {
+            return result
+        }
+        // Tweak失败，走iOS MCP
+        debugLog("Tweak failed, trying iOS MCP...")
+        return mcpShell(cmd)
     }
 
     // MARK: - Load Memory Content
@@ -108,7 +140,7 @@ class MemoryManager {
 
     func memoryDirectoryExists() -> Bool {
         if fileManager.fileExists(atPath: memoryPath) { return true }
-        if let output = tweakShell("test -d \(shellEscape(memoryPath)) && echo YES") {
+        if let output = smartShell("test -d \(shellEscape(memoryPath)) && echo YES") {
             return output.contains("YES")
         }
         return false
@@ -148,7 +180,7 @@ class MemoryManager {
         // ★ Fallback: 单条命令获取所有文件信息（避免逐文件tweakCmd）
         // ls -la 输出: drwxr-xr-x  5 user staff  160 May 17 10:00 基础设定
         let escapedPath = shellEscape(directoryPath)
-        if let output = tweakShell("ls -la \(escapedPath) 2>/dev/null") {
+        if let output = smartShell("ls -la \(escapedPath) 2>/dev/null") {
             let lines = output.components(separatedBy: "\n")
             for line in lines {
                 let trimmed = line.trimmingCharacters(in: .whitespaces)
@@ -223,13 +255,13 @@ class MemoryManager {
 
         // Fallback: Tweak shell - 单次 test + stat
         let escaped = shellEscape(path)
-        if let output = tweakShell("test -e \(escaped) && stat -f '%z' \(escaped) 2>/dev/null && echo EXISTS") {
+        if let output = smartShell("test -e \(escaped) && stat -f '%z' \(escaped) 2>/dev/null && echo EXISTS") {
             let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
             if trimmed.hasSuffix("EXISTS") {
                 let name = (path as NSString).lastPathComponent
                 let sizeStr = trimmed.replacingOccurrences(of: "EXISTS", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
                 let size = Int64(sizeStr) ?? 0
-                let isDir = tweakShell("test -d \(escaped) && echo DIR")?.contains("DIR") ?? false
+                let isDir = smartShell("test -d \(escaped) && echo DIR")?.contains("DIR") ?? false
                 return MemoryFileInfo(name: name, path: path, isDirectory: isDir, size: size, modDate: nil)
             }
         }
@@ -248,7 +280,7 @@ class MemoryManager {
                 size = readFile(at: path).count
             } else {
                 let escaped = shellEscape(path)
-                if let result = tweakShell("stat -f%z \(escaped) 2>/dev/null"),
+                if let result = smartShell("stat -f%z \(escaped) 2>/dev/null"),
                    let fileSize = Int(result.trimmingCharacters(in: .whitespacesAndNewlines)), fileSize > 0 {
                     exists = true
                     size = fileSize
@@ -274,7 +306,7 @@ class MemoryManager {
 
         // Fallback: Tweak shell cat
         let escaped = shellEscape(path)
-        if let content = tweakShell("cat \(escaped) 2>/dev/null", timeout: 8) {
+        if let content = smartShell("cat \(escaped) 2>/dev/null", timeout: 8) {
             return maxChars > 0 ? truncate(content, maxChars: maxChars) : content
         }
 
@@ -301,7 +333,7 @@ class MemoryManager {
         let tmpBase64 = "/tmp/starcore_write.b64"
 
         // 清空临时文件
-        _ = tweakShell("echo -n '' > \(shellEscape(tmpBase64))")
+        _ = smartShell("echo -n '' > \(shellEscape(tmpBase64))")
 
         // 分块写入（每块4000字符避免shell命令行过长）
         let chunkSize = 4000
@@ -310,17 +342,17 @@ class MemoryManager {
             let end = base64.index(offset, offsetBy: chunkSize, limitedBy: base64.endIndex) ?? base64.endIndex
             let chunk = String(base64[offset..<end])
             let escapedChunk = chunk.replacingOccurrences(of: "'", with: "'\\\"'\\\"'")
-            _ = tweakShell("printf '%s' '\(escapedChunk)' >> \(shellEscape(tmpBase64))")
+            _ = smartShell("printf '%s' '\(escapedChunk)' >> \(shellEscape(tmpBase64))")
             offset = end
         }
 
         // base64解码到目标文件
-        if let result = tweakShell("base64 -d < \(shellEscape(tmpBase64)) > \(escaped) 2>/dev/null && echo WRITE_OK || echo WRITE_FAIL") {
-            _ = tweakShell("rm -f \(shellEscape(tmpBase64))")
+        if let result = smartShell("base64 -d < \(shellEscape(tmpBase64)) > \(escaped) 2>/dev/null && echo WRITE_OK || echo WRITE_FAIL") {
+            _ = smartShell("rm -f \(shellEscape(tmpBase64))")
             return result.contains("WRITE_OK")
         }
 
-        _ = tweakShell("rm -f \(shellEscape(tmpBase64))")
+        _ = smartShell("rm -f \(shellEscape(tmpBase64))")
         return false
     }
 
@@ -348,24 +380,24 @@ class MemoryManager {
 
         // Write base64 chunks
         let tmpB64 = "/tmp/starcore_scr.b64"
-        _ = tweakShell("echo -n '' > \(shellEscape(tmpB64))")
+        _ = smartShell("echo -n '' > \(shellEscape(tmpB64))")
         let chunkSize = 4000
         var offset = base64Str.startIndex
         while offset < base64Str.endIndex {
             let end = base64Str.index(offset, offsetBy: chunkSize, limitedBy: base64Str.endIndex) ?? base64Str.endIndex
             let chunk = String(base64Str[offset..<end])
             let escapedChunk = chunk.replacingOccurrences(of: "'", with: "'\\\"'\\\"'")
-            _ = tweakShell("printf '%s' '\(escapedChunk)' >> \(shellEscape(tmpB64))")
+            _ = smartShell("printf '%s' '\(escapedChunk)' >> \(shellEscape(tmpB64))")
             offset = end
         }
 
-        if let result = tweakShell("base64 -d < \(shellEscape(tmpB64)) > \(shellEscape(filePath)) 2>/dev/null && echo OK"),
+        if let result = smartShell("base64 -d < \(shellEscape(tmpB64)) > \(shellEscape(filePath)) 2>/dev/null && echo OK"),
            result.contains("OK") {
-            _ = tweakShell("rm -f \(shellEscape(tmpB64))")
+            _ = smartShell("rm -f \(shellEscape(tmpB64))")
             return filePath
         }
 
-        _ = tweakShell("rm -f \(shellEscape(tmpB64))")
+        _ = smartShell("rm -f \(shellEscape(tmpB64))")
         return nil
     }
 

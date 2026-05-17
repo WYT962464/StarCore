@@ -64,6 +64,7 @@ class MemoryViewController: UIViewController {
         // Check Tweak connection first
         if !StarCoreAgent.shared.isTweakConnected {
             StarCoreAgent.shared.checkTweakConnection()
+        StarCoreAgent.shared.checkMcpConnection()
         }
 
         // Small delay to let connection check complete
@@ -74,13 +75,16 @@ class MemoryViewController: UIViewController {
     }
 
     private func updateTweakBanner() {
-        let connected = StarCoreAgent.shared.isTweakConnected
+        let tweakConnected = StarCoreAgent.shared.isTweakConnected
+        // 也检查iOS MCP是否可用
+        let mcpConnected = StarCoreAgent.shared.isMcpConnected
+        let connected = tweakConnected || mcpConnected
         tweakBanner.backgroundColor = connected
             ? UIColor(red: 0x10/255, green: 0x60/255, blue: 0x30/255, alpha: 0.3)
             : UIColor(red: 0x60/255, green: 0x20/255, blue: 0x10/255, alpha: 0.3)
         tweakBannerLabel.text = connected
             ? "✅ Tweak已连接 — 文件读写正常"
-            : "⚠️ Tweak未连接 — 无法读写沙盒外文件，点击重连"
+            : "⚠️ Tweak和MCP均未连接 — 无法读写沙盒外文件，点击重连"
         reconnectButton.isHidden = connected
     }
 
@@ -446,6 +450,7 @@ class MemoryViewController: UIViewController {
         // 先检查Tweak连接
         if !StarCoreAgent.shared.isTweakConnected {
             StarCoreAgent.shared.checkTweakConnection()
+        StarCoreAgent.shared.checkMcpConnection()
         }
 
         memoryFiles = MemoryManager.shared.listMemoryFiles()
@@ -540,6 +545,7 @@ class MemoryViewController: UIViewController {
         reconnectButton.setTitle("⏳", for: .normal)
         reconnectButton.isEnabled = false
         StarCoreAgent.shared.checkTweakConnection()
+        StarCoreAgent.shared.checkMcpConnection()
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
             self?.reconnectButton.setTitle("重连", for: .normal)
             self?.reconnectButton.isEnabled = true
@@ -685,7 +691,7 @@ extension MemoryViewController: UITableViewDataSource, UITableViewDelegate {
         if memoryFiles.isEmpty {
             let emptyLabel = UILabel()
             let tweakConnected = StarCoreAgent.shared.isTweakConnected
-            emptyLabel.text = tweakConnected ? "📂 暂无记忆文件" : "⚠️ Tweak未连接，无法读取文件"
+            emptyLabel.text = (tweakConnected || StarCoreAgent.shared.isMcpConnected) ? "📂 暂无记忆文件" : "⚠️ Tweak/MCP未连接，无法读取文件"
             emptyLabel.font = UIFont.systemFont(ofSize: 14)
             emptyLabel.textColor = UIColor(white: 1, alpha: 0.3)
             emptyLabel.textAlignment = .center

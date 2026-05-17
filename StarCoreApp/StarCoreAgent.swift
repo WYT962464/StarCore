@@ -18,6 +18,7 @@ class StarCoreAgent {
 
     private var tweakConnection: NWConnection?
     var isTweakConnected = false
+    var isMcpConnected = false
 
     // Callbacks
     var onTweakStatusChanged: ((Bool) -> Void)?
@@ -358,6 +359,27 @@ class StarCoreAgent {
                 self.onTweakStatusChanged?(connected)
             }
         }
+    }
+
+    func checkMcpConnection() {
+        let urlStr = "http://\(mcpHost):\(mcpPort)\(mcpPath)"
+        guard let url = URL(string: urlStr) else {
+            isMcpConnected = false
+            return
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 3
+        let payload: [String: Any] = ["jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": [:] as [String: Any]]
+        request.httpBody = try? JSONSerialization.data(withJSONObject: payload)
+        
+        URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
+            let connected = error == nil && (response as? HTTPURLResponse)?.statusCode == 200
+            DispatchQueue.main.async {
+                self?.isMcpConnected = connected
+            }
+        }.resume()
     }
 
     func tweakCmd(action: String, params: [String: Any] = [:], timeout: TimeInterval = 5) -> [String: Any]? {
