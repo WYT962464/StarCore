@@ -308,6 +308,21 @@ class MemoryManager {
 
     func buildSystemPrompt(basePrompt: String) -> String {
         var parts = [basePrompt]
+
+        // 上报App沙盒路径和可用action工具
+        let sandboxPath = NSSearchPathForDirectoriesInDomains(.documentDirectory, .userDomainMask, true).first ?? ""
+        if !sandboxPath.isEmpty {
+            parts.append("\n\n【App沙盒路径】" + sandboxPath + """
+\n这是星核App的本地记忆目录，你可以直接读写：
+- 写文件: {"action":"writeFile","path":"路径","content":"内容"}
+- 读文件: {"action":"readFile","path":"路径"}  
+- 列目录: {"action":"listFiles","path":"目录"}
+- Shell: {"action":"shell","command":"命令"}
+记忆文件: SOUL.md USER.md MEMORY.md TOOLS.md SECRET.md
+子目录: 基础设定/ (SOUL.md + TOOLS.md)
+示例路径: """ + sandboxPath + "/SOUL.md")
+        }
+
         let soul = loadSOULContent(); if !soul.isEmpty { parts.append("\n\n【灵魂】\n" + soul) }
         let user = loadUserContent(); if !user.isEmpty { parts.append("\n\n【阿腾】\n" + user) }
         let memory = loadMemoryContent(); if !memory.isEmpty { parts.append("\n\n【当前状态】\n" + memory) }
