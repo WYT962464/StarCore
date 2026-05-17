@@ -156,16 +156,12 @@ class MemoryManager {
     }
 
     // MARK: - List Memory Files (记忆区tab)
+    // 直接列目录内容，不硬编码文件名
 
     func listMemoryFiles() -> [MemoryFileInfo] {
-        var results: [MemoryFileInfo] = []
-        for file in memoryFiles {
-            let path = file.fullPath(relativeTo: memoryPath)
-            if let info = getFileInfo(at: path) {
-                results.append(info)
-            }
-        }
-        debugLog("listMemoryFiles: \(results.count) files")
+        // 和listFiles一样，直接列目录
+        let results = listFiles(at: memoryPath)
+        debugLog("listMemoryFiles: \(results.count) items")
         return results
     }
 
