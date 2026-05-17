@@ -65,9 +65,11 @@ jobs:
           # Create proper IPA (rename to StarCore.app for 全能签 compatibility)
           mkdir -p /tmp/IPA/Payload
           cp -R "$APP_DIR" /tmp/IPA/Payload/
-          # Rename StarCoreApp.app -> StarCore.app
+          # Rename StarCoreApp.app -> StarCore.app + binary
           if [ -d "/tmp/IPA/Payload/StarCoreApp.app" ]; then
             mv /tmp/IPA/Payload/StarCoreApp.app /tmp/IPA/Payload/StarCore.app
+            # Also rename the binary inside
+            mv /tmp/IPA/Payload/StarCore.app/StarCoreApp /tmp/IPA/Payload/StarCore.app/StarCore 2>/dev/null || true
             echo "Renamed StarCoreApp.app -> StarCore.app"
           fi
           cd /tmp/IPA
