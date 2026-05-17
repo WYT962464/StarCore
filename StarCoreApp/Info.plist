@@ -57,5 +57,9 @@
 	<array/>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>星核需要保存截图到相册</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>星核需要访问相册以保存截图</string>
 </dict>
 </plist>

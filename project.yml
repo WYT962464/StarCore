@@ -2,33 +2,34 @@ name: StarCore
 options:
   bundleIdPrefix: com.starcore
   deploymentTarget:
-    iOS: "15.0"
+    iOS: '15.0'
   createIntermediateGroups: true
   projectFormat: xcode15_0
-
 targets:
   StarCore:
     type: application
     platform: iOS
     sources:
-      - path: StarCoreApp
-        excludes:
-          - "Makefile"
-          - "README.md"
+    - path: StarCoreApp
+      excludes:
+      - Makefile
+      - README.md
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.starcore.app
         INFOPLIST_FILE: StarCoreApp/Info.plist
-        MARKETING_VERSION: "2.0"
-        CURRENT_PROJECT_VERSION: "1"
-        SWIFT_VERSION: "5.9"
-        TARGETED_DEVICE_FAMILY: "1"
-        GENERATE_INFOPLIST_FILE: NO
-        CODE_SIGN_IDENTITY: ""
-        CODE_SIGNING_REQUIRED: NO
-        CODE_SIGNING_ALLOWED: NO
-        ARCHS: "arm64"
-        VALID_ARCHS: "arm64"
+        MARKETING_VERSION: '2.0'
+        CURRENT_PROJECT_VERSION: '1'
+        SWIFT_VERSION: '5.9'
+        TARGETED_DEVICE_FAMILY: '1'
+        GENERATE_INFOPLIST_FILE: false
+        CODE_SIGN_IDENTITY: ''
+        CODE_SIGNING_REQUIRED: false
+        CODE_SIGNING_ALLOWED: false
+        ARCHS: arm64
+        VALID_ARCHS: arm64
       configs:
         Release:
-          SWIFT_OPTIMIZATION_LEVEL: "-O"
+          SWIFT_OPTIMIZATION_LEVEL: -O
+    dependencies:
+    - framework: Photos
