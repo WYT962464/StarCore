@@ -1,6 +1,5 @@
 import Foundation
 import UIKit
-import Photos
 
 // MARK: - XiaoZhi WSS Connection Manager
 // v2.3: 修复截图断连 + 截图保存相册
@@ -252,7 +251,6 @@ class XiaoZhiManager {
         _ = MemoryManager.shared.saveScreenshot(data: rawData)
 
         // 3. 保存到相册
-        saveToPhotoAlbum(rawData)
 
         // 4. 发送给小智（压缩后的JPEG）
         sendResultSafe(id: id, result: [
@@ -263,21 +261,6 @@ class XiaoZhiManager {
             ]]
         ])
         logMsg("截图完成(\(method))")
-    }
-
-    /// 保存原图到系统相册
-    private func saveToPhotoAlbum(_ data: Data) {
-        guard let image = UIImage(data: data) else { return }
-
-        PHPhotoLibrary.shared().performChanges({
-            PHAssetChangeRequest.creationRequestForAsset(from: image)
-        }) { [weak self] success, error in
-            if success {
-                self?.logMsg("截图已保存到相册")
-            } else {
-                self?.logMsg("相册保存失败: \(error?.localizedDescription ?? "未知")")
-            }
-        }
     }
 
     /// 压缩截图：800px宽 + JPEG 0.4

@@ -31,5 +31,3 @@ targets:
       configs:
         Release:
           SWIFT_OPTIMIZATION_LEVEL: -O
-    dependencies:
-    - framework: Photos

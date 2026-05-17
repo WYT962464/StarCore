@@ -20,7 +20,7 @@ StarCoreApp_FILES = \
 	XiaoZhiManager.swift
 
 
-StarCoreApp_FRAMEWORKS = UIKit Foundation Network WebKit Photos
+StarCoreApp_FRAMEWORKS = UIKit Foundation Network WebKit
 StarCoreApp_CFLAGS = -fobjc-arc
 StarCoreApp_BUNDLE_NAME = StarCoreApp
 StarCoreApp_INSTALL_PATH = /Applications
