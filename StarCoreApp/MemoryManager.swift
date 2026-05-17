@@ -159,34 +159,9 @@ class MemoryManager {
     // 显示根目录md文件 + 基础设定/子目录下的md文件
 
     func listMemoryFiles() -> [MemoryFileInfo] {
-        var results: [MemoryFileInfo] = []
-        
-        // 1. 根目录文件（只显示md）
-        let rootItems = listFiles(at: memoryPath)
-        for item in rootItems {
-            if item.isDirectory || item.name.hasSuffix(".md") {
-                results.append(item)
-            }
-        }
-        
-        // 2. 基础设定/子目录文件
-        let subDir = (memoryPath as NSString).appendingPathComponent("基础设定")
-        let subItems = listFiles(at: subDir)
-        for item in subItems {
-            if item.isDirectory || item.name.hasSuffix(".md") {
-                // 标记为子目录文件，显示时加前缀
-                var prefixed = item
-                prefixed = MemoryFileInfo(
-                    name: "基础设定/\(item.name)",
-                    path: item.path,
-                    isDirectory: item.isDirectory,
-                    size: item.size,
-                    modDate: item.modDate
-                )
-                results.append(prefixed)
-            }
-        }
-        
+        // 记忆区 = 文件区，显示目录下所有内容
+        // 区别：记忆区点击文件可以直接查看/编辑内容
+        let results = listFiles(at: memoryPath)
         debugLog("listMemoryFiles: \(results.count) items")
         return results
     }
