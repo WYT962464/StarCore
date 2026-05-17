@@ -222,9 +222,9 @@ class ChatViewController: UIViewController {
         llmStatusLabel?.text = llmOk ? "LLM ✅" : "LLM ⚠️"
         llmStatusLabel?.textColor = llmOk ? UIColor(red: 0x4e/255, green: 0xca/255, blue: 0x80/255, alpha: 1) : UIColor(red: 0xf5/255, green: 0x9e/255, blue: 0x0b/255, alpha: 1)
 
-        let mc = StarCoreAgent.shared.getMcpStatus()
-        mcpStatusLabel?.text = mc ? "MCP ✅" : "MCP ⚪"
-        mcpStatusLabel?.textColor = mc ? UIColor(red: 0x4e/255, green: 0xca/255, blue: 0x80/255, alpha: 1) : UIColor(white: 1, alpha: 0.4)
+        let tc = StarCoreAgent.shared.isTweakConnected
+        mcpStatusLabel?.text = tc ? "Tweak ✅" : "Tweak ⚪"
+        mcpStatusLabel?.textColor = tc ? UIColor(red: 0x4e/255, green: 0xca/255, blue: 0x80/255, alpha: 1) : UIColor(white: 1, alpha: 0.4)
     }
 
     // MARK: - Data

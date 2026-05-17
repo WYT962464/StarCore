@@ -82,7 +82,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
         // Try initializing ios-mcp in background
         DispatchQueue.global().asyncAfter(deadline: .now() + 3) {
-            StarCoreAgent.shared.initializeMcp()
+            // iOS MCP已移除，XiaoZhi直连Tweak TCP
         }
 
         // Auto-connect XiaoZhi if token is configured

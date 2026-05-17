@@ -1,6 +1,6 @@
 import UIKit
 
-// MARK: - Settings View Controller (v10.3.1: 基于能跑的旧版结构，只留必要的)
+// MARK: - Settings View Controller (v11.0: 直连Tweak，砍掉iOS MCP)
 class SettingsViewController: UIViewController {
 
     private var scrollView: UIScrollView!
@@ -77,15 +77,15 @@ class SettingsViewController: UIViewController {
         lastView = addDivider(below: lastView)
 
         // Section: iOS MCP
-        lastView = addSectionHeader("📱 ios-mcp", below: lastView)
-        lastView = addMcpStatus(below: lastView)
-        lastView = addMcpReconnectButton(below: lastView)
+        lastView = addSectionHeader("📱 Tweak状态", below: lastView)
+        lastView = addTweakInfoRow(below: lastView)
+        lastView = addTweakReconnectButton(below: lastView)
 
         // Divider
         lastView = addDivider(below: lastView)
 
         // Section: XiaoZhi AI
-        lastView = addSectionHeader("🎤 小智AI", below: lastView)
+        lastView = addSectionHeader("🎤 小智AI (WSS→Tweak TCP)", below: lastView)
         lastView = addXiaoZhiTokenField(below: lastView)
         lastView = addXiaoZhiStatus(below: lastView)
         lastView = addXiaoZhiButton(below: lastView)
@@ -344,32 +344,32 @@ class SettingsViewController: UIViewController {
         }
     }
 
-    // MARK: - MCP Status
+    // MARK: - Tweak Info (替代iOS MCP)
 
-    private var mcpStatusLabel: UILabel!
+    private var tweakInfoLabel: UILabel!
 
-    private func addMcpStatus(below aboveView: UIView) -> UIView {
-        let (label, rowView) = addRow(label: "ios-mcp状态", below: aboveView)
-        mcpStatusLabel = label
-        let connected = StarCoreAgent.shared.getMcpStatus()
-        updateMcpStatusLabel(connected)
+    private func addTweakInfoRow(below aboveView: UIView) -> UIView {
+        let (label, rowView) = addRow(label: "Tweak TCP", below: aboveView)
+        tweakInfoLabel = label
+        let connected = StarCoreAgent.shared.isTweakConnected
+        updateTweakInfoLabel(connected)
         return rowView
     }
 
-    private func updateMcpStatusLabel(_ connected: Bool) {
-        mcpStatusLabel?.text = connected ? "✅ 已连接" : "⚪ 未连接"
-        mcpStatusLabel?.textColor = connected ? UIColor(red: 0x4e/255, green: 0xca/255, blue: 0x80/255, alpha: 1) : UIColor(white: 1, alpha: 0.4)
+    private func updateTweakInfoLabel(_ connected: Bool) {
+        tweakInfoLabel?.text = connected ? "✅ 已连接 (127.0.0.1:6000)" : "⚪ 未连接"
+        tweakInfoLabel?.textColor = connected ? UIColor(red: 0x4e/255, green: 0xca/255, blue: 0x80/255, alpha: 1) : UIColor(white: 1, alpha: 0.4)
     }
 
-    private func addMcpReconnectButton(below aboveView: UIView) -> UIView {
+    private func addTweakReconnectButton(below aboveView: UIView) -> UIView {
         let button = UIButton(type: .system)
-        button.setTitle("重新连接ios-mcp", for: .normal)
+        button.setTitle("检测Tweak连接", for: .normal)
         button.setTitleColor(UIColor(red: 0x60/255, green: 0xa5/255, blue: 0xfa, alpha: 1.0), for: .normal)
         button.titleLabel?.font = UIFont.systemFont(ofSize: 14)
         button.backgroundColor = UIColor(white: 1, alpha: 0.04)
         button.layer.cornerRadius = 10
         button.translatesAutoresizingMaskIntoConstraints = false
-        button.addTarget(self, action: #selector(reconnectMcp), for: .touchUpInside)
+        button.addTarget(self, action: #selector(checkTweakConnection), for: .touchUpInside)
         contentView.addSubview(button)
 
         NSLayoutConstraint.activate([
@@ -382,11 +382,11 @@ class SettingsViewController: UIViewController {
         return button
     }
 
-    @objc private func reconnectMcp() {
-        StarCoreAgent.shared.reconnectMcp()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
-            let connected = StarCoreAgent.shared.getMcpStatus()
-            self?.updateMcpStatusLabel(connected)
+    @objc private func checkTweakConnection() {
+        StarCoreAgent.shared.checkTweakConnection()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
+            let connected = StarCoreAgent.shared.isTweakConnected
+            self?.updateTweakInfoLabel(connected)
         }
     }
 
@@ -595,7 +595,7 @@ class SettingsViewController: UIViewController {
 
     private func addVersionInfo(below aboveView: UIView) -> UIView {
         let label = UILabel()
-        label.text = "星核 v10.3.1 | 纯非流式20步Agent"
+        label.text = "星核 v11.0 | 小智直连Tweak TCP"
         label.font = UIFont.systemFont(ofSize: 13)
         label.textColor = UIColor(white: 1, alpha: 0.3)
         label.textAlignment = .center
@@ -636,7 +636,7 @@ class SettingsViewController: UIViewController {
 
     private func refreshUI() {
         updateTweakStatusLabel(StarCoreAgent.shared.getTweakStatus())
-        updateMcpStatusLabel(StarCoreAgent.shared.getMcpStatus())
+        updateTweakInfoLabel(StarCoreAgent.shared.isTweakConnected)
         updateXiaoZhiStatusLabel(XiaoZhiManager.shared.state)
         refreshXiaoZhiLog()
         if let provider = StarCoreAgent.shared.providers.first(where: { !$0.apiKey.isEmpty }) {
