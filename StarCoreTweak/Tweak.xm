@@ -114,6 +114,10 @@ enum {
 // Unicode编码
 #define kIOHIDUnicodeEncodingTypeUTF16LE 1
 
+// ==================== AXRuntime 类型声明 ====================
+extern CFTypeID AXValueGetTypeID(void) __attribute__((weak_import));
+extern CFTypeID AXUIElementGetTypeID(void) __attribute__((weak_import));
+
 // 截图常量
 static const NSUInteger kScreenshotTargetBytes = 400 * 1024;
 static const CGFloat kScreenshotInitialJPEGQuality = 0.82;
@@ -207,7 +211,7 @@ static CFStringRef kAXPlaceholderAttribute = CFSTR("AXPlaceholderValue");
 
 // ==================== 函数指针 ====================
 // 旧方案函数
-static IOHIDEventRef (*IOHIDEventCreateDigitizerEventFunc)(CFAllocatorRef, uint64_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, float, float, float, float, float, float, float, bool, bool, uint32_t) = NULL;
+static IOHIDEventRef (*IOHIDEventCreateDigitizerEventFunc)(CFAllocatorRef, uint64_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, float, float, float, float, float, bool, bool, uint32_t) = NULL;
 static IOHIDEventRef (*IOHIDEventCreateDigitizerFingerEventFunc)(CFAllocatorRef, uint64_t, uint32_t, uint32_t, uint32_t, float, float, float, float, float, float, float, float, float, float, bool, bool, uint32_t) = NULL;
 static IOHIDEventRef (*IOHIDEventCreateKeyboardEventFunc)(CFAllocatorRef, uint64_t, uint32_t, uint32_t, bool, uint32_t) = NULL;
 static void (*IOHIDEventSetIntegerValueWithOptionsFunc)(IOHIDEventRef, uint32_t, int32_t, unsigned int) = NULL;
@@ -759,7 +763,7 @@ static void dispatchTouchViaIOHIDFinger(int phase, int fingerIndex, float normX,
     if (!loadFunctions()) return;
     if (!IOHIDEventCreateDigitizerFingerEventSimpleFunc) { simulateTouch(phase, normX, normY, fingerIndex); return; }
     IOHIDEventRef parent = IOHIDEventCreateDigitizerEventFunc(
-        kCFAllocatorDefault, mach_absolute_time(), kIOHIDTransducerTypeHand, 99, 1, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false, false, 0);
+        kCFAllocatorDefault, mach_absolute_time(), kIOHIDTransducerTypeHand, 99, 1, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false, false, 0);
     if (!parent) return;
     if (IOHIDEventSetIntegerValueFunc) {
         IOHIDEventSetIntegerValueFunc(parent, 0xb0019, 1);
@@ -1856,11 +1860,11 @@ static NSDictionary *doInstallApp(NSString *ipaPath) {
             NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
             inv.target = workspace;
             inv.selector = installSel;
-            [inv setArgument:&appURL atIndex:2];
+            [inv setArgument:(void *)&appURL atIndex:2];
             NSDictionary *opts = @{@"PackageType": @"Customer"};
-            [inv setArgument:&opts atIndex:3];
+            [inv setArgument:(void *)&opts atIndex:3];
             __autoreleasing NSError *installError = nil;
-            [inv setArgument:&installError atIndex:4];
+            [inv setArgument:(void *)&installError atIndex:4];
             [inv invoke];
             
             BOOL result = NO;
@@ -1896,9 +1900,9 @@ static NSDictionary *doUninstallApp(NSString *bundleId) {
             NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
             inv.target = workspace;
             inv.selector = uninstallSel;
-            [inv setArgument:&bundleId atIndex:2];
+            [inv setArgument:(void *)&bundleId atIndex:2];
             NSDictionary *opts = @{};
-            [inv setArgument:&opts atIndex:3];
+            [inv setArgument:(void *)&opts atIndex:3];
             [inv invoke];
             
             BOOL result = NO;
@@ -1981,45 +1985,23 @@ static NSDictionary *doSetBrightness(float brightness) {
 }
 
 static NSDictionary *doGetVolume() {
-    // 音量获取通过MPVolumeView
     __block float volume = -1;
     runOnMainThreadSync(^{
         @try {
-            Class mpVolumeViewClass = NSClassFromString(@"MPVolumeView");
-            if (mpVolumeViewClass) {
-                id volumeView = [[mpVolumeViewClass alloc] init];
-                [volumeView setShowsVolumeSlider:YES];
-                
-                // 遍历子视图查找slider
-                void (^findSlider)(UIView *, UISlider **) = nil;
-                findSlider = ^(UIView *view, UISlider **slider) {
-                    if ([view isKindOfClass:[UISlider class]]) { *slider = (UISlider *)view; return; }
-                    for (UIView *sub in view.subviews) findSlider(sub, slider);
-                };
-                
-                UISlider *slider = nil;
-                findSlider(volumeView, &slider);
-                if (slider) volume = slider.value;
+            // MPMusicPlayerController (deprecated but works on jailbroken)
+            Class mpc = NSClassFromString(@"MPMusicPlayerController");
+            if (mpc) {
+                id player = [mpc performSelector:@selector(systemMusicPlayer)];
+                if (player && [player respondsToSelector:@selector(volume)])
+                    volume = ((float(*)(id, SEL))objc_msgSend)(player, @selector(volume));
             }
-            
-            // 如果上面方法失败，通过shell获取
+            // fallback: shell
             if (volume < 0) {
-                FILE *fp = popen("volume=$(osascript -e 'output volume of (get volume settings)' 2>/dev/null) && echo $volume", "r");
+                FILE *fp = popen("osascript -e 'output volume of (get volume settings)' 2>/dev/null", "r");
                 if (fp) {
                     char buf[32];
                     if (fgets(buf, sizeof(buf), fp)) volume = atof(buf) / 100.0f;
                     pclose(fp);
-                }
-            }
-            
-            // 如果仍然失败，通过MediaPlayer framework
-            if (volume < 0) {
-                // MPMusicPlayerController的volume (deprecated but works)
-                Class mpc = NSClassFromString(@"MPMusicPlayerController");
-                if (mpc) {
-                    id player = [mpc performSelector:@selector(systemMusicPlayer)];
-                    if (player && [player respondsToSelector:@selector(volume)])
-                        volume = ((float(*)(id, SEL))objc_msgSend)(player, @selector(volume));
                 }
             }
         } @catch (NSException *e) {}
