@@ -15,6 +15,7 @@ class StarCoreAgent {
     private let mcpPort: Int = 8090
     private let mcpPath = "/mcp"
     private var isMcpInitialized = false
+    private var _lastActionSignature = ""
 
     private var tweakConnection: NWConnection?
     var isTweakConnected = false
@@ -1033,7 +1034,6 @@ class StarCoreAgent {
         messages: [[String: String]],
         step: Int,
         maxSteps: Int,
-        var lastActionSignature: Substring = "",
         allReplies: [String],
         allActionResults: [String],
         onPartialReply: ((String, [String], Int) -> Void)?,
@@ -1071,9 +1071,9 @@ class StarCoreAgent {
             let hadActions = !clean.1.isEmpty
 
                             // 重复action检测：连续相同action停止循环
-                            let actionSignature = clean.1.joined().prefix(200)
-                            let isRepeat = step > 1 && lastActionSignature == actionSignature
-                            lastActionSignature = actionSignature
+                            let actionSignature = String(clean.1.joined().prefix(200))
+                            let isRepeat = step > 1 && _lastActionSignature == actionSignature
+                            _lastActionSignature = actionSignature
 
                             if hadActions && step < maxSteps && !isRepeat {
                     // 执行了动作，继续Agent循环
