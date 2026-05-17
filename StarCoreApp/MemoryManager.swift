@@ -94,7 +94,7 @@ class MemoryManager {
 
     /// 智能shell：Tweak优先，失败走iOS MCP
     @discardableResult
-    private func smartShell(_ cmd: String, timeout: TimeInterval = 5) -> String? {
+    private func smartShell(_ cmd: String, timeout: TimeInterval = 2) -> String? {
         // 先试Tweak
         if let result = tweakShell(cmd, timeout: timeout) {
             return result
@@ -183,32 +183,40 @@ class MemoryManager {
             return results
         }
 
-        // ★ Fallback: 用 find 命令获取目录内容（比ls -la更可靠，不怕中文/特殊字符）
+        // Fallback: iOS MCP / Tweak shell
+        // 方案1: ls -1A + 一次性判断目录类型
         let escapedPath = shellEscape(directoryPath)
-        // find 输出: 每行一个完整路径
-        // 同时获取文件类型和大小
-        let cmd = "find \(escapedPath) -maxdepth 1 -exec stat -f '%z %Sp %N' {} \\; 2>/dev/null | tail -n +2"
-        if let output = smartShell(cmd) {
-            let lines = output.components(separatedBy: "\n").filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
-            for line in lines {
-                if let info = parseStatLine(line) {
-                    results.append(info)
+        if let output = smartShell("ls -1A \(escapedPath) 2>/dev/null", timeout: 3) {
+            let names = output.components(separatedBy: "\n")
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .filter { !$0.isEmpty && $0 != "." && $0 != ".." }
+            
+            if !names.isEmpty {
+                // 一次性判断所有条目是文件还是目录
+                // 用 for 循环逐个判断，但只在有结果时
+                let nameList = names.map { "\(shellEscape((directoryPath as NSString).appendingPathComponent($0)))" }.joined(separator: " ")
+                // 一次命令：对每个路径 test -d 并输出 d/f 标记
+                let typeCmd = "for f in \(nameList); do if [ -d "$f" ]; then echo "d $f"; else echo "f $f"; fi; done"
+                
+                if let typeOutput = smartShell(typeCmd, timeout: 5) {
+                    let typeLines = typeOutput.components(separatedBy: "\n").filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+                    for line in typeLines {
+                        let parts = line.trimmingCharacters(in: .whitespaces)
+                        let isDir = parts.hasPrefix("d ")
+                        let pathStr = isDir ? String(parts.dropFirst(2)) : String(parts.dropFirst(2))
+                        let name = (pathStr as NSString).lastPathComponent
+                        guard !name.isEmpty else { continue }
+                        results.append(MemoryFileInfo(name: name, path: pathStr, isDirectory: isDir, size: 0, modDate: nil))
+                    }
+                    debugLog("ls+type: \(results.count) items in \(directoryPath)")
+                } else {
+                    // typeCmd失败，至少把名字列出来
+                    for name in names {
+                        let fullPath = (directoryPath as NSString).appendingPathComponent(name)
+                        results.append(MemoryFileInfo(name: name, path: fullPath, isDirectory: false, size: 0, modDate: nil))
+                    }
+                    debugLog("ls-only: \(results.count) items")
                 }
-            }
-            debugLog("find+stat: \(results.count) items in \(directoryPath)")
-        }
-
-        // 如果find也失败，试最简单的ls
-        if results.isEmpty {
-            if let output = smartShell("ls -1A \(escapedPath) 2>/dev/null") {
-                let names = output.components(separatedBy: "\n").filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty && $0 != "." && $0 != ".." }
-                for name in names {
-                    let trimmed = name.trimmingCharacters(in: .whitespaces)
-                    let fullPath = (directoryPath as NSString).appendingPathComponent(trimmed)
-                    let isDir = smartShell("test -d \(shellEscape(fullPath)) && echo DIR")?.contains("DIR") ?? false
-                    results.append(MemoryFileInfo(name: trimmed, path: fullPath, isDirectory: isDir, size: 0, modDate: nil))
-                }
-                debugLog("ls -1A fallback: \(results.count) items")
             }
         }
 
@@ -221,27 +229,7 @@ class MemoryManager {
         return results
     }
 
-    /// 解析 stat -f '%z %Sp %N' 的输出
-    /// 格式: 4096 drwxr-xr-x /var/mobile/StarCore/基础设定
-    private func parseStatLine(_ line: String) -> MemoryFileInfo? {
-        let trimmed = line.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty else { return nil }
-        
-        // 格式: size perms path
-        let parts = trimmed.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
-        guard parts.count >= 3 else { return nil }
-        
-        let size = Int64(parts[0]) ?? 0
-        let perms = parts[1]
-        let isDir = perms.hasPrefix("d")
-        // 路径可能包含空格，从第2个字段开始拼
-        let pathStr = parts[2...].joined(separator: " ")
-        
-        let name = (pathStr as NSString).lastPathComponent
-        guard name != "." && name != ".." else { return nil }
-        
-        return MemoryFileInfo(name: name, path: pathStr, isDirectory: isDir, size: size, modDate: nil)
-    }
+
 
 
 
