@@ -11,7 +11,6 @@ class ChatViewController: UIViewController {
     private var statusBarView: UIView!
     private var tweakStatusLabel: UILabel!
     private var llmStatusLabel: UILabel!
-    private var tweakStatusLabel: UILabel!
 
     // MARK: - Data
     private var messages: [ChatMessage] = []
@@ -100,10 +99,8 @@ class ChatViewController: UIViewController {
 
         tweakStatusLabel = makeStatusLabel()
         llmStatusLabel = makeStatusLabel()
-        tweakStatusLabel = makeStatusLabel()
         stack.addArrangedSubview(tweakStatusLabel)
         stack.addArrangedSubview(llmStatusLabel)
-        stack.addArrangedSubview(tweakStatusLabel)
 
         let border = UIView()
         border.backgroundColor = UIColor(white: 1, alpha: 0.06)
