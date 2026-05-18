@@ -1,8 +1,8 @@
 Package: com.starcore.tweak
 Name: StarCoreTweak
-Version: 9.1.0
+Version: 9.2.0
 Architecture: iphoneos-arm64
-Description: StarCore Tweak v9.1 - 修复frontmostApp+按键卡死+AX fallback (44 actions: getUIElements/screenshot fix/listApps/killApp/doubleTap/dragAndDrop/openURL/brightness/volume/installApp/uninstallApp)
+Description: StarCore Tweak v9.2 - 修复死锁+移除SBSCopy+SBAppSwitcherModel (44 actions: getUIElements/screenshot fix/listApps/killApp/doubleTap/dragAndDrop/openURL/brightness/volume/installApp/uninstallApp)
 Maintainer: StarCore
 Author: StarCore
 Section: Tweaks

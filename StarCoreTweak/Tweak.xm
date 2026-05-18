@@ -284,10 +284,6 @@ static void bksInjectHIDEvent(id bks, void *event) {
 static uint32_t g_springBoardContextID = 2939785827;
 static NSString *g_contextSource = @"none";
 static NSString *g_frontmostApp = @"";
-// ★ v9.1: SBSCopy - SpringBoard私有API获取前台App（替代frontmostApplication）
-extern "C" NSString *SBSCopyFrontmostApplicationDisplayIdentifier();
-extern "C" NSArray *SBSCopyApplicationDisplayIdentifiers(bool activeOnly);
-extern "C" void *SBSSpringBoardServerPort();
 
 static NSLock *g_globalsLock = nil;
 
@@ -607,11 +603,23 @@ static uint32_t getTargetContextID() {
     if (cid != 0) {
         runOnMainThreadSync(^{
             @try {
-                // ★ v9.1: 优先用SBSCopy
-                NSString *sbsBid = SBSCopyFrontmostApplicationDisplayIdentifier();
-                if (sbsBid && sbsBid.length > 0) {
-                    SAFE_SET_GLOBAL(g_frontmostApp, sbsBid);
-                } else {
+                // ★ v9.1: 通过SBAppSwitcherModel获取
+                Class SBSwitcherModel = objc_getClass("SBAppSwitcherModel");
+                if (SBSwitcherModel) {
+                    id model = [SBSwitcherModel performSelector:@selector(sharedInstance)];
+                    if (model && [model respondsToSelector:@selector(applicationAtPosition:)]) {
+                        id appLayout = [model performSelector:@selector(applicationAtPosition:) withObject:@(0)];
+                        if (appLayout && [appLayout respondsToSelector:@selector(application)]) {
+                            id sbApp = [appLayout performSelector:@selector(application)];
+                            if (sbApp && [sbApp respondsToSelector:@selector(bundleIdentifier)]) {
+                                NSString *bid = [sbApp performSelector:@selector(bundleIdentifier)];
+                                if (bid) SAFE_SET_GLOBAL(g_frontmostApp, bid);
+                            }
+                        }
+                    }
+                }
+                // fallback
+                if (SAFE_GET_GLOBAL(g_frontmostApp).length == 0) {
                     UIApplication *app = [UIApplication sharedApplication];
                     if (app && [app respondsToSelector:@selector(frontmostApplication)]) {
                         id frontApp = [app performSelector:@selector(frontmostApplication)];
@@ -659,20 +667,43 @@ static pid_t getFrontmostAppPid() {
     __block pid_t pid = 0;
     runOnMainThreadSync(^{
         @try {
-            // ★ v9.1: 优先用SBSCopy（SpringBoard进程内更可靠）
-            NSString *bid = SBSCopyFrontmostApplicationDisplayIdentifier();
-            if (bid && bid.length > 0) {
-                SAFE_SET_GLOBAL(g_frontmostApp, bid);
-                // 通过SBApplicationController获取PID
-                Class SBAppCtrl = objc_getClass("SBApplicationController");
-                if (SBAppCtrl) {
-                    id appCtrl = [SBAppCtrl performSelector:@selector(sharedInstance)];
-                    id sbApp = [appCtrl performSelector:@selector(applicationWithBundleIdentifier:) withObject:bid];
-                    if (sbApp && [sbApp respondsToSelector:@selector(processID)])
-                        pid = (pid_t)((NSInteger(*)(id, SEL))objc_msgSend)(sbApp, @selector(processID));
+            // ★ v9.1: 通过SBApplicationController获取前台App
+            Class SBAppCtrl = objc_getClass("SBApplicationController");
+            if (SBAppCtrl) {
+                id appCtrl = [SBAppCtrl performSelector:@selector(sharedInstance)];
+                // SBApplicationController没有直接frontmost方法，用SBSCopyApp
+                // 改用SBSceneManager（iOS 14+）
+                Class SBSSceneMgr = objc_getClass("SBSceneManager");
+                if (SBSSceneMgr) {
+                    id mgr = [SBSSceneMgr performSelector:@selector(sharedInstance)];
+                    if (mgr && [mgr respondsToSelector:@selector(frontmostApplication)])
+                        mgr = nil; // 没这个selector
+                }
+                // 最可靠方案：从SBAppSwitcherModel获取
+                Class SBSwitcherModel = objc_getClass("SBAppSwitcherModel");
+                if (SBSwitcherModel) {
+                    id model = [SBSwitcherModel performSelector:@selector(sharedInstance)];
+                    if (model && [model respondsToSelector:@selector(applicationAtPosition:)]) {
+                        // position 0 = most recent
+                        id appLayout = [model performSelector:@selector(applicationAtPosition:) withObject:@(0)];
+                        if (appLayout) {
+                            // SBAppSwitcherAppLayout -> application -> SBApplication
+                            if ([appLayout respondsToSelector:@selector(application)]) {
+                                id sbApp = [appLayout performSelector:@selector(application)];
+                                if (sbApp) {
+                                    if ([sbApp respondsToSelector:@selector(processID)])
+                                        pid = (pid_t)((NSInteger(*)(id, SEL))objc_msgSend)(sbApp, @selector(processID));
+                                    if ([sbApp respondsToSelector:@selector(bundleIdentifier)]) {
+                                        NSString *bid = [sbApp performSelector:@selector(bundleIdentifier)];
+                                        if (bid) SAFE_SET_GLOBAL(g_frontmostApp, bid);
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
-            // fallback: UIApplication方式
+            // fallback: UIApplication
             if (pid <= 0) {
                 UIApplication *app = [UIApplication sharedApplication];
                 if (app && [app respondsToSelector:@selector(frontmostApplication)]) {
@@ -689,26 +720,24 @@ static pid_t getFrontmostAppPid() {
 
 // ★ v9.0: 获取前台App的bundleId
 static NSString *getFrontmostBundleId() {
-    __block NSString *bid = nil;
+    // ★ v9.1: 复用getFrontmostAppPid的逻辑，直接返回缓存的g_frontmostApp
+    pid_t pid = getFrontmostAppPid();
+    NSString *bid = SAFE_GET_GLOBAL(g_frontmostApp);
+    if (bid.length > 0) return bid;
+    // fallback
+    __block NSString *result = nil;
     runOnMainThreadSync(^{
         @try {
-            // ★ v9.1: 优先用SBSCopy
-            bid = SBSCopyFrontmostApplicationDisplayIdentifier();
-            if (bid && bid.length > 0) {
-                SAFE_SET_GLOBAL(g_frontmostApp, bid);
-                return;
-            }
-            // fallback
             UIApplication *app = [UIApplication sharedApplication];
             if (app && [app respondsToSelector:@selector(frontmostApplication)]) {
                 id frontApp = [app performSelector:@selector(frontmostApplication)];
                 if (frontApp && [frontApp respondsToSelector:@selector(bundleIdentifier)]) {
-                    bid = [frontApp performSelector:@selector(bundleIdentifier)];
+                    result = [frontApp performSelector:@selector(bundleIdentifier)];
                 }
             }
         } @catch (NSException *e) {}
     });
-    return bid;
+    return result;
 }
 
 // ==================== 旧方案触摸函数 ====================
@@ -750,31 +779,31 @@ static void simulateHomeButton() {
     resetIdleTimer();
 }
 
-// ★ v9.1: 统一硬件按键模拟（非阻塞版，防止BKHIDSystemInterface=NULL时卡死）
+// ★ v9.1: 统一硬件按键模拟（后台线程发送，防止死锁）
 static void sendButtonEvent(uint32_t usagePage, uint32_t usage, float durationMs) {
     if (!loadFunctions()) return;
-    uint64_t ts = mach_absolute_time();
-    IOHIDEventRef downEvent = IOHIDEventCreateKeyboardEventFunc(kCFAllocatorDefault, ts, usagePage, usage, true, 0);
-    if (downEvent) {
-        if (IOHIDEventSetSenderIDFunc) IOHIDEventSetSenderIDFunc(downEvent, SYNTHETIC_SENDER_ID);
-        if (IOHIDEventSetIntegerValueFunc) IOHIDEventSetIntegerValueFunc(downEvent, 4, 1);
-        // ★ 非阻塞dispatch：用dispatch_after异步发送，避免IOHIDEventSystemClient阻塞
-        dispatch_async(dispatch_get_main_queue(), ^{
-            @try { dispatchHIDEvent(downEvent); } @catch (NSException *e) {}
-        });
-    }
-    float ms = durationMs > 0 ? durationMs : 100.0f;
-    usleep((useconds_t)(ms * 1000));
-    ts = mach_absolute_time();
-    IOHIDEventRef upEvent = IOHIDEventCreateKeyboardEventFunc(kCFAllocatorDefault, ts, usagePage, usage, false, 0);
-    if (upEvent) {
-        if (IOHIDEventSetSenderIDFunc) IOHIDEventSetSenderIDFunc(upEvent, SYNTHETIC_SENDER_ID);
-        if (IOHIDEventSetIntegerValueFunc) IOHIDEventSetIntegerValueFunc(upEvent, 4, 1);
-        dispatch_async(dispatch_get_main_queue(), ^{
-            @try { dispatchHIDEvent(upEvent); } @catch (NSException *e) {}
-        });
-    }
-    resetIdleTimer();
+    // ★ 在后台线程发送HID事件，避免主线程死锁
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{
+        @try {
+            uint64_t ts = mach_absolute_time();
+            IOHIDEventRef downEvent = IOHIDEventCreateKeyboardEventFunc(kCFAllocatorDefault, ts, usagePage, usage, true, 0);
+            if (downEvent) {
+                if (IOHIDEventSetSenderIDFunc) IOHIDEventSetSenderIDFunc(downEvent, SYNTHETIC_SENDER_ID);
+                if (IOHIDEventSetIntegerValueFunc) IOHIDEventSetIntegerValueFunc(downEvent, 4, 1);
+                dispatchHIDEvent(downEvent);
+            }
+            float ms = durationMs > 0 ? durationMs : 100.0f;
+            usleep((useconds_t)(ms * 1000));
+            ts = mach_absolute_time();
+            IOHIDEventRef upEvent = IOHIDEventCreateKeyboardEventFunc(kCFAllocatorDefault, ts, usagePage, usage, false, 0);
+            if (upEvent) {
+                if (IOHIDEventSetSenderIDFunc) IOHIDEventSetSenderIDFunc(upEvent, SYNTHETIC_SENDER_ID);
+                if (IOHIDEventSetIntegerValueFunc) IOHIDEventSetIntegerValueFunc(upEvent, 4, 1);
+                dispatchHIDEvent(upEvent);
+            }
+            resetIdleTimer();
+        } @catch (NSException *e) {}
+    });
 }
 
 // ==================== v8.4: ios-mcp触摸方案 ====================
@@ -1808,7 +1837,7 @@ static NSDictionary *doKillApp(NSString *bundleId) {
     return @{@"success": @NO, @"error": errMsg};
 }
 
-// ★ v9.1: getFrontmostApp - 用SBSCopy替代frontmostApplication
+// ★ v9.1: getFrontmostApp - 用SBAppSwitcherModel替代frontmostApplication
 static NSDictionary *doGetFrontmostApp() {
     __block NSDictionary *result = nil;
     runOnMainThreadSync(^{
@@ -1817,13 +1846,29 @@ static NSDictionary *doGetFrontmostApp() {
             NSString *displayName = @"";
             pid_t pid = 0;
             
-            // ★ 优先用SBSCopy（SpringBoard进程内更可靠）
-            NSString *sbsBid = SBSCopyFrontmostApplicationDisplayIdentifier();
-            if (sbsBid && sbsBid.length > 0) {
-                bundleId = sbsBid;
-                SAFE_SET_GLOBAL(g_frontmostApp, bundleId);
-            } else {
-                // fallback: UIApplication
+            // ★ 用SBAppSwitcherModel获取最前台App
+            Class SBSwitcherModel = objc_getClass("SBAppSwitcherModel");
+            if (SBSwitcherModel) {
+                id model = [SBSwitcherModel performSelector:@selector(sharedInstance)];
+                if (model && [model respondsToSelector:@selector(applicationAtPosition:)]) {
+                    id appLayout = [model performSelector:@selector(applicationAtPosition:) withObject:@(0)];
+                    if (appLayout && [appLayout respondsToSelector:@selector(application)]) {
+                        id sbApp = [appLayout performSelector:@selector(application)];
+                        if (sbApp) {
+                            if ([sbApp respondsToSelector:@selector(bundleIdentifier)])
+                                bundleId = [sbApp performSelector:@selector(bundleIdentifier)] ?: @"";
+                            if ([sbApp respondsToSelector:@selector(displayName)])
+                                displayName = [sbApp performSelector:@selector(displayName)] ?: @"";
+                            if ([sbApp respondsToSelector:@selector(processID)])
+                                pid = (pid_t)((NSInteger(*)(id, SEL))objc_msgSend)(sbApp, @selector(processID));
+                            if (bundleId.length > 0) SAFE_SET_GLOBAL(g_frontmostApp, bundleId);
+                        }
+                    }
+                }
+            }
+            
+            // fallback: UIApplication + SBApplicationController
+            if (bundleId.length == 0) {
                 UIApplication *app = [UIApplication sharedApplication];
                 if (app && [app respondsToSelector:@selector(frontmostApplication)]) {
                     id frontApp = [app performSelector:@selector(frontmostApplication)];
@@ -1833,17 +1878,18 @@ static NSDictionary *doGetFrontmostApp() {
                     }
                 }
             }
-            
-            // 通过SBApplicationController获取PID和displayName
-            Class SBAppCtrl = objc_getClass("SBApplicationController");
-            if (SBAppCtrl && bundleId.length > 0) {
-                id appCtrl = [SBAppCtrl performSelector:@selector(sharedInstance)];
-                id sbApp = [appCtrl performSelector:@selector(applicationWithBundleIdentifier:) withObject:bundleId];
-                if (sbApp) {
-                    if ([sbApp respondsToSelector:@selector(displayName)])
-                        displayName = [sbApp performSelector:@selector(displayName)] ?: @"";
-                    if ([sbApp respondsToSelector:@selector(processID)])
-                        pid = (pid_t)((NSInteger(*)(id, SEL))objc_msgSend)(sbApp, @selector(processID));
+            // 补充displayName和pid
+            if (bundleId.length > 0 && (displayName.length == 0 || pid == 0)) {
+                Class SBAppCtrl = objc_getClass("SBApplicationController");
+                if (SBAppCtrl) {
+                    id appCtrl = [SBAppCtrl performSelector:@selector(sharedInstance)];
+                    id sbApp = [appCtrl performSelector:@selector(applicationWithBundleIdentifier:) withObject:bundleId];
+                    if (sbApp) {
+                        if (displayName.length == 0 && [sbApp respondsToSelector:@selector(displayName)])
+                            displayName = [sbApp performSelector:@selector(displayName)] ?: @"";
+                        if (pid == 0 && [sbApp respondsToSelector:@selector(processID)])
+                            pid = (pid_t)((NSInteger(*)(id, SEL))objc_msgSend)(sbApp, @selector(processID));
+                    }
                 }
             }
             
@@ -2248,7 +2294,7 @@ static StarCoreTCPServer *_server = nil;
     // ==================== Action 分发 ====================
     
     if([action isEqualToString:@"ping"]) {
-        resp[@"success"]=@YES; resp[@"message"]=@"pong"; resp[@"version"]=@"9.1";
+        resp[@"success"]=@YES; resp[@"message"]=@"pong"; resp[@"version"]=@"9.2";
         resp[@"actions"]=@[
             @"ping",@"tap",@"swipe",@"longPress",@"doubleTap",@"dragAndDrop",
             @"pressHome",@"pressPower",@"pressVolumeUp",@"pressVolumeDown",@"toggleMute",
@@ -2656,7 +2702,7 @@ static StarCoreTCPServer *_server = nil;
         uint32_t springCID=getKeyWindowContextID();
         resp[@"success"]=@YES;
         resp[@"diagnostics"]=@{
-            @"version": @"9.1",
+            @"version": @"9.2",
             @"iokitHandle": g_iokitHandle?@"OK":@"NULL",
             @"bbsHandle": g_bbsHandle?@"OK":@"NULL",
             @"quartzCoreHandle": g_quartzCoreHandle?@"OK":@"NULL",
