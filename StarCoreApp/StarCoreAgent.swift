@@ -150,7 +150,7 @@ class StarCoreAgent {
     // MARK: - LLM API Call (with Provider index)
 
     /// 指定Provider索引调用LLM
-    func callLLMWithProvider(messages: [[String: String]], providerIndex: Int, completion: @escaping (Result<String, Error>) -> Void) {
+    func callLLMWithProvider(messages: [[String: Any]], providerIndex: Int, completion: @escaping (Result<String, Error>) -> Void) {
         let all = providers
         guard providerIndex >= 0 && providerIndex < all.count else {
             completion(.failure(LLMError.invalidResponse("Provider索引越界")))
@@ -160,9 +160,6 @@ class StarCoreAgent {
 
         // ★ v9.0: 访客模式走GuestLLM专用路径
         if provider.isGuestMode {
-            let messagesAny: [[String: Any]] = messages.map { msg in
-                return msg.mapValues { value -> Any in return value }
-            }
             GuestLLM.chat(
                 provider: provider,
                 messages: messagesAny,
@@ -205,11 +202,11 @@ class StarCoreAgent {
 
         request.timeoutInterval = 90  // 90秒超时
 
-        // 转换messages为Any类型（支持tool角色、tool_call_id、tool_calls）
+        // ★ messages已经是[[String: Any]]，直接处理__tool_calls__特殊字段
         let messagesAny: [[String: Any]] = messages.map { msg in
             var dict: [String: Any] = [:]
             for (k, v) in msg {
-                if k == "__tool_calls__", let data = v.data(using: .utf8),
+                if k == "__tool_calls__", let str = v as? String, let data = str.data(using: .utf8),
                    let tc = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                    let toolCalls = tc["tool_calls"] {
                     dict["tool_calls"] = toolCalls
@@ -297,7 +294,7 @@ class StarCoreAgent {
     // MARK: - LLM Fallback (自动切换Provider)
 
     /// 带Fallback的LLM调用：429时自动切换到下一个免费Provider
-    func callLLMWithFallback(messages: [[String: String]], triedIndices: [Int] = [], completion: @escaping (Result<String, Error>) -> Void) {
+    func callLLMWithFallback(messages: [[String: Any]], triedIndices: [Int] = [], completion: @escaping (Result<String, Error>) -> Void) {
         callLLMWithProvider(messages: messages, providerIndex: currentProviderIndex) { [weak self] result in
             switch result {
             case .success:
@@ -314,7 +311,7 @@ class StarCoreAgent {
     }
 
     /// 递归尝试下一个免费Provider
-    private func tryNextProvider(messages: [[String: String]], triedIndices: [Int], completion: @escaping (Result<String, Error>) -> Void) {
+    private func tryNextProvider(messages: [[String: Any]], triedIndices: [Int], completion: @escaping (Result<String, Error>) -> Void) {
         let all = providers
         let freeIndices = LLMProvider.freeProviderIndices
 
@@ -352,7 +349,7 @@ class StarCoreAgent {
 
     // MARK: - Legacy callLLM (兼容，内部调用callLLMWithProvider)
 
-    func callLLM(messages: [[String: String]], completion: @escaping (Result<String, Error>) -> Void) {
+    func callLLM(messages: [[String: Any]], completion: @escaping (Result<String, Error>) -> Void) {
         callLLMWithProvider(messages: messages, providerIndex: currentProviderIndex, completion: completion)
     }
 
@@ -1030,7 +1027,7 @@ class StarCoreAgent {
     ///   - completion: Final result callback
     func chat(userInput: String, onPartialReply: ((String, [String], Int) -> Void)? = nil, completion: @escaping (String, [String]) -> Void) {
         // Build messages
-        var messages: [[String: String]] = [
+        var messages: [[String: Any]] = [
             ["role": "system", "content": systemPrompt]
         ]
 
@@ -1040,12 +1037,12 @@ class StarCoreAgent {
             let w = screen["width"] as? Int ?? 375
             let h = screen["height"] as? Int ?? 812
             let s = screen["scale"] as? Int ?? 3
-            messages[0]["content"]! += "\n屏幕: \(w)x\(h), scale=\(s)"
+            if let existing = messages[0]["content"] as? String { messages[0]["content"] = existing + "\n屏幕: \(w)x\(h), scale=\(s)" }
         }
 
         // Add ios-mcp availability info (备选方案)
         if isMcpInitialized {
-            messages[0]["content"]! += "\nios-mcp: 已连接 (备选方案, localhost:8090)"
+            if let existing = messages[0]["content"] as? String { messages[0]["content"] = existing + "\nios-mcp: 已连接 (备选方案, localhost:8090)" }
         }
 
         // Add history
@@ -1067,7 +1064,7 @@ class StarCoreAgent {
 
     /// Agent loop: call LLM, execute actions, feed results back, repeat
     private func agentLoop(
-        messages: [[String: String]],
+        messages: [[String: Any]],
         step: Int,
         maxSteps: Int,
         allReplies: [String],
@@ -1168,7 +1165,7 @@ class StarCoreAgent {
                     let jsonStr = String(reply.dropFirst("__TOOL_CALLS__:".count))
                     if let data = jsonStr.data(using: .utf8),
                        let toolCalls = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
-                        var assistantMsg: [String: String] = ["role": "assistant", "content": ""]
+                        var assistantMsg: [String: Any] = ["role": "assistant", "content": ""]
                         if let tcData = try? JSONSerialization.data(withJSONObject: ["tool_calls": toolCalls], options: []),
                            let tcStr = String(data: tcData, encoding: .utf8) {
                             assistantMsg["__tool_calls__"] = tcStr
@@ -1321,7 +1318,7 @@ class StarCoreAgent {
         completion: @escaping (String, [String]) -> Void
     ) {
         // 构建消息
-        var messages: [[String: String]] = [
+        var messages: [[String: Any]] = [
             ["role": "system", "content": systemPrompt]
         ]
 
@@ -1331,11 +1328,11 @@ class StarCoreAgent {
             let w = screen["width"] as? Int ?? 375
             let h = screen["height"] as? Int ?? 812
             let s = screen["scale"] as? Int ?? 3
-            messages[0]["content"]! += "\n屏幕: \(w)x\(h), scale=\(s)"
+            if let existing = messages[0]["content"] as? String { messages[0]["content"] = existing + "\n屏幕: \(w)x\(h), scale=\(s)" }
         }
 
         if isMcpInitialized {
-            messages[0]["content"]! += "\nios-mcp: 已连接 (备选方案, localhost:8090)"
+            if let existing = messages[0]["content"] as? String { messages[0]["content"] = existing + "\nios-mcp: 已连接 (备选方案, localhost:8090)" }
         }
 
         // 添加历史
@@ -1367,7 +1364,7 @@ class StarCoreAgent {
 
     /// 流式Agent循环
     private func agentLoopStreaming(
-        messages: [[String: String]],
+        messages: [[String: Any]],
         step: Int,
         maxSteps: Int,
         allReplies: [String],
@@ -1467,7 +1464,7 @@ class StarCoreAgent {
                     if let data = jsonStr.data(using: .utf8),
                        let toolCalls = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
                         // assistant消息带tool_calls
-                        var assistantMsg: [String: String] = ["role": "assistant", "content": ""]
+                        var assistantMsg: [String: Any] = ["role": "assistant", "content": ""]
                         // tool_calls作为JSON字符串存在特殊key里
                         if let tcData = try? JSONSerialization.data(withJSONObject: ["tool_calls": toolCalls], options: []),
                            let tcStr = String(data: tcData, encoding: .utf8) {
@@ -1587,13 +1584,13 @@ class StarCoreAgent {
 
     // MARK: - 纯非流式对话（v11.0: 小智直连Tweak TCP + 38工具）
     func chatNonStreaming(userInput: String, completion: @escaping (String, [String]) -> Void) {
-        var messages: [[String: String]] = [["role": "system", "content": systemPrompt]]
+        var messages: [[String: Any]] = [["role": "system", "content": systemPrompt]]
         if isTweakConnected, let screen = tweakCmd(action: "getScreenSize"),
            let success = screen["success"] as? Bool, success {
             let w = screen["width"] as? Int ?? 375
             let h = screen["height"] as? Int ?? 812
             let s = screen["scale"] as? Int ?? 3
-            messages[0]["content"]! += "\n屏幕: \(w)x\(h), scale=\(s)"
+            if let existing = messages[0]["content"] as? String { messages[0]["content"] = existing + "\n屏幕: \(w)x\(h), scale=\(s)" }
         }
         if isMcpInitialized { messages[0]["content"]! += "\nios-mcp: 已连接" }
         for msg in chatHistory.suffix(20) { messages.append(["role": msg.role.rawValue, "content": msg.content]) }
@@ -1602,7 +1599,7 @@ class StarCoreAgent {
         nonStreamingAgentLoop(messages: messages, step: 1, maxSteps: 20, allReplies: [], allActionResults: [], completion: completion)
     }
 
-    private func nonStreamingAgentLoop(messages: [[String: String]], step: Int, maxSteps: Int, allReplies: [String], allActionResults: [String], completion: @escaping (String, [String]) -> Void) {
+    private func nonStreamingAgentLoop(messages: [[String: Any]], step: Int, maxSteps: Int, allReplies: [String], allActionResults: [String], completion: @escaping (String, [String]) -> Void) {
         callLLMWithFallback(messages: messages) { [weak self] result in
             guard let self = self else { return }
             let reply: String
@@ -1666,7 +1663,7 @@ class StarCoreAgent {
                     let jsonStr = String(reply.dropFirst("__TOOL_CALLS__:".count))
                     if let data = jsonStr.data(using: .utf8),
                        let toolCalls = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
-                        var assistantMsg: [String: String] = ["role": "assistant", "content": ""]
+                        var assistantMsg: [String: Any] = ["role": "assistant", "content": ""]
                         if let tcData = try? JSONSerialization.data(withJSONObject: ["tool_calls": toolCalls], options: []),
                            let tcStr = String(data: tcData, encoding: .utf8) {
                             assistantMsg["__tool_calls__"] = tcStr
