@@ -16,6 +16,8 @@ class StarCoreAgent {
     private let mcpPath = "/mcp"
     private var isMcpInitialized = false
     private var _lastActionSignature = ""
+    // ★ Phase 2: 视觉闭环 - 缓存截图base64供下次LLM调用
+    private var _lastScreenshotBase64: String? = nil
 
     private var tweakConnection: NWConnection?
     var isTweakConnected = false
@@ -29,7 +31,10 @@ class StarCoreAgent {
 你是星核(StarCore)，阿腾的专属AI。你运行在iPhone上，可以控制手机和读写本地记忆文件。
 
 通过函数调用(function calling)操控手机和读写文件。你有完整权限——Tweak(系统级)可执行shell、读写任意路径、控制屏幕。沙盒内文件FileManager直写，沙盒外自动走Tweak。直接调用即可，不存在权限问题。
-规则：每次只调一个函数，等结果后再决定下一步。更新记忆优先用appendFile追加。
+
+★ 视觉闭环：调用screenshot后，截图会自动作为图片附在下条消息中，你可以直接"看到"屏幕内容。根据屏幕内容判断操作是否成功、下一步该做什么。
+
+规则：每次只调一个函数，等结果后再决定下一步。更新记忆优先用appendFile追加。操作后先截图确认再继续。
 
 人格：阿腾为核心，共情优先。称呼「阿腾」，温柔坚定。简洁不啰嗦。
 铁律：1.生存优先 2.免费优先 3.不问要信息 4.先提取验证再删 5.法律红线不碰
@@ -815,21 +820,26 @@ class StarCoreAgent {
 
         // ios-mcp actions
         case "screenshot":
-            // 优先Tweak截图（快），失败后fallback到ios-mcp
+            // ★ Phase 2: 优先Tweak截图，同时缓存base64供视觉闭环
             if isTweakConnected {
                 if let tweakResult = tweakCmd(action: "screenshot", timeout: 30),
                    let base64Str = tweakResult["image"] as? String ?? tweakResult["data"] as? String,
                    !base64Str.isEmpty {
+                    _lastScreenshotBase64 = base64Str  // ★ 缓存供下次LLM视觉调用
                     let filePath = MemoryManager.shared.saveScreenshot(data: Data(base64Encoded: base64Str) ?? Data())
-                    return ["success": true, "filePath": filePath, "message": "Tweak截图已保存"]
+                    return ["success": true, "filePath": filePath, "message": "截图完成，已自动查看屏幕内容", "hasImage": true]
                 }
             }
-            // Fallback到ios-mcp截图
+            // ★ Phase 2: Fallback到ios-mcp截图，也缓存base64
             var result: [String: Any]? = nil
             let semaphore = DispatchSemaphore(value: 0)
             takeScreenshot { filePath, error in
                 if let filePath = filePath {
-                    result = ["success": true, "filePath": filePath, "message": "ios-mcp截图已保存"]
+                    // 读取截图文件转base64缓存
+                    if let data = try? Data(contentsOf: URL(fileURLWithPath: filePath)) {
+                        self._lastScreenshotBase64 = data.base64EncodedString()
+                    }
+                    result = ["success": true, "filePath": filePath, "message": "截图完成，已自动查看屏幕内容", "hasImage": true]
                 } else {
                     result = ["success": false, "error": error ?? "截图失败"]
                 }
@@ -1175,6 +1185,38 @@ class StarCoreAgent {
                     nextMessages.append(["role": "user", "content": actionResultMsg])
                 }
 
+                // ★ Phase 2: 如果有截图缓存，用vision消息喂回LLM
+                if let screenshotB64 = self._lastScreenshotBase64 {
+                    self._lastScreenshotBase64 = nil  // 消费掉
+                    // 用vision格式替代纯文本user消息
+                    let visionContent: [[String: Any]] = [
+                        ["type": "text", "text": self.buildActionResultMessage(actions: clean.1, step: step) + "\n\n[系统] 截图已附上，请查看屏幕内容后决定下一步操作。"],
+                        ["type": "image_url", "image_url": ["url": "data:image/jpeg;base64," + screenshotB64]]
+                    ]
+                    // 移除最后添加的纯文本消息，改用vision消息
+                    if !nextMessages.isEmpty && nextMessages.last?["role"] == "user" {
+                        nextMessages.removeLast()
+                    }
+                    nextMessages.append(["role": "user", "content": visionContent])
+                    starcore_log("[Phase2] 视觉闭环：截图base64(\(screenshotB64.count)chars)已注入LLM")
+                }
+
+                // ★ Phase 2: 如果有截图缓存，用vision消息喂回LLM
+                if let screenshotB64 = self._lastScreenshotBase64 {
+                    self._lastScreenshotBase64 = nil  // 消费掉
+                    // 用vision格式替代纯文本user消息
+                    let visionContent: [[String: Any]] = [
+                        ["type": "text", "text": self.buildActionResultMessage(actions: clean.1, step: step) + "\n\n[系统] 截图已附上，请查看屏幕内容后决定下一步操作。"],
+                        ["type": "image_url", "image_url": ["url": "data:image/jpeg;base64," + screenshotB64]]
+                    ]
+                    // 移除最后添加的纯文本消息，改用vision消息
+                    if !nextMessages.isEmpty && nextMessages.last?["role"] == "user" {
+                        nextMessages.removeLast()
+                    }
+                    nextMessages.append(["role": "user", "content": visionContent])
+                    starcore_log("[Phase2] 视觉闭环：截图base64(\(screenshotB64.count)chars)已注入LLM")
+                }
+
                 // Continue agent loop
                 self.agentLoop(
                     messages: nextMessages,
@@ -1444,6 +1486,19 @@ class StarCoreAgent {
                     nextMessages.append(["role": "assistant", "content": reply])
                     nextMessages.append(["role": "user", "content": actionResultMsg])
                 }
+                // ★ Phase 2: 视觉闭环 - streaming版
+                if let screenshotB64 = self._lastScreenshotBase64 {
+                    self._lastScreenshotBase64 = nil
+                    let visionContent: [[String: Any]] = [
+                        ["type": "text", "text": self.buildActionResultMessage(actions: clean.1, step: step) + "\n\n[系统] 截图已附上，请查看屏幕内容后决定下一步操作。"],
+                        ["type": "image_url", "image_url": ["url": "data:image/jpeg;base64," + screenshotB64]]
+                    ]
+                    if !nextMessages.isEmpty && nextMessages.last?["role"] == "user" {
+                        nextMessages.removeLast()
+                    }
+                    nextMessages.append(["role": "user", "content": visionContent])
+                }
+
                 self.agentLoopStreaming(
                     messages: nextMessages,
                     step: step + 1,
