@@ -162,7 +162,7 @@ class StarCoreAgent {
         if provider.isGuestMode {
             GuestLLM.chat(
                 provider: provider,
-                messages: messagesAny,
+                messages: messages,
                 onToken: { _ in },  // 非流式调用不处理token
                 onStatus: nil,
                 completion: completion
@@ -1191,7 +1191,7 @@ class StarCoreAgent {
                         ["type": "image_url", "image_url": ["url": "data:image/jpeg;base64," + screenshotB64]]
                     ]
                     // 移除最后添加的纯文本消息，改用vision消息
-                    if !nextMessages.isEmpty && nextMessages.last?["role"] == "user" {
+                    if !nextMessages.isEmpty && (nextMessages.last?["role"] as? String) == "user" {
                         nextMessages.removeLast()
                     }
                     nextMessages.append(["role": "user", "content": visionContent])
@@ -1207,7 +1207,7 @@ class StarCoreAgent {
                         ["type": "image_url", "image_url": ["url": "data:image/jpeg;base64," + screenshotB64]]
                     ]
                     // 移除最后添加的纯文本消息，改用vision消息
-                    if !nextMessages.isEmpty && nextMessages.last?["role"] == "user" {
+                    if !nextMessages.isEmpty && (nextMessages.last?["role"] as? String) == "user" {
                         nextMessages.removeLast()
                     }
                     nextMessages.append(["role": "user", "content": visionContent])
@@ -1490,7 +1490,7 @@ class StarCoreAgent {
                         ["type": "text", "text": self.buildActionResultMessage(actions: clean.1, step: step) + "\n\n[系统] 截图已附上，请查看屏幕内容后决定下一步操作。"],
                         ["type": "image_url", "image_url": ["url": "data:image/jpeg;base64," + screenshotB64]]
                     ]
-                    if !nextMessages.isEmpty && nextMessages.last?["role"] == "user" {
+                    if !nextMessages.isEmpty && (nextMessages.last?["role"] as? String) == "user" {
                         nextMessages.removeLast()
                     }
                     nextMessages.append(["role": "user", "content": visionContent])
@@ -1592,7 +1592,7 @@ class StarCoreAgent {
             let s = screen["scale"] as? Int ?? 3
             if let existing = messages[0]["content"] as? String { messages[0]["content"] = existing + "\n屏幕: \(w)x\(h), scale=\(s)" }
         }
-        if isMcpInitialized { messages[0]["content"]! += "\nios-mcp: 已连接" }
+        if isMcpInitialized { if let existing = messages[0]["content"] as? String { messages[0]["content"] = existing + "\nios-mcp: 已连接" } }
         for msg in chatHistory.suffix(20) { messages.append(["role": msg.role.rawValue, "content": msg.content]) }
         messages.append(["role": "user", "content": userInput])
         addToHistory(ChatMessage(role: .user, content: userInput))
