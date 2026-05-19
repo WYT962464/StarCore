@@ -62,6 +62,7 @@ class SettingsViewController: UIViewController {
 
         // Section: LLM Provider
         lastView = addSectionHeader("🤖 LLM Provider", below: lastView, isFirst: true)
+        lastView = addProviderSwitcher(below: lastView)
         lastView = addAPIKeyRow(below: lastView)
         lastView = addModelRow(below: lastView)
 
@@ -178,6 +179,91 @@ class SettingsViewController: UIViewController {
     // MARK: - API Key Row
 
     private var apiKeyField: UITextField!
+    private var providerButtons: [UIButton] = []
+
+    // MARK: - Provider Switcher
+
+    private func addProviderSwitcher(below aboveView: UIView) -> UIView {
+        let switcherView = UIView()
+        switcherView.translatesAutoresizingMaskIntoConstraints = false
+        contentView.addSubview(switcherView)
+
+        let providers = StarCoreAgent.shared.providers
+        let currentIdx = StarCoreAgent.shared.currentProviderIndex
+
+        var lastBtn: UIButton? = nil
+        providerButtons = []
+
+        for (idx, provider) in providers.enumerated() {
+            let btn = UIButton(type: .system)
+            btn.setTitle(provider.name, for: .normal)
+            btn.titleLabel?.font = UIFont.systemFont(ofSize: 12, weight: idx == currentIdx ? .bold : .regular)
+            btn.titleLabel?.adjustsFontSizeToFitWidth = true
+            btn.contentEdgeInsets = UIEdgeInsets(top: 4, left: 10, bottom: 4, right: 10)
+            btn.layer.cornerRadius = 12
+            btn.layer.borderWidth = 1
+            btn.tag = idx
+
+            if idx == currentIdx {
+                btn.backgroundColor = UIColor.systemPurple.withAlphaComponent(0.3)
+                btn.layer.borderColor = UIColor.systemPurple.cgColor
+                btn.setTitleColor(.white, for: .normal)
+            } else {
+                btn.backgroundColor = UIColor(white: 1, alpha: 0.06)
+                btn.layer.borderColor = UIColor(white: 1, alpha: 0.12).cgColor
+                btn.setTitleColor(UIColor(white: 1, alpha: 0.6), for: .normal)
+            }
+
+            btn.translatesAutoresizingMaskIntoConstraints = false
+            btn.addTarget(self, action: #selector(switchProvider(_:)), for: .touchUpInside)
+            switcherView.addSubview(btn)
+            providerButtons.append(btn)
+
+            NSLayoutConstraint.activate([
+                btn.topAnchor.constraint(equalTo: switcherView.topAnchor, constant: 4),
+                btn.bottomAnchor.constraint(equalTo: switcherView.bottomAnchor, constant: -4),
+                btn.heightAnchor.constraint(equalToConstant: 28),
+            ])
+
+            if let prev = lastBtn {
+                btn.leadingAnchor.constraint(equalTo: prev.trailingAnchor, constant: 6).isActive = true
+            } else {
+                btn.leadingAnchor.constraint(equalTo: switcherView.leadingAnchor, constant: 16).isActive = true
+            }
+            lastBtn = btn
+        }
+
+        if let lastBtn = lastBtn {
+            lastBtn.trailingAnchor.constraint(lessThanOrEqualTo: switcherView.trailingAnchor, constant: -16).isActive = true
+        }
+
+        NSLayoutConstraint.activate([
+            switcherView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 0),
+            switcherView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: 0),
+            switcherView.topAnchor.constraint(equalTo: aboveView.bottomAnchor, constant: 2),
+            switcherView.heightAnchor.constraint(equalToConstant: 40),
+        ])
+
+        return switcherView
+    }
+
+    @objc private func switchProvider(_ sender: UIButton) {
+        let idx = sender.tag
+        StarCoreAgent.shared.currentProviderIndex = idx
+        // 更新按钮样式
+        for btn in providerButtons {
+            let isSelected = btn.tag == idx
+            btn.backgroundColor = isSelected ? UIColor.systemPurple.withAlphaComponent(0.3) : UIColor(white: 1, alpha: 0.06)
+            btn.layer.borderColor = isSelected ? UIColor.systemPurple.cgColor : UIColor(white: 1, alpha: 0.12).cgColor
+            btn.setTitleColor(isSelected ? .white : UIColor(white: 1, alpha: 0.6), for: .normal)
+            btn.titleLabel?.font = UIFont.systemFont(ofSize: 12, weight: isSelected ? .bold : .regular)
+        }
+        // 刷新API Key和Model输入框
+        let provider = StarCoreAgent.shared.providers[idx]
+        apiKeyField?.text = provider.apiKey
+        modelField?.text = provider.model
+        starcore_log("[Settings] 切换到Provider: \(provider.name)")
+    }
 
     private func addAPIKeyRow(below aboveView: UIView) -> UIView {
         let rowView = UIView()
