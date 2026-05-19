@@ -1,7 +1,7 @@
 import Foundation
 
 // ★ v11.0: 直连Tweak架构，砍掉iOS MCP，注册34+iOS MCP工具给小智
-let SETTINGS_VERSION = "11.0.0"
+let SETTINGS_VERSION = "11.2.0"
 
 // MARK: - Chat Message
 struct ChatMessage: Codable {

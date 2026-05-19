@@ -49,12 +49,29 @@ class StarCoreAgent {
     private func migrateSettingsIfNeeded() {
         let savedVersion = defaults.string(forKey: "settingsVersion") ?? "0"
         if savedVersion != SETTINGS_VERSION {
-            starcore_log("[StarCore] Settings version mismatch: \(savedVersion) -> \(SETTINGS_VERSION), resetting providers")
-            // 清除旧的providers数据，让代码默认值生效（包含预填的API Key）
-            defaults.removeObject(forKey: "providers")
-            defaults.removeObject(forKey: "currentProviderIndex")
-            defaults.removeObject(forKey: "chatHistory")
+            starcore_log("[StarCore] Settings version mismatch: \(savedVersion) -> \(SETTINGS_VERSION), merging new providers")
+            // ★ 不清数据，合并新Provider到已有列表
+            mergeNewProviders()
             defaults.set(SETTINGS_VERSION, forKey: "settingsVersion")
+        }
+    }
+
+    /// 合并新版Provider（不清聊天记录，保留旧设置）
+    private func mergeNewProviders() {
+        var saved = providers
+        let defaults_list = LLMProvider.allProviders
+        // 已有的provider name集合
+        let existingNames = Set(saved.map { $0.name })
+        // 把新provider追加到末尾
+        for p in defaults_list {
+            if !existingNames.contains(p.name) {
+                saved.append(p)
+                starcore_log("[StarCore] 新增Provider: \(p.name)")
+            }
+        }
+        // 保存
+        if let data = try? JSONEncoder().encode(saved) {
+            defaults.set(data, forKey: "providers")
         }
     }
 
