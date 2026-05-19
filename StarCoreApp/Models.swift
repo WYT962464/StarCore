@@ -56,6 +56,20 @@ struct LLMProvider: Codable {
         apiKey: ""
     )
 
+    static let sensenova = LLMProvider(
+        name: "商汤SenseNova",
+        url: "https://token.sensenova.cn/v1/chat/completions",
+        model: "sensenova-6.7-flash-lite",
+        apiKey: "sk-vg4jMAU8fl6n9YXwY5LEgTop5e9xeiZb"
+    )
+
+    static let deepseekV4 = LLMProvider(
+        name: "DeepSeek V4(商汤)",
+        url: "https://token.sensenova.cn/v1/chat/completions",
+        model: "deepseek-v4-flash",
+        apiKey: "sk-vg4jMAU8fl6n9YXwY5LEgTop5e9xeiZb"
+    )
+
     static let custom = LLMProvider(
         name: "自定义",
         url: "",
@@ -64,7 +78,7 @@ struct LLMProvider: Codable {
     )
 
     static var allProviders: [LLMProvider] {
-        return [.volcengine, .custom]
+        return [.volcengine, .sensenova, .deepseekV4, .custom]
     }
 
     var isGuestMode: Bool { return false }
@@ -79,7 +93,11 @@ struct LLMProvider: Codable {
     static var freeProviderIndices: [Int] { return [] }
 
     static func keyHint(forProviderIndex idx: Int) -> String {
-        return "去 volcengine.com 注册获取免费API Key"
+        switch idx {
+        case 1: return "去 platform.sensenova.cn 注册，API Key免费(1500次/5h)"
+        case 2: return "同商汤Key，deepseek-v4-flash模型(150次/5h)"
+        default: return "去 volcengine.com 注册获取免费API Key"
+        }
     }
 }
 
