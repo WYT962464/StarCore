@@ -211,7 +211,7 @@ static CFStringRef kAXPlaceholderAttribute = CFSTR("AXPlaceholderValue");
 
 // ==================== 函数指针 ====================
 // 旧方案函数
-static IOHIDEventRef (*IOHIDEventCreateDigitizerEventFunc)(CFAllocatorRef, uint64_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, float, float, float, float, float, bool, bool, uint32_t) = NULL;
+static IOHIDEventRef (*IOHIDEventCreateDigitizerEventFunc)(CFAllocatorRef, uint64_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, float, float, float, float, float, float, float, bool, bool, uint32_t) = NULL;
 static IOHIDEventRef (*IOHIDEventCreateDigitizerFingerEventFunc)(CFAllocatorRef, uint64_t, uint32_t, uint32_t, uint32_t, float, float, float, float, float, float, float, float, float, float, bool, bool, uint32_t) = NULL;
 static IOHIDEventRef (*IOHIDEventCreateKeyboardEventFunc)(CFAllocatorRef, uint64_t, uint32_t, uint32_t, bool, uint32_t) = NULL;
 static void (*IOHIDEventSetIntegerValueWithOptionsFunc)(IOHIDEventRef, uint32_t, int32_t, unsigned int) = NULL;
@@ -651,16 +651,19 @@ static void resetIdleTimer() {
 
 static void dispatchHIDEvent(IOHIDEventRef event) {
     if (!event) return;
-    @try {
-        id bks = bksSharedInstance();
-        if (bks) { bksInjectHIDEvent(bks, event); return; }
-    } @catch (NSException *e) {}
+    // ★ v11.2.1: 优先用IOHIDEventSystemClientDispatchEvent（参考ios-mcp，在Dopamine/iOS16上更可靠）
+    if (IOHIDEventSetSenderIDFunc) IOHIDEventSetSenderIDFunc(event, SYNTHETIC_SENDER_ID);
     if (IOHIDEventSystemClientDispatchEventFunc) {
         static IOHIDEventSystemClientRef client = NULL;
         static dispatch_once_t onceToken;
         dispatch_once(&onceToken, ^{ client = IOHIDEventSystemClientCreateFunc(kCFAllocatorDefault); });
-        if (client) IOHIDEventSystemClientDispatchEventFunc(client, event);
+        if (client) { IOHIDEventSystemClientDispatchEventFunc(client, event); return; }
     }
+    // fallback: injectHIDEvent
+    @try {
+        id bks = bksSharedInstance();
+        if (bks) { bksInjectHIDEvent(bks, event); return; }
+    } @catch (NSException *e) {}
 }
 
 static pid_t getFrontmostAppPid() {
@@ -749,9 +752,8 @@ static void simulateTouchEx(int type, float x, float y, int fingerId, uint32_t c
     uint32_t hem = (touch_ << 0) | (range_ << 1);
     uint64_t ts = mach_absolute_time();
     IOHIDEventRef hand = IOHIDEventCreateDigitizerEventFunc(
-        kCFAllocatorDefault, ts, 0, 0, kIOHIDTransducerTypeHand,
-        fingerId, 0, 0, x, y, 0, 0, touch_ ? true : false,
-        touch_ ? true : false, kIOHIDDigitizerEventTouch);
+        kCFAllocatorDefault, ts, kIOHIDTransducerTypeHand, 99, 1, 0, 0,
+        0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false, false, 0);
     if (!hand) return;
     if (IOHIDEventSetSenderIDFunc) IOHIDEventSetSenderIDFunc(hand, kIOHIDEventDigitizerSenderID);
     if (setDigitizerInfo && BKSHIDEventSetDigitizerInfoFunc)
@@ -831,7 +833,8 @@ static void dispatchTouchViaIOHIDFinger(int phase, int fingerIndex, float normX,
     if (!loadFunctions()) return;
     if (!IOHIDEventCreateDigitizerFingerEventSimpleFunc) { simulateTouch(phase, normX, normY, fingerIndex); return; }
     IOHIDEventRef parent = IOHIDEventCreateDigitizerEventFunc(
-        kCFAllocatorDefault, mach_absolute_time(), kIOHIDTransducerTypeHand, 99, 1, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false, false, 0);
+        kCFAllocatorDefault, mach_absolute_time(), kIOHIDTransducerTypeHand, 99, 1, 0, 0,
+        0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false, false, 0);
     if (!parent) return;
     if (IOHIDEventSetIntegerValueFunc) {
         IOHIDEventSetIntegerValueFunc(parent, 0xb0019, 1);
@@ -2590,7 +2593,9 @@ static StarCoreTCPServer *_server = nil;
         NSString *cmd=req[@"command"];
         if (!cmd||cmd.length==0) { resp[@"success"]=@NO; resp[@"error"]=@"command required"; }
         else {
-            NSString *fullCmd=[NSString stringWithFormat:@"PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin HOME=/var/mobile %@ 2>&1", cmd];
+            // ★ v11.2.1: Dopamine环境下，SpringBoard是root进程，但popen可能受限
+            // 用完整shell路径+越狱路径，尝试doas提权
+            NSString *fullCmd=[NSString stringWithFormat:@"/var/jb/bin/sh -c 'PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/var/jb/usr/bin:/var/jb/usr/sbin HOME=/var/mobile doas %@ 2>&1 || PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/var/jb/usr/bin:/var/jb/usr/sbin HOME=/var/mobile %@ 2>&1'", cmd, cmd];
             FILE *fp=popen([fullCmd UTF8String], "r");
             if (!fp) { resp[@"success"]=@NO; resp[@"error"]=[NSString stringWithFormat:@"popen failed: %s", strerror(errno)]; }
             else {
