@@ -56,8 +56,11 @@ jobs:
           mkdir -p IPA
           xcodebuild -exportArchive             -archivePath build/StarCore.xcarchive             -exportPath IPA             -exportOptionsPlist exportOptions.plist             2>&1 | tee export.log
           
-          echo "=== IPA Created ==="
-          ls -lh IPA/*.ipa 2>/dev/null || echo "No IPA found"
+          echo "=== Export Log ==="
+          cat export.log
+          
+          echo "=== IPA Contents ==="
+          ls -lh IPA/ 2>/dev/null || echo "No IPA files"
 
       - name: Upload IPA artifact
         if: success()
