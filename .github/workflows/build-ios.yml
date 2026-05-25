@@ -32,33 +32,42 @@ jobs:
           echo "=== Starting Build Archive ==="
           xcodebuild archive             -project StarCore.xcodeproj             -scheme StarCore             -sdk iphoneos             -configuration Release             -archivePath build/StarCore.xcarchive             CODE_SIGN_IDENTITY="-"             CODE_SIGNING_REQUIRED=NO             2>&1 | tee build.log
           
-          echo "=== Build Log ==="
-          cat build.log
+          echo "=== Build Log (last 50 lines) ==="
+          tail -50 build.log
 
       - name: Check Archive Contents
-        if: success()
+        continue-on-error: true
         run: |
           echo "=== Archive Structure ==="
-          find build/StarCore.xcarchive -type d | head -20
+          find build/StarCore.xcarchive -type d | head -30
           echo ""
           echo "=== Products/Applications ==="
           ls -la build/StarCore.xcarchive/Products/Applications/ 2>/dev/null || echo "Not found"
           echo ""
           echo "=== All .app files ==="
           find build/StarCore.xcarchive -name "*.app" -type d
+          echo ""
+          echo "=== xcarchive Info.plist ==="
+          cat build/StarCore.xcarchive/Info.plist 2>/dev/null | head -50 || echo "Not found"
 
       - name: Create IPA
-        if: success()
         run: |
+          echo "=== Archive Contents ==="
+          find build/StarCore.xcarchive -name "*.app" -type d
+          
           # 查找 .app 文件
           APP_PATH=$(find build/StarCore.xcarchive -name "*.app" -type d | head -1)
           
           if [ -z "$APP_PATH" ]; then
             echo "ERROR: No .app found in archive"
+            echo "Archive structure:"
+            find build/StarCore.xcarchive -type d
             exit 1
           fi
           
           echo "Found app: $APP_PATH"
+          echo "App contents:"
+          ls -la "$APP_PATH"
           
           # 创建 Payload 目录
           mkdir -p IPA/Payload
