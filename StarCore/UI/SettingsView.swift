@@ -1,218 +1,351 @@
 /**
  * SettingsView.swift
- * 设置页面
+ * 设置页面 - LLM 提供商配置
  * 
- * 功能：
- * - LLM 提供商配置（火山方舟/商汤 SenseNova/DeepSeek/自定义）
- * - Tweak 连接管理
- * - 小智 AI 配置
- * - 系统设置
+ * 设计参考用户提供的截图：
+ * - 提供商选择按钮（火山方舟/自定义/商汤/DeepSeek）
+ * - 选中状态紫色高亮
+ * - API Key 输入框
+ * - Endpoint 输入框
  */
 
 import SwiftUI
 
 @available(iOS 15.0, *)
 struct SettingsView: View {
-    @EnvironmentObject var lifeCore: LifeCore
-    @EnvironmentObject var mindCore: MindCore
+    @EnvironmentObject var llmManager: LLMManager
+    @EnvironmentObject var serverConnection: ServerConnectionManager
+    @EnvironmentObject var chatManager: ChatManager
     
-    @State private var selectedProvider = "volcano"
-    @State private var apiKey = "ark-5db3deab-6e44-46f5-ad83-95..."
-    @State private var endpoint = "ep-20260510055430-pkn8w"
-    @State private var tweakConnected = true
-    @State private var tweakEndpoint = "127.0.0.1:6000"
-    @State private var xiaozhiConnected = true
+    @State private var showingProviderList = false
+    @State private var selectedTab = 0
     
     var body: some View {
         NavigationView {
-            ScrollView {
-                VStack(spacing: 20) {
-                    // LLM Provider
-                    llmProviderSection
-                    
-                    // Tweak 连接
-                    tweakConnectionSection
-                    
-                    // Tweak 状态
-                    tweakStatusSection
-                    
-                    // 小智 AI
-                    xiaozhiSection
-                    
-                    Spacer()
+            ZStack {
+                // 深色背景
+                LinearGradient(
+                    colors: [Color(red: 10/255, green: 20/255, blue: 45/255), Color.black],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .ignoresSafeArea()
+                
+                ScrollView {
+                    VStack(spacing: 20) {
+                        // LLM 提供商配置
+                        llmProviderSection
+                        
+                        // 服务器连接
+                        serverConnectionSection
+                        
+                        // 系统提示词
+                        systemPromptSection
+                        
+                        // 费用监控
+                        costMonitoringSection
+                        
+                        // 关于
+                        aboutSection
+                    }
+                    .padding()
                 }
-                .padding()
             }
             .navigationTitle("设置")
             .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("完成") {
+                        // 保存并返回
+                    }
+                }
+            }
         }
         .preferredColorScheme(.dark)
     }
     
-    // MARK: - LLM Provider 配置
+    // MARK: - LLM 提供商配置
     private var llmProviderSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Image(systemName: "robot")
+                Image(systemName: "brain.head.profile")
                     .foregroundColor(.blue)
                 Text("LLM Provider")
                     .font(.headline)
-                    .foregroundColor(.blue)
+                    .foregroundColor(.white)
             }
             
-            // 提供商选择
+            // 提供商选择按钮
             HStack(spacing: 8) {
-                providerButton("火山方舟", isSelected: selectedProvider == "volcano", action: { selectedProvider = "volcano" })
-                providerButton("自定义", isSelected: selectedProvider == "custom", action: { selectedProvider = "custom" })
-                providerButton("商汤 SenseNova", isSelected: selectedProvider == "sensenova", action: { selectedProvider = "sensenova" })
-                providerButton("DeepSeek", isSelected: selectedProvider == "deepseek", action: { selectedProvider = "deepseek" })
+                providerButton("火山方舟", index: 0)
+                providerButton("自定义", index: 3)
+                providerButton("商汤", index: 2)
+                providerButton("DeepSeek", index: 1)
             }
             
-            // API Key
-            configField("API Key", text: $apiKey, isSecure: true)
-            
-            // Endpoint
-            configField("Endpoint", text: $endpoint, isSecure: false)
-        }
-        .padding()
-        .background(RoundedRectangle(cornerRadius: 16).fill(Color(red: 30/255, green: 30/255, blue: 63/255)))
-    }
-    
-    private func providerButton(_ title: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(title)
-                .font(.caption)
-                .fontWeight(isSelected ? .semibold : .regular)
-                .padding(.vertical, 6)
-                .padding(.horizontal, 12)
-                .background(isSelected ? Color.purple.opacity(0.6) : Color.gray.opacity(0.3))
-                .cornerRadius(20)
-                .foregroundColor(.white)
-        }
-    }
-    
-    private func configField(_ label: String, text: Binding<String>, isSecure: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(label)
-                .font(.caption)
-                .foregroundColor(.gray)
-            
-            if isSecure {
-                SecureField("", text: text)
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
-            } else {
-                TextField("", text: text)
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
-            }
-        }
-    }
-    
-    // MARK: - Tweak 连接
-    private var tweakConnectionSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Image(systemName: "wrench")
-                    .foregroundColor(.blue)
-                Text("Tweak 连接")
-                    .font(.headline)
-                    .foregroundColor(.blue)
-            }
-            
-            HStack {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundColor(.green)
-                Text("已连接")
-                    .foregroundColor(.green)
-                    .fontWeight(.semibold)
+            // API Key 输入
+            VStack(alignment: .leading, spacing: 8) {
+                Text("API Key")
+                    .font(.caption)
+                    .foregroundColor(.gray)
                 
-                Spacer()
-            }
-            
-            Button(action: {
-                // 重新连接 Tweak
-                tweakConnected.toggle()
-            }) {
-                HStack(spacing: 6) {
-                    Image(systemName: "arrow.clockwise")
-                    Text("重新连接 Tweak")
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
-                .background(Color.blue.opacity(0.3))
-                .cornerRadius(10)
-                .foregroundColor(.white)
-            }
-        }
-        .padding()
-        .background(RoundedRectangle(cornerRadius: 16).fill(Color(red: 30/255, green: 30/255, blue: 63/255)))
-    }
-    
-    // MARK: - Tweak 状态
-    private var tweakStatusSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Image(systemName: "iphone")
-                    .foregroundColor(.blue)
-                Text("Tweak 状态")
-                    .font(.headline)
-                    .foregroundColor(.blue)
-            }
-            
-            HStack {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundColor(.green)
-                Text("已连接 (\(tweakEndpoint))")
-                    .foregroundColor(.green)
-                    .fontWeight(.semibold)
-                
-                Spacer()
-            }
-            
-            Button(action: {
-                // 检测 Tweak 连接
-            }) {
-                HStack(spacing: 6) {
-                    Image(systemName: "magnifyingglass")
-                    Text("检测 Tweak 连接")
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
-                .background(Color.blue.opacity(0.3))
-                .cornerRadius(10)
-                .foregroundColor(.white)
-            }
-        }
-        .padding()
-        .background(RoundedRectangle(cornerRadius: 16).fill(Color(red: 30/255, green: 30/255, blue: 63/255)))
-    }
-    
-    // MARK: - 小智 AI
-    private var xiaozhiSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Image(systemName: "mic")
-                    .foregroundColor(.blue)
-                Text("小智 AI (WSS→Tweak TCP)")
-                    .font(.headline)
-                    .foregroundColor(.blue)
-            }
-            
-            TextField("输入配置...", text: .constant(""))
+                SecureField("输入 API Key", text: Binding(
+                    get: { llmManager.currentProvider.apiKey },
+                    set: { llmManager.updateProvider(
+                        LLMProvider(
+                            name: llmManager.currentProvider.name,
+                            url: llmManager.currentProvider.url,
+                            model: llmManager.currentProvider.model,
+                            apiKey: $0
+                        ),
+                        at: llmManager.currentProviderIndex
+                    )}
+                ))
                 .textFieldStyle(RoundedBorderTextFieldStyle())
-                .padding(.vertical, 8)
+                .padding(12)
+                .background(Color(red: 30/255, green: 30/255, blue: 50/255))
+                .cornerRadius(8)
+            }
             
-            HStack {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundColor(.green)
-                Text("已连接")
-                    .foregroundColor(.green)
-                    .fontWeight(.semibold)
+            // Endpoint 输入
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Endpoint")
+                    .font(.caption)
+                    .foregroundColor(.gray)
                 
-                Spacer()
+                TextField("输入 Endpoint", text: Binding(
+                    get: { llmManager.currentProvider.url },
+                    set: { llmManager.updateProvider(
+                        LLMProvider(
+                            name: llmManager.currentProvider.name,
+                            url: $0,
+                            model: llmManager.currentProvider.model,
+                            apiKey: llmManager.currentProvider.apiKey
+                        ),
+                        at: llmManager.currentProviderIndex
+                    )}
+                ))
+                .textFieldStyle(RoundedBorderTextFieldStyle())
+                .padding(12)
+                .background(Color(red: 30/255, green: 30/255, blue: 50/255))
+                .cornerRadius(8)
+            }
+            
+            // 模型选择
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Model")
+                    .font(.caption)
+                    .foregroundColor(.gray)
+                
+                TextField("输入模型名称", text: Binding(
+                    get: { llmManager.currentProvider.model },
+                    set: { llmManager.updateProvider(
+                        LLMProvider(
+                            name: llmManager.currentProvider.name,
+                            url: llmManager.currentProvider.url,
+                            model: $0,
+                            apiKey: llmManager.currentProvider.apiKey
+                        ),
+                        at: llmManager.currentProviderIndex
+                    )}
+                ))
+                .textFieldStyle(RoundedBorderTextFieldStyle())
+                .padding(12)
+                .background(Color(red: 30/255, green: 30/255, blue: 50/255))
+                .cornerRadius(8)
+            }
+            
+            // 状态指示
+            HStack {
+                Circle()
+                    .fill(llmManager.currentProvider.isConfigured ? .green : .orange)
+                    .frame(width: 8, height: 8)
+                Text(llmManager.currentProvider.isConfigured ? "已配置" : "未配置")
+                    .font(.caption)
+                    .foregroundColor(llmManager.currentProvider.isConfigured ? .green : .orange)
             }
         }
         .padding()
-        .background(RoundedRectangle(cornerRadius: 16).fill(Color(red: 30/255, green: 30/255, blue: 63/255)))
+        .background(RoundedRectangle(cornerRadius: 16).fill(Color(red: 20/255, green: 20/255, blue: 40/255)))
+    }
+    
+    private func providerButton(_ name: String, index: Int) -> some View {
+        Button(action: {
+            llmManager.switchProvider(to: index)
+        }) {
+            Text(name)
+                .font(.caption)
+                .fontWeight(llmManager.currentProviderIndex == index ? .semibold : .regular)
+                .foregroundColor(llmManager.currentProviderIndex == index ? .white : .gray)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: 20)
+                        .fill(llmManager.currentProviderIndex == index ? Color.purple : Color(red: 40/255, green: 40/255, blue: 60/255))
+                )
+        }
+    }
+    
+    // MARK: - 服务器连接
+    private var serverConnectionSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "server.rack")
+                    .foregroundColor(.green)
+                Text("Server Connection")
+                    .font(.headline)
+                    .foregroundColor(.white)
+            }
+            
+            HStack {
+                Circle()
+                    .fill(serverConnection.isConnected ? .green : .red)
+                    .frame(width: 8, height: 8)
+                Text(serverConnection.isConnected ? "已连接" : "未连接")
+                    .font(.caption)
+                    .foregroundColor(serverConnection.isConnected ? .green : .red)
+                
+                Spacer()
+                
+                Text("\(serverConnection.config.host):\(serverConnection.config.tunnelPort)")
+                    .font(.caption)
+                    .foregroundColor(.gray)
+            }
+            
+            Button(action: {
+                serverConnection.checkConnection()
+            }) {
+                HStack {
+                    Image(systemName: "arrow.clockwise")
+                    Text("刷新连接")
+                }
+                .font(.caption)
+                .foregroundColor(.white)
+                .padding()
+                .frame(maxWidth: .infinity)
+                .background(RoundedRectangle(cornerRadius: 8).fill(Color.blue))
+            }
+        }
+        .padding()
+        .background(RoundedRectangle(cornerRadius: 16).fill(Color(red: 20/255, green: 40/255, blue: 35/255)))
+    }
+    
+    // MARK: - 系统提示词
+    private var systemPromptSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "text.message")
+                    .foregroundColor(.purple)
+                Text("System Prompt")
+                    .font(.headline)
+                    .foregroundColor(.white)
+            }
+            
+            TextEditor(text: $chatManager.systemPrompt)
+                .frame(minHeight: 100)
+                .padding(12)
+                .background(Color(red: 30/255, green: 30/255, blue: 50/255))
+                .cornerRadius(8)
+            
+            Button(action: {
+                chatManager.saveSystemPrompt()
+            }) {
+                Text("保存提示词")
+                    .font(.caption)
+                    .foregroundColor(.white)
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .background(RoundedRectangle(cornerRadius: 8).fill(Color.purple))
+            }
+        }
+        .padding()
+        .background(RoundedRectangle(cornerRadius: 16).fill(Color(red: 35/255, green: 25/255, blue: 55/255)))
+    }
+    
+    // MARK: - 费用监控
+    private var costMonitoringSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "yensign")
+                    .foregroundColor(.yellow)
+                Text("Cost Monitoring")
+                    .font(.headline)
+                    .foregroundColor(.white)
+            }
+            
+            HStack {
+                Text("已用 Token")
+                    .font(.caption)
+                    .foregroundColor(.gray)
+                Spacer()
+                Text("\(llmManager.totalTokensUsed)")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.white)
+            }
+            
+            HStack {
+                Text("估算费用")
+                    .font(.caption)
+                    .foregroundColor(.gray)
+                Spacer()
+                Text("¥\(String(format: "%.4f", llmManager.totalCostEstimate))")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.yellow)
+            }
+            
+            HStack {
+                Text("费用阈值")
+                    .font(.caption)
+                    .foregroundColor(.gray)
+                Spacer()
+                TextField("设置阈值", value: $llmManager.costThreshold, format: .number)
+                    .keyboardType(.decimalPad)
+                    .multilineTextAlignment(.trailing)
+                    .foregroundColor(.white)
+            }
+            
+            Toggle("自动切换", isOn: $llmManager.autoSwitchEnabled)
+                .labelsHidden()
+        }
+        .padding()
+        .background(RoundedRectangle(cornerRadius: 16).fill(Color(red: 50/255, green: 45/255, blue: 20/255)))
+    }
+    
+    // MARK: - 关于
+    private var aboutSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "info.circle")
+                    .foregroundColor(.gray)
+                Text("关于")
+                    .font(.headline)
+                    .foregroundColor(.white)
+            }
+            
+            HStack {
+                Text("版本")
+                    .font(.caption)
+                    .foregroundColor(.gray)
+                Spacer()
+                Text("1.0.0")
+                    .font(.caption)
+                    .foregroundColor(.white)
+            }
+            
+            HStack {
+                Text("架构")
+                    .font(.caption)
+                    .foregroundColor(.gray)
+                Spacer()
+                Text("手机端感知 + 云端决策")
+                    .font(.caption)
+                    .foregroundColor(.white)
+            }
+        }
+        .padding()
+        .background(RoundedRectangle(cornerRadius: 16).fill(Color(red: 25/255, green: 25/255, blue: 25/255)))
     }
 }
 
@@ -220,7 +353,8 @@ struct SettingsView: View {
 struct SettingsView_Previews: PreviewProvider {
     static var previews: some View {
         SettingsView()
-            .environmentObject(LifeCore())
-            .environmentObject(MindCore(lifeCoreReadOnly: LifeCoreReadOnlyWrapper(lifeCore: LifeCore())))
+            .environmentObject(LLMManager())
+            .environmentObject(ServerConnectionManager())
+            .environmentObject(ChatManager())
     }
 }

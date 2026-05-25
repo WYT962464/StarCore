@@ -1,9 +1,0 @@
-Package: com.starcore.app
-Name: StarCoreApp
-Version: 8.4.0
-Architecture: iphoneos-arm64
-Description: StarCore Native App v8.4 - 免费LLM + Markdown + 流式输出 + Agent
-Maintainer: StarCore
-Author: StarCore
-Section: Applications
-Depends: firmware (>= 14.0)
