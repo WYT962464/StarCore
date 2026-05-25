@@ -33,22 +33,16 @@ jobs:
         if: success()
         run: |
           echo "=== Archive Contents ==="
-          ls -la build/StarCore.xcarchive/Products/Applications/
-          
-          # 查找 .app 文件
-          APP_PATH=$(find build/StarCore.xcarchive/Products/Applications -name "*.app" -type d | head -1)
-          if [ -z "$APP_PATH" ]; then
-            echo "ERROR: No .app found in archive"
-            exit 1
-          fi
-          echo "Found app: $APP_PATH"
+          find build/StarCore.xcarchive -type d -name "*.app"
           
           mkdir -p IPA/Payload
-          cp -R "$APP_PATH" IPA/Payload/
+          
+          # 直接复制整个 Products/Applications 目录
+          cp -R build/StarCore.xcarchive/Products/Applications/* IPA/Payload/
           
           cd IPA
           zip -r StarCore-unsigned.ipa Payload/
-          echo "IPA created!"
+          echo "=== IPA Created ==="
           ls -lh StarCore-unsigned.ipa
 
       - name: Upload IPA artifact
