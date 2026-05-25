@@ -31,7 +31,7 @@ struct HistoryView: View {
                             VStack(spacing: 8) {
                                 Text("最近变化").font(.headline).foregroundColor(.white.opacity(0.8))
                                 HStack(spacing: 20) {
-                                    TrendItem(label: "气血", current: latest.batteryAvg, previous: prev.batteryAvg, isPercent: true, color: .green)
+                                    TrendItem(label: "气血", current: Double(latest.batteryAvg), previous: Double(prev.batteryAvg), isPercent: true, color: .green)
                                     TrendItem(label: "心跳", current: latest.cpuAvg, previous: prev.cpuAvg, isPercent: false, color: .red)
                                     TrendItem(label: "思维", current: latest.memoryAvg, previous: prev.memoryAvg, isPercent: false, color: .purple)
                                 }
