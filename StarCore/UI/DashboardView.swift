@@ -6,6 +6,7 @@ struct DashboardView: View {
     @EnvironmentObject var mindCore: MindCore
     
     @State private var selectedTab = 0
+    @State private var showHistory = false
     
     var body: some View {
         NavigationView {
@@ -40,8 +41,26 @@ struct DashboardView: View {
                 // 启动时自动检测操控服务连接
                 ActionCoordinator.shared.connectAll()
             }
+            .sheet(isPresented: $showHistory) {
+                NavigationView {
+                    HistoryView(history: loadHistory())
+                        .navigationTitle("成长轨迹")
+                        .navigationBarTitleDisplayMode(.inline)
+                }
+            }
         }
         .preferredColorScheme(.dark)
+    }
+    
+    // 加载历史记录
+    private func loadHistory() -> [DailyStats] {
+        let statsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("starcore_history.json")
+        if let data = try? Data(contentsOf: statsURL),
+           let history = try? JSONDecoder().decode([DailyStats].self, from: data) {
+            return history
+        }
+        return []
     }
     
     private var topStatusBar: some View {
@@ -65,6 +84,16 @@ struct DashboardView: View {
                     .foregroundColor(.secondary)
             }
             Spacer()
+            // 成长轨迹按钮
+            Button(action: { showHistory = true }) {
+                HStack(spacing: 4) {
+                    Image(systemName: "chart.xyaxis.line")
+                        .font(.caption2)
+                    Text("轨迹")
+                        .font(.caption2)
+                }
+                .foregroundColor(.cyan)
+            }
             Text(currentTime)
                 .font(.caption)
                 .foregroundColor(.secondary)
