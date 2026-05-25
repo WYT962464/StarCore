@@ -31,6 +31,13 @@ struct DashboardView: View {
                             .tag(2)
                         SystemLogsView()
                             .tag(3)
+                        // 新增页面
+                        ChatView()
+                            .tag(4)
+                        MemoryFilesView()
+                            .tag(5)
+                        SettingsView()
+                            .tag(6)
                     }
                     .tabViewStyle(.page(indexDisplayMode: .never))
                 }
@@ -103,14 +110,19 @@ struct DashboardView: View {
     }
     
     private var tabSelector: some View {
-        HStack(spacing: 0) {
-            tabButton("生命体征", index: 0)
-            tabButton("情绪", index: 1)
-            tabButton("操控", index: 2)
-            tabButton("日志", index: 3)
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 0) {
+                tabButton("生命体征", index: 0)
+                tabButton("情绪", index: 1)
+                tabButton("操控", index: 2)
+                tabButton("日志", index: 3)
+                tabButton("聊天", index: 4)
+                tabButton("记忆", index: 5)
+                tabButton("设置", index: 6)
+            }
+            .padding(.horizontal)
+            .padding(.bottom, 10)
         }
-        .padding(.horizontal)
-        .padding(.bottom, 10)
     }
     
     private func tabButton(_ title: String, index: Int) -> some View {
