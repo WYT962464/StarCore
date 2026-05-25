@@ -21,7 +21,7 @@ jobs:
 
       - name: Build Archive
         run: |
-          xcodebuild archive             -project StarCore.xcodeproj             -scheme StarCore             -sdk iphoneos             -configuration Release             -archivePath build/StarCore.xcarchive             CODE_SIGN_IDENTITY="-"             CODE_SIGNING_REQUIRED=NO             CODE_SIGNING_ALLOWED=NO             2>&1 | tee build.log
+          xcodebuild archive             -project StarCore.xcodeproj             -scheme StarCore             -sdk iphoneos             -configuration Release             -archivePath build/StarCore.xcarchive             CODE_SIGN_IDENTITY="-"             CODE_SIGNING_REQUIRED=NO             2>&1 | tee build.log
 
       - name: Show Build Log on Failure
         if: failure()
@@ -29,34 +29,30 @@ jobs:
           echo "=== Build Log ==="
           cat build.log || echo "No build log"
 
-      - name: Export IPA
+      - name: Create IPA
         if: success()
         run: |
           echo "=== Archive Contents ==="
           find build/StarCore.xcarchive -name "*.app" -type d
           
-          # 创建导出配置文件 - 使用 debugging 方法（无签名）
-          cat > exportOptions.plist << 'EOF'
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-              <key>method</key>
-              <string>debugging</string>
-              <key>compileBitcode</key>
-              <false/>
-          </dict>
-          </plist>
-          EOF
+          # 查找 .app 文件
+          APP_PATH=$(find build/StarCore.xcarchive -name "*.app" -type d | head -1)
+          if [ -z "$APP_PATH" ]; then
+            echo "ERROR: No .app found"
+            exit 1
+          fi
+          echo "Found app: $APP_PATH"
           
-          mkdir -p IPA
-          xcodebuild -exportArchive             -archivePath build/StarCore.xcarchive             -exportPath IPA             -exportOptionsPlist exportOptions.plist             CODE_SIGN_IDENTITY="-"             CODE_SIGNING_REQUIRED=NO             2>&1 | tee export.log
+          # 创建 Payload 目录
+          mkdir -p IPA/Payload
+          cp -R "$APP_PATH" IPA/Payload/
           
-          echo "=== Export Log ==="
-          cat export.log
+          # 创建 IPA
+          cd IPA
+          zip -r StarCore.ipa Payload/
           
-          echo "=== IPA Contents ==="
-          ls -lh IPA/ 2>/dev/null || echo "No IPA files"
+          echo "=== IPA Created ==="
+          ls -lh StarCore.ipa
 
       - name: Upload IPA artifact
         if: success()
