@@ -1,4 +1,4 @@
-name: Build iOS App
+name: Build iOS App with Tweak
 
 on:
   push:
@@ -6,12 +6,21 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
-    name: Build IPA
+  build-app:
+    name: Build App IPA
     runs-on: macos-14
+    outputs:
+      app-version: ${{ steps.version.outputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Get version
+        id: version
+        run: |
+          VERSION=$(grep -oP 'CFBundleShortVersionString\s*<string>\K[^<]+' StarCore/Info.plist 2>/dev/null || echo "1.0.0")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "App version: $VERSION"
 
       - name: Install xcodegen
         run: brew install xcodegen
@@ -19,71 +28,191 @@ jobs:
       - name: Generate Xcode Project
         run: xcodegen generate
 
-      - name: Show Generated Project
-        run: |
-          echo "=== Generated Project Structure ==="
-          find . -name "*.xcodeproj" -type d
-          echo ""
-          echo "=== project.pbxproj (first 100 lines) ==="
-          head -100 StarCore.xcodeproj/project.pbxproj
-
       - name: Build Archive
         run: |
           echo "=== Starting Build Archive ==="
-          xcodebuild archive             -project StarCore.xcodeproj             -scheme StarCore             -sdk iphoneos             -configuration Release             -archivePath build/StarCore.xcarchive             CODE_SIGN_IDENTITY="-"             CODE_SIGNING_REQUIRED=NO             2>&1 | tee build.log
-          
-          echo "=== Build Log (last 50 lines) ==="
-          tail -50 build.log
+          xcodebuild archive \
+            -project StarCore.xcodeproj \
+            -scheme StarCore \
+            -sdk iphoneos \
+            -configuration Release \
+            -archivePath build/StarCore.xcarchive \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_REQUIRED=NO \
+            2>&1 | tee build.log
 
-      - name: Check Archive Contents
-        continue-on-error: true
-        run: |
-          echo "=== Archive Structure ==="
-          find build/StarCore.xcarchive -type d | head -30
-          echo ""
-          echo "=== Products/Applications ==="
-          ls -la build/StarCore.xcarchive/Products/Applications/ 2>/dev/null || echo "Not found"
-          echo ""
-          echo "=== All .app files ==="
-          find build/StarCore.xcarchive -name "*.app" -type d
-          echo ""
-          echo "=== xcarchive Info.plist ==="
-          cat build/StarCore.xcarchive/Info.plist 2>/dev/null | head -50 || echo "Not found"
+          echo "=== Build Log (last 30 lines) ==="
+          tail -30 build.log
 
-      - name: Create IPA
+      - name: Package App IPA
         run: |
-          echo "=== Archive Contents ==="
-          find build/StarCore.xcarchive -name "*.app" -type d
-          
-          # 查找 .app 文件
           APP_PATH=$(find build/StarCore.xcarchive -name "*.app" -type d | head -1)
           
           if [ -z "$APP_PATH" ]; then
             echo "ERROR: No .app found in archive"
-            echo "Archive structure:"
-            find build/StarCore.xcarchive -type d
             exit 1
           fi
-          
+
           echo "Found app: $APP_PATH"
-          echo "App contents:"
-          ls -la "$APP_PATH"
           
-          # 创建 Payload 目录
-          mkdir -p IPA/Payload
+          mkdir -p IPA
           cp -R "$APP_PATH" IPA/Payload/
-          
-          # 创建 IPA
           cd IPA
           zip -r StarCore.ipa Payload/
           
-          echo "=== IPA Created ==="
+          echo "=== App IPA Created ==="
           ls -lh StarCore.ipa
 
-      - name: Upload IPA artifact
-        if: success()
+      - name: Upload App Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: StarCore-unsigned
+          name: StarCore-App
           path: IPA/*.ipa
           retention-days: 30
+
+  build-tweak-deb:
+    name: Build Tweak .deb Package
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Theos
+        run: |
+          echo "=== Installing Theos ==="
+          rm -rf ~/.theos
+          git clone --depth 1 https://github.com/theos/theos.git ~/.theos
+          
+          # Download iOS SDK (iPhoneOS15.0)
+          mkdir -p ~/.theos/sdks
+          echo "Downloading iOS SDK..."
+          curl -L --connect-timeout 30 --max-time 300 \
+            -o ~/.theos/sdks/iPhoneOS15.0.sdk.tar.xz \
+            "https://github.com/aricloverALT/sdks/raw/master/iPhoneOS15.0.sdk.tar.xz" || \
+          curl -L --connect-timeout 30 --max-time 300 \
+            -o ~/.theos/sdks/iPhoneOS15.0.sdk.tar.xz \
+            "https://github.com/xybp888/iOS-SDKs/raw/master/iPhoneOS15.0.sdk.tar.xz" || \
+          { echo "SDK download failed, trying alternative..."; exit 1; }
+          
+          echo "Extracting SDK..."
+          tar -xf ~/.theos/sdks/iPhoneOS15.0.sdk.tar.xz -C ~/.theos/sdks/
+          
+          # Install ld64
+          ~/.theos/bin/install-ld64.sh 2>&1 || true
+          
+          echo "=== Theos Setup ==="
+          echo "THEOS=/Users/runner/.theos" >> $GITHUB_ENV
+          ls -la ~/.theos/
+          ls ~/.theos/sdks/
+
+      - name: Build Tweak
+        run: |
+          export THEOS=/Users/runner/.theos
+          export THEOS_DEVICE_IP=local
+          
+          cd StarCoreTweak
+          
+          echo "=== Building StarCoreTweak ==="
+          make clean 2>&1 || true
+          make package FINALPACKAGE=1 2>&1 | tee tweak_build.log || {
+            echo "=== Build failed, showing log ==="
+            cat tweak_build.log
+            exit 1
+          }
+          
+          echo "=== Build Log (last 30 lines) ==="
+          tail -30 tweak_build.log
+          
+          # Find the .deb package
+          DEB_FILE=$(find packages -name "*.deb" -type f | head -1)
+          if [ -n "$DEB_FILE" ]; then
+            echo "Tweak package: $DEB_FILE"
+            ls -lh "$DEB_FILE"
+          else
+            echo "ERROR: No .deb package found"
+            find . -name "*.deb" 2>/dev/null
+            exit 1
+          fi
+
+      - name: Upload Tweak Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: StarCoreTweak
+          path: StarCoreTweak/packages/*.deb
+          retention-days: 30
+
+  release:
+    name: Create Release
+    runs-on: macos-14
+    needs: [build-app, build-tweak-deb]
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Download App
+        uses: actions/download-artifact@v4
+        with:
+          name: StarCore-App
+          path: ./app/
+
+      - name: Download Tweak
+        uses: actions/download-artifact@v4
+        with:
+          name: StarCoreTweak
+          path: ./tweak/
+
+      - name: Create Release Files
+        run: |
+          echo "=== Release Files ==="
+          ls -lh ./app/
+          ls -lh ./tweak/
+          
+          # Create combined download info
+          APP_FILE=$(find ./app -name "*.ipa" | head -1)
+          TWEAK_FILE=$(find ./tweak -name "*.deb" | head -1)
+          
+          echo "App: $APP_FILE ($(du -h "$APP_FILE" | cut -f1))"
+          echo "Tweak: $TWEAK_FILE ($(du -h "$TWEAK_FILE" | cut -f1))"
+          
+          # Generate install instructions
+          cat > INSTALL.md << 'EOF'
+          # StarCore 安装指南
+          
+          ## 文件说明
+          - `StarCore.ipa` - 主应用程序
+          - `StarCoreTweak.deb` - Tweak 插件（操控功能）
+          
+          ## 安装步骤
+          
+          ### 方法 1：完整安装（推荐）
+          1. 用 AltStore/Sideloadly 安装 `StarCore.ipa`
+          2. 用 Filza 或 Sileo 安装 `StarCoreTweak.deb`
+          3. 重启 SpringBoard（`killall SpringBoard`）
+          4. 打开 App，操控功能即可使用
+          
+          ### 方法 2：仅安装 App
+          1. 用 AltStore/Sideloadly 安装 `StarCore.ipa`
+          2. 操控功能需要额外安装 Tweak
+          
+          ## 验证 Tweak 是否安装成功
+          1. 打开 StarCore App
+          2. 进入"设置"页面
+          3. 查看"Tweak 连接"状态
+          4. 如果显示"已连接"，说明安装成功
+          
+          ## 故障排除
+          - 如果 Tweak 未加载，检查 `/var/jb/usr/lib/TweakInject/` 是否有文件
+          - 确保 SpringBoard 已重启
+          - 确保使用 Dopamine rootless 越狱环境
+          EOF
+          
+          cat INSTALL.md
+
+      - name: Upload Release Assets
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            ./app/*.ipa
+            ./tweak/*.deb
+            INSTALL.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
