@@ -35,18 +35,16 @@ jobs:
           echo "=== Archive Contents ==="
           ls -la build/StarCore.xcarchive/Products/Applications/
           
-          # 创建导出配置文件
+          # 创建导出配置文件 - 使用 ad-hoc 方法
           cat > exportOptions.plist << 'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
           <dict>
               <key>method</key>
-              <string>debugging</string>
+              <string>ad-hoc</string>
               <key>compileBitcode</key>
               <false/>
-              <key>signingStyle</key>
-              <string>automatic</string>
               <key>provisioningProfiles</key>
               <dict/>
           </dict>
