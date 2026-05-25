@@ -13,6 +13,7 @@ targets:
     - path: StarCore
       excludes:
       - '**/*.md'
+    - path: StarCore/Resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.starcore.app
