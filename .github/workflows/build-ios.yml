@@ -29,21 +29,35 @@ jobs:
           echo "=== Build Log ==="
           cat build.log || echo "No build log"
 
-      - name: Package IPA
+      - name: Export IPA
         if: success()
         run: |
           echo "=== Archive Contents ==="
-          find build/StarCore.xcarchive -type d -name "*.app"
+          ls -la build/StarCore.xcarchive/Products/Applications/
           
-          mkdir -p IPA/Payload
+          # 创建导出配置文件
+          cat > exportOptions.plist << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>method</key>
+              <string>debugging</string>
+              <key>compileBitcode</key>
+              <false/>
+              <key>signingStyle</key>
+              <string>automatic</string>
+              <key>provisioningProfiles</key>
+              <dict/>
+          </dict>
+          </plist>
+          EOF
           
-          # 直接复制整个 Products/Applications 目录
-          cp -R build/StarCore.xcarchive/Products/Applications/* IPA/Payload/
+          mkdir -p IPA
+          xcodebuild -exportArchive             -archivePath build/StarCore.xcarchive             -exportPath IPA             -exportOptionsPlist exportOptions.plist             2>&1 | tee export.log
           
-          cd IPA
-          zip -r StarCore-unsigned.ipa Payload/
           echo "=== IPA Created ==="
-          ls -lh StarCore-unsigned.ipa
+          ls -lh IPA/*.ipa 2>/dev/null || echo "No IPA found"
 
       - name: Upload IPA artifact
         if: success()
