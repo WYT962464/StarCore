@@ -2,7 +2,7 @@ name: Build iOS App
 
 on:
   push:
-    branches: [ main, v1.0-dual-layer ]
+    branches: [ v1.0-unified ]
   workflow_dispatch:
 
 jobs:
