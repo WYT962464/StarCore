@@ -1,15 +1,56 @@
 import Foundation
 import UIKit
 
-/// 硬件传感器 - 复用旧的传感器读取逻辑
-/// 获取设备电池、CPU等硬件状态
-final class HardwareSensor {
-    // MARK: - Battery
+/// 硬件传感器 - 获取设备真实硬件状态
+/// 只暴露真实数据，不做虚假映射
+final class HardwareSensor: ObservableObject {
+    // MARK: - Published Properties (真实数据)
+    @Published var batteryLevel: Float = 1.0
+    @Published var batteryState: UIDevice.BatteryState = .unknown
+    @Published var cpuUsage: Float = 0.0
+    @Published var thermalState: ProcessInfo.ThermalState = .nominal
+    @Published var memoryUsedMB: UInt64 = 0
+    @Published var memoryTotalMB: UInt64 = 0
+    @Published var memoryUsagePercent: Float = 0.0
+    @Published var deviceModel: String = ""
+    @Published var systemVersion: String = ""
+    
+    // MARK: - Initialization
+    init() {
+        refresh()
+    }
+    
+    // MARK: - Refresh
+    /// 刷新所有真实硬件数据
+    func refresh() {
+        // 电池
+        UIDevice.current.isBatteryMonitoringEnabled = true
+        let level = UIDevice.current.batteryLevel
+        batteryLevel = level < 0 ? 1.0 : level
+        batteryState = UIDevice.current.batteryState
+        
+        // CPU (Mach API 真实线程分析)
+        cpuUsage = getCPUUsage()
+        
+        // 热状态 (系统级)
+        thermalState = ProcessInfo.processInfo.thermalState
+        
+        // 内存 (Mach API 真实物理内存)
+        let mem = getMemoryUsage()
+        memoryUsedMB = mem.used / 1024 / 1024
+        memoryTotalMB = mem.total / 1024 / 1024
+        memoryUsagePercent = getMemoryUsagePercent()
+        
+        // 设备信息
+        deviceModel = getDeviceModel()
+        systemVersion = getSystemVersion()
+    }
+    
+    // MARK: - Raw Data Methods (保留原始方法供其他模块使用)
     /// 获取电池电量 (0.0-1.0)
     func getBatteryLevel() -> Float {
         UIDevice.current.isBatteryMonitoringEnabled = true
         let level = UIDevice.current.batteryLevel
-        // 模拟器返回-1，返回默认值1.0
         return level < 0 ? 1.0 : level
     }
     
@@ -19,8 +60,7 @@ final class HardwareSensor {
         return UIDevice.current.batteryState
     }
     
-    // MARK: - CPU
-    /// 获取CPU使用率 (0-100)
+    /// 获取 CPU 使用率 (0-100) - Mach API 真实线程分析
     func getCPUUsage() -> Float {
         var totalUsageOfCPU: Float = 0.0
         var threadsList = UnsafeMutablePointer(mutating: [thread_act_t]())
@@ -55,14 +95,12 @@ final class HardwareSensor {
         return min(totalUsageOfCPU, 100.0)
     }
     
-    // MARK: - Thermal
     /// 获取设备热状态
     func getThermalState() -> ProcessInfo.ThermalState {
         return ProcessInfo.processInfo.thermalState
     }
     
-    // MARK: - Memory
-    /// 获取内存使用情况
+    /// 获取内存使用情况 - Mach API 真实物理内存
     func getMemoryUsage() -> (used: UInt64, total: UInt64) {
         var taskInfo = task_vm_info_data_t()
         var count = mach_msg_type_number_t(MemoryLayout<task_vm_info>.size) / 4
@@ -81,10 +119,9 @@ final class HardwareSensor {
     /// 获取内存使用百分比
     func getMemoryUsagePercent() -> Float {
         let (used, total) = getMemoryUsage()
-        return Float(used) / Float(total)
+        return total > 0 ? Float(used) / Float(total) : 0.0
     }
     
-    // MARK: - Device Info
     /// 获取设备型号
     func getDeviceModel() -> String {
         var systemInfo = utsname()
