@@ -29,19 +29,34 @@ jobs:
           echo "=== Build Log ==="
           cat build.log || echo "No build log"
 
+      - name: Check Archive Contents
+        if: success()
+        run: |
+          echo "=== Archive Structure ==="
+          find build/StarCore.xcarchive -type d | head -20
+          echo ""
+          echo "=== Products/Applications ==="
+          ls -la build/StarCore.xcarchive/Products/Applications/ 2>/dev/null || echo "Not found"
+          echo ""
+          echo "=== All .app files ==="
+          find build/StarCore.xcarchive -name "*.app" -type d
+
       - name: Create IPA
         if: success()
         run: |
-          echo "=== Archive Contents ==="
-          find build/StarCore.xcarchive -name "*.app" -type d
-          
           # 查找 .app 文件
           APP_PATH=$(find build/StarCore.xcarchive -name "*.app" -type d | head -1)
+          
           if [ -z "$APP_PATH" ]; then
-            echo "ERROR: No .app found"
+            echo "ERROR: No .app found in archive"
+            echo "Archive contents:"
+            find build/StarCore.xcarchive -type f | head -20
             exit 1
           fi
+          
           echo "Found app: $APP_PATH"
+          echo "App contents:"
+          ls -la "$APP_PATH"
           
           # 创建 Payload 目录
           mkdir -p IPA/Payload
