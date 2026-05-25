@@ -13,7 +13,8 @@ struct StarCoreApp: App {
     
     var body: some Scene {
         WindowGroup {
-            DashboardView()
+            // 使用新的控制台作为主界面
+            StarCoreConsole()
                 .environmentObject(lifeCore)
                 .environmentObject(mindCore)
         }
