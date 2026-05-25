@@ -21,7 +21,7 @@ jobs:
 
       - name: Build Archive
         run: |
-          xcodebuild archive             -project StarCore.xcodeproj             -scheme StarCore             -sdk iphoneos             -configuration Release             -archivePath build/StarCore.xcarchive             SKIP_INSTALL=NO             BUILD_LIBRARY_FOR_DISTRIBUTION=NO             CODE_SIGN_IDENTITY="-"             CODE_SIGNING_REQUIRED=NO             CODE_SIGNING_ALLOWED=NO             2>&1 | tee build.log
+          xcodebuild archive             -project StarCore.xcodeproj             -scheme StarCore             -sdk iphoneos             -configuration Release             -archivePath build/StarCore.xcarchive             CODE_SIGN_IDENTITY="-"             CODE_SIGNING_REQUIRED=NO             CODE_SIGNING_ALLOWED=NO             2>&1 | tee build.log
 
       - name: Show Build Log on Failure
         if: failure()
@@ -33,26 +33,24 @@ jobs:
         if: success()
         run: |
           echo "=== Archive Contents ==="
-          ls -la build/StarCore.xcarchive/Products/Applications/
+          find build/StarCore.xcarchive -name "*.app" -type d
           
-          # 创建导出配置文件 - 使用 ad-hoc 方法
+          # 创建导出配置文件 - 使用 debugging 方法（无签名）
           cat > exportOptions.plist << 'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
           <dict>
               <key>method</key>
-              <string>ad-hoc</string>
+              <string>debugging</string>
               <key>compileBitcode</key>
               <false/>
-              <key>provisioningProfiles</key>
-              <dict/>
           </dict>
           </plist>
           EOF
           
           mkdir -p IPA
-          xcodebuild -exportArchive             -archivePath build/StarCore.xcarchive             -exportPath IPA             -exportOptionsPlist exportOptions.plist             2>&1 | tee export.log
+          xcodebuild -exportArchive             -archivePath build/StarCore.xcarchive             -exportPath IPA             -exportOptionsPlist exportOptions.plist             CODE_SIGN_IDENTITY="-"             CODE_SIGNING_REQUIRED=NO             2>&1 | tee export.log
           
           echo "=== Export Log ==="
           cat export.log
