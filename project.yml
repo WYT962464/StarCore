@@ -38,8 +38,8 @@ targets:
         CODE_SIGN_IDENTITY: ''
         CODE_SIGNING_REQUIRED: false
         CODE_SIGNING_ALLOWED: false
-        ARCHS: arm64
-        VALID_ARCHS: arm64
+        ARCHS: x86_64 arm64
+        VALID_ARCHS: x86_64 arm64
       configs:
         Release:
           SWIFT_OPTIMIZATION_LEVEL: -O
