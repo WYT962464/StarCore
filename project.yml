@@ -5,34 +5,13 @@ options:
     iOS: '15.0'
   createIntermediateGroups: true
   projectFormat: xcode15_0
-  # 显式定义 scheme
-  schemes:
-    StarCore:
-      build:
-        targets:
-          StarCore: all
-      run:
-        executable: StarCore
-      archive:
-        targets:
-          StarCore: all
 
 targets:
   StarCore:
     type: application
     platform: iOS
     sources:
-      # 显式列出所有源目录，确保 xcodegen 正确包含所有 Swift 文件
-      - path: StarCore/App
-      - path: StarCore/Services
-      - path: StarCore/UI
-      - path: StarCore/PhaseX/Core
-      - path: StarCore/PhaseX/Body
-      - path: StarCore/PhaseX/Survival
-      - path: StarCore/PhaseX/Storage
-      - path: StarCore/PhaseXII/Mind
-      - path: StarCore/PhaseXII/Emotion
-      - path: StarCore/PhaseXII/Persona
+      - path: StarCore
     resources:
       - path: StarCore/Resources
     settings:
@@ -48,7 +27,6 @@ targets:
         CODE_SIGN_IDENTITY: ''
         CODE_SIGNING_REQUIRED: false
         CODE_SIGNING_ALLOWED: false
-        # 使用模拟器架构
         ARCHS: x86_64
         VALID_ARCHS: x86_64 arm64
       configs:

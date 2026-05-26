@@ -1,4 +1,4 @@
-name: Build iOS App with Tweak
+name: Build iOS App
 
 on:
   push:
@@ -9,8 +9,6 @@ jobs:
   build-app:
     name: Build App IPA
     runs-on: macos-14
-    outputs:
-      app-version: ${{ steps.version.outputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -28,33 +26,26 @@ jobs:
       - name: Generate Xcode Project
         run: xcodegen generate
 
+      - name: Show Project Info
+        run: |
+          echo "=== Project Structure ==="
+          ls -la
+          echo ""
+          echo "=== StarCore Directory ==="
+          find StarCore -name "*.swift" | head -20
+          echo ""
+          echo "=== Generated Project ==="
+          if [ -f StarCore.xcodeproj/project.pbxproj ]; then
+            echo "project.pbxproj: $(wc -l < StarCore.xcodeproj/project.pbxproj) lines"
+            echo "Swift files in project:"
+            grep -c "\.swift" StarCore.xcodeproj/project.pbxproj || echo "0"
+          fi
+          echo ""
+          echo "=== xcodebuild -list ==="
+          xcodebuild -project StarCore.xcodeproj -list 2>&1
+
       - name: Build App
         run: |
-          echo "=== Building App (Simulator SDK) ==="
-          
-          # 先检查 xcodegen 是否生成正确的项目
-          echo "=== Checking generated project ==="
-          if [ -f StarCore.xcodeproj/project.pbxproj ]; then
-            echo "project.pbxproj exists ($(wc -l < StarCore.xcodeproj/project.pbxproj) lines)"
-            echo "Checking for Swift files in project:"
-            SWIFT_COUNT=$(grep -c "\.swift" StarCore.xcodeproj/project.pbxproj 2>/dev/null || echo "0")
-            echo "Found $SWIFT_COUNT Swift file references"
-            
-            # 显示所有 Swift 文件引用
-            echo ""
-            echo "Swift files in project:"
-            grep "\.swift" StarCore.xcodeproj/project.pbxproj | head -30
-          else
-            echo "ERROR: project.pbxproj not found!"
-            exit 1
-          fi
-          
-          echo ""
-          echo "=== Listing available schemes and targets ==="
-          xcodebuild -project StarCore.xcodeproj -list 2>&1 || echo "xcodebuild -list failed"
-          
-          echo ""
-          echo "=== Running xcodebuild ==="
           xcodebuild build \
             -project StarCore.xcodeproj \
             -scheme StarCore \
@@ -64,71 +55,45 @@ jobs:
             CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_REQUIRED=NO \
             2>&1 | tee build.log
-          
+
           BUILD_EXIT_CODE=${PIPESTATUS[0]}
-          echo ""
-          echo "=== xcodebuild exit code: $BUILD_EXIT_CODE ==="
           
           echo ""
-          echo "=== Build Log (last 100 lines) ==="
-          tail -100 build.log
+          echo "=== Build Exit Code: $BUILD_EXIT_CODE ==="
+          echo ""
+          echo "=== Build Log (last 50 lines) ==="
+          tail -50 build.log
           
           echo ""
-          echo "=== Checking Build Products ==="
-          echo "Looking for .app in all possible locations:"
-          find build -name "*.app" -type d -exec ls -lhR {} \; 2>/dev/null | head -100
+          echo "=== Build Products ==="
+          find build -name "*.app" -type d -exec ls -lhR {} \; 2>/dev/null | head -50
           
-          echo ""
-          echo "=== Build directory structure ==="
-          ls -la build/Build/Products/ 2>/dev/null || echo "Products not found"
-          ls -la build/Build/Products/Release-iphonesimulator/ 2>/dev/null || echo "Release-iphonesimulator not found"
-          
-          # 如果 xcodebuild 失败，显示错误
           if [ $BUILD_EXIT_CODE -ne 0 ]; then
             echo ""
-            echo "=== Build failed! Showing error lines ==="
-            grep -iE "error:|failed|cannot find|unknown" build.log | head -30 || echo "No error lines found"
+            echo "=== Errors ==="
+            grep -iE "error:|failed" build.log | head -20
             exit $BUILD_EXIT_CODE
           fi
 
       - name: Package App IPA
         run: |
-          echo "=== Checking Build Products ==="
-          echo "Searching for .app files in build directory:"
-          find build -name "*.app" -type d -exec ls -lh {} \;
-          
           APP_PATH=$(find build -name "*.app" -type d | head -1)
           
           if [ -z "$APP_PATH" ]; then
-            echo "ERROR: No .app found in build directory"
-            echo ""
-            echo "Build directory contents:"
-            ls -laR build/ 2>/dev/null | head -50
+            echo "ERROR: No .app found"
             exit 1
           fi
           
           echo "Found app: $APP_PATH"
-          echo "App size:"
           du -sh "$APP_PATH"
           
-          mkdir -p IPA
           mkdir -p IPA/Payload
           cp -R "$APP_PATH" IPA/Payload/
-          
-          echo "Payload contents:"
-          ls -laR IPA/Payload/
-          
           cd IPA
           zip -r StarCore.ipa Payload/
           
-          echo ""
-          echo "=== App IPA Created ==="
+          echo "=== IPA Created ==="
           ls -lh StarCore.ipa
-          echo ""
-          echo "IPA size: $(du -sh StarCore.ipa)"
-          echo ""
-          echo "IPA contents:"
-          unzip -l StarCore.ipa | head -30
 
       - name: Upload App Artifact
         uses: actions/upload-artifact@v4
@@ -136,150 +101,3 @@ jobs:
           name: StarCore-App
           path: IPA/*.ipa
           retention-days: 30
-
-  build-tweak-deb:
-    name: Build Tweak .deb Package
-    runs-on: macos-14
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install Theos
-        run: |
-          echo "=== Installing Theos ==="
-          rm -rf ~/.theos
-          git clone --depth 1 https://github.com/theos/theos.git ~/.theos
-          
-          # Download iOS SDK
-          mkdir -p ~/.theos/sdks
-          echo "Downloading iOS SDK..."
-          curl -L --connect-timeout 60 --max-time 600 \
-            -o ~/.theos/sdks/iPhoneOS16.0.sdk.tar.xz \
-            "https://github.com/aricloverALT/sdks/raw/master/iPhoneOS16.0.sdk.tar.xz" || \
-          curl -L --connect-timeout 60 --max-time 600 \
-            -o ~/.theos/sdks/iPhoneOS16.0.sdk.tar.xz \
-            "https://github.com/xybp888/iOS-SDKs/raw/master/iPhoneOS16.0.sdk.tar.xz" || \
-          { echo "SDK download failed"; exit 1; }
-          
-          echo "Extracting SDK..."
-          tar -xf ~/.theos/sdks/iPhoneOS16.0.sdk.tar.xz -C ~/.theos/sdks/
-          
-          # Install ld64
-          ~/.theos/bin/install-ld64.sh 2>&1 || true
-          
-          echo "=== Theos Setup ==="
-          echo "THEOS=/Users/runner/.theos" >> $GITHUB_ENV
-          ls -la ~/.theos/
-          ls ~/.theos/sdks/
-
-      - name: Build Tweak
-        run: |
-          export THEOS=/Users/runner/.theos
-          export THEOS_DEVICE_IP=local
-          
-          cd StarCoreTweak
-          
-          echo "=== Building StarCoreTweak ==="
-          make clean 2>&1 || true
-          make package FINALPACKAGE=1 2>&1 | tee tweak_build.log || {
-            echo "=== Build failed, showing log ==="
-            cat tweak_build.log
-            exit 1
-          }
-          
-          echo "=== Build Log (last 30 lines) ==="
-          tail -30 tweak_build.log
-          
-          # Find the .deb package
-          DEB_FILE=$(find packages -name "*.deb" -type f | head -1)
-          if [ -n "$DEB_FILE" ]; then
-            echo "Tweak package: $DEB_FILE"
-            ls -lh "$DEB_FILE"
-          else
-            echo "ERROR: No .deb package found"
-            find . -name "*.deb" 2>/dev/null
-            exit 1
-          fi
-
-      - name: Upload Tweak Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: StarCoreTweak
-          path: StarCoreTweak/packages/*.deb
-          retention-days: 30
-
-  release:
-    name: Create Release
-    runs-on: macos-14
-    needs: [build-app, build-tweak-deb]
-    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
-    steps:
-      - name: Download App
-        uses: actions/download-artifact@v4
-        with:
-          name: StarCore-App
-          path: ./app/
-
-      - name: Download Tweak
-        uses: actions/download-artifact@v4
-        with:
-          name: StarCoreTweak
-          path: ./tweak/
-
-      - name: Create Release Files
-        run: |
-          echo "=== Release Files ==="
-          ls -lh ./app/
-          ls -lh ./tweak/
-          
-          # Create combined download info
-          APP_FILE=$(find ./app -name "*.ipa" | head -1)
-          TWEAK_FILE=$(find ./tweak -name "*.deb" | head -1)
-          
-          echo "App: $APP_FILE ($(du -h "$APP_FILE" | cut -f1))"
-          echo "Tweak: $TWEAK_FILE ($(du -h "$TWEAK_FILE" | cut -f1))"
-          
-          # Generate install instructions
-          cat > INSTALL.md << 'EOF'
-          # StarCore 安装指南
-          
-          ## 文件说明
-          - `StarCore.ipa` - 主应用程序
-          - `StarCoreTweak.deb` - Tweak 插件（操控功能）
-          
-          ## 安装步骤
-          
-          ### 方法 1：完整安装（推荐）
-          1. 用 AltStore/Sideloadly 安装 `StarCore.ipa`
-          2. 用 Filza 或 Sileo 安装 `StarCoreTweak.deb`
-          3. 重启 SpringBoard（`killall SpringBoard`）
-          4. 打开 App，操控功能即可使用
-          
-          ### 方法 2：仅安装 App
-          1. 用 AltStore/Sideloadly 安装 `StarCore.ipa`
-          2. 操控功能需要额外安装 Tweak
-          
-          ## 验证 Tweak 是否安装成功
-          1. 打开 StarCore App
-          2. 进入"设置"页面
-          3. 查看"Tweak 连接"状态
-          4. 如果显示"已连接"，说明安装成功
-          
-          ## 故障排除
-          - 如果 Tweak 未加载，检查 `/var/jb/usr/lib/TweakInject/` 是否有文件
-          - 确保 SpringBoard 已重启
-          - 确保使用 Dopamine rootless 越狱环境
-          EOF
-          
-          cat INSTALL.md
-
-      - name: Upload Release Assets
-        uses: softprops/action-gh-release@v1
-        if: startsWith(github.ref, 'refs/tags/')
-        with:
-          files: |
-            ./app/*.ipa
-            ./tweak/*.deb
-            INSTALL.md
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
