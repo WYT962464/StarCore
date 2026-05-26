@@ -168,7 +168,8 @@ class SocketConnection {
                 }
                 
                 // 设置超时
-                var tv = timeval(tv_sec: Int32(timeout), tv_usec: 0)
+                let timeoutSeconds = Int32(timeout)
+                var tv = timeval(tv_sec: timeoutSeconds, tv_usec: 0)
                 setsockopt(socketFD, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
                 
                 let result = connect(socketFD, sockaddr_cast(&sockaddr), socklen_t(MemoryLayout<sockaddr_in>.size))

@@ -237,18 +237,18 @@ final class LLMManager: ObservableObject {
             "stream": true
         ]
         
-        guard let data = try? JSONSerialization.data(withJSONObject: requestBody) else {
+        guard let jsonData = try? JSONSerialization.data(withJSONObject: requestBody) else {
             throw LLMError.encodingFailed
         }
         
         var request = URLRequest(url: URL(string: provider.url)!)
         request.httpMethod = "POST"
-        request.httpBody = data
+        request.httpBody = jsonData
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(provider.apiKey)", forHTTPHeaderField: "Authorization")
         request.timeoutInterval = 60
         
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (streamData, response) = try await URLSession.shared.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
             throw LLMError.connectionFailed
         }
