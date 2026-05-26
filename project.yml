@@ -16,16 +16,25 @@ options:
       archive:
         targets:
           StarCore: all
+
 targets:
   StarCore:
     type: application
     platform: iOS
     sources:
-    - path: StarCore
-      excludes:
-      - '**/*.md'
+      # 显式列出所有源目录，确保 xcodegen 正确包含所有 Swift 文件
+      - path: StarCore/App
+      - path: StarCore/Services
+      - path: StarCore/UI
+      - path: StarCore/PhaseX/Core
+      - path: StarCore/PhaseX/Body
+      - path: StarCore/PhaseX/Survival
+      - path: StarCore/PhaseX/Storage
+      - path: StarCore/PhaseXII/Mind
+      - path: StarCore/PhaseXII/Emotion
+      - path: StarCore/PhaseXII/Persona
     resources:
-    - path: StarCore/Resources
+      - path: StarCore/Resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.starcore.app
@@ -39,7 +48,8 @@ targets:
         CODE_SIGN_IDENTITY: ''
         CODE_SIGNING_REQUIRED: false
         CODE_SIGNING_ALLOWED: false
-        ARCHS: x86_64 arm64
+        # 使用模拟器架构
+        ARCHS: x86_64
         VALID_ARCHS: x86_64 arm64
       configs:
         Release:

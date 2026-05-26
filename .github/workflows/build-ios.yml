@@ -17,8 +17,8 @@ jobs:
 
       - name: Get version
         id: version
-        run: |
-          VERSION=$(grep -oP 'CFBundleShortVersionString\s*<string>\K[^<]+' StarCore/Info.plist 2>/dev/null || echo "1.0.0")
+        run: |\
+          VERSION=$(grep -oP 'CFBundleShortVersionString\s*<string>\K[^<]+' StarCore/App/Info.plist 2>/dev/null || echo "1.0.0")
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "App version: $VERSION"
 
@@ -29,7 +29,7 @@ jobs:
         run: xcodegen generate
 
       - name: Build App
-        run: |
+        run: |\
           echo "=== Building App (Simulator SDK) ==="
           
           # 先检查 xcodegen 是否生成正确的项目
@@ -37,11 +37,21 @@ jobs:
           if [ -f StarCore.xcodeproj/project.pbxproj ]; then
             echo "project.pbxproj exists ($(wc -l < StarCore.xcodeproj/project.pbxproj) lines)"
             echo "Checking for Swift files in project:"
-            grep -c "\.swift" StarCore.xcodeproj/project.pbxproj || echo "No .swift references found"
+            SWIFT_COUNT=$(grep -c "\.swift" StarCore.xcodeproj/project.pbxproj 2>/dev/null || echo "0")
+            echo "Found $SWIFT_COUNT Swift file references"
+            
+            # 显示所有 Swift 文件引用
+            echo ""
+            echo "Swift files in project:"
+            grep "\.swift" StarCore.xcodeproj/project.pbxproj | head -30
           else
             echo "ERROR: project.pbxproj not found!"
             exit 1
           fi
+          
+          echo ""
+          echo "=== Listing available schemes and targets ==="
+          xcodebuild -project StarCore.xcodeproj -list 2>&1 || echo "xcodebuild -list failed"
           
           echo ""
           echo "=== Running xcodebuild ==="
@@ -60,8 +70,8 @@ jobs:
           echo "=== xcodebuild exit code: $BUILD_EXIT_CODE ==="
           
           echo ""
-          echo "=== Build Log (last 50 lines) ==="
-          tail -50 build.log
+          echo "=== Build Log (last 100 lines) ==="
+          tail -100 build.log
           
           echo ""
           echo "=== Checking Build Products ==="
@@ -77,7 +87,7 @@ jobs:
           if [ $BUILD_EXIT_CODE -ne 0 ]; then
             echo ""
             echo "=== Build failed! Showing error lines ==="
-            grep -i "error:" build.log | head -20 || echo "No error: lines found"
+            grep -iE "error:|failed|cannot find|unknown" build.log | head -30 || echo "No error lines found"
             exit $BUILD_EXIT_CODE
           fi
 
