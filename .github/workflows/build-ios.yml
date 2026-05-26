@@ -57,7 +57,7 @@ jobs:
         run: |
           echo "=== Checking Build Products ==="
           echo "Searching for .app files in build directory:"
-          find build -name "*.app" -type d
+          find build -name "*.app" -type d -exec ls -lh {} \;
           
           APP_PATH=$(find build -name "*.app" -type d | head -1)
           
@@ -70,10 +70,16 @@ jobs:
           fi
           
           echo "Found app: $APP_PATH"
+          echo "App size:"
+          du -sh "$APP_PATH"
           
           mkdir -p IPA
           mkdir -p IPA/Payload
           cp -R "$APP_PATH" IPA/Payload/
+          
+          echo "Payload contents:"
+          ls -laR IPA/Payload/
+          
           cd IPA
           zip -r StarCore.ipa Payload/
           
@@ -81,8 +87,10 @@ jobs:
           echo "=== App IPA Created ==="
           ls -lh StarCore.ipa
           echo ""
+          echo "IPA size: $(du -sh StarCore.ipa)"
+          echo ""
           echo "IPA contents:"
-          unzip -l StarCore.ipa | head -20
+          unzip -l StarCore.ipa | head -30
 
       - name: Upload App Artifact
         uses: actions/upload-artifact@v4
