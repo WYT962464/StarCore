@@ -34,6 +34,10 @@ final class LifeCore: ObservableObject {
     // MARK: - Body Engine
     let bodyEngine: BodyEngine
     
+    // MARK: - Phase XIII: 六十四卦元认知层
+    let hexagramEngine: HexagramEngine
+    let energyManager: EnergyManager
+    
     // MARK: - Initialization
     // 持久化统计（从备份恢复）
     private var persistedStats = PersistedStats()
@@ -45,8 +49,15 @@ final class LifeCore: ObservableObject {
         self.tardigradeMode = TardigradeMode()
         self.planarianRegen = PlanarianRegen()
         
+        // Phase XIII: 六十四卦元认知层
+        self.hexagramEngine = HexagramEngine()
+        self.energyManager = EnergyManager()
+        
         self.tardigradeMode.bind(lifeCore: self)
         self.planarianRegen.bind(lifeCore: self)
+        
+        // 启动六十四卦引擎
+        hexagramEngine.start()
         
         performStartupCheck()
         startHeartbeat()
@@ -56,6 +67,7 @@ final class LifeCore: ObservableObject {
         registerLifecycleObservers()
         
         addLog(.info, "LifeCore 初始化完成")
+        addLog(.info, "Phase XIII 六十四卦元认知层已启动")
     }
     
     deinit {

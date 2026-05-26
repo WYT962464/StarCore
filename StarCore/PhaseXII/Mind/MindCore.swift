@@ -10,6 +10,9 @@ final class MindCore: ObservableObject {
     private let personaState: PersonaState
     private let mindLock: MindLock
     
+    // Phase XIII: 六十四卦元认知层（通过 LifeCore 访问）
+    private var hexagramEngine: HexagramEngine?
+    
     // MARK: - Published Properties
     @Published var dominantEmotion: EmotionType = .neutral
     @Published var arousalLevel: Float = 0.5        // 唤醒度 0-1
@@ -24,8 +27,15 @@ final class MindCore: ObservableObject {
         self.personaState = PersonaState()
         self.mindLock = MindLock()
         
+        // Phase XIII: 从 LifeCore 获取 HexagramEngine
+        // 注意：LifeCore 需要暴露 hexagramEngine 的只读访问
+        if let lifeCore = lifeCoreReadOnly as? LifeCore {
+            self.hexagramEngine = lifeCore.hexagramEngine
+        }
+        
         // 初始化完成
         print("[MindCore] 认知核心初始化完成")
+        print("[MindCore] 六十四卦元认知层已连接")
     }
     
     // MARK: - Update Loop
