@@ -195,7 +195,7 @@ struct ChatView: View {
             return ChatMessage(
                 role: .assistant,
                 content: "阿腾，我刚截了图，你看一下（脑海中快速闪过几种可能，温柔地分析道），是不是没有找到你说的文本框呀？",
-                toolResults: [ToolResult(id: "result_1", error: "未知动作: getUIElements")]
+                toolResults: [ToolResult(id: "result_1", output: nil, error: "未知动作: getUIElements")]
             )
         } else if text.contains("你好") || text.contains("哈喽") {
             return ChatMessage(

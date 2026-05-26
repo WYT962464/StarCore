@@ -31,11 +31,13 @@ final class ChatManager: ObservableObject {
         loadMessages()
         loadSystemPrompt()
         
-        // 定时保存
-        Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
-            self?.saveMessages()
-        }
-        .store(in: &cancellables)
+        // 定时保存 - 使用 Timer.publish 使其可取消
+        Timer.publish(every: 30, on: .main, in: .common)
+            .autoconnect()
+            .sink { [weak self] _ in
+                self?.saveMessages()
+            }
+            .store(in: &cancellables)
     }
     
     // MARK: - 消息管理

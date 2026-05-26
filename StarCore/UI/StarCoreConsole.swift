@@ -351,42 +351,6 @@ struct StarCoreConsole: View {
     }
 }
 
-// MARK: - HardwareSensor 扩展（添加刷新方法）
-extension HardwareSensor {
-    @Published var batteryLevel: Float = 1.0
-    @Published var batteryState: UIDevice.BatteryState = .unknown
-    @Published var cpuUsage: Float = 0.0
-    @Published var thermalState: ProcessInfo.ThermalState = .nominal
-    @Published var memoryUsedMB: UInt64 = 0
-    @Published var memoryTotalMB: UInt64 = 0
-    @Published var memoryUsagePercent: Float = 0.0
-    @Published var deviceModel: String = ""
-    @Published var systemVersion: String = ""
-    
-    func refresh() {
-        // 电池
-        UIDevice.current.isBatteryMonitoringEnabled = true
-        batteryLevel = UIDevice.current.batteryLevel < 0 ? 1.0 : UIDevice.current.batteryLevel
-        batteryState = UIDevice.current.batteryState
-        
-        // CPU
-        cpuUsage = getCPUUsage()
-        
-        // 热状态
-        thermalState = ProcessInfo.processInfo.thermalState
-        
-        // 内存
-        let mem = getMemoryUsage()
-        memoryUsedMB = mem.used / 1024 / 1024
-        memoryTotalMB = mem.total / 1024 / 1024
-        memoryUsagePercent = getMemoryUsagePercent()
-        
-        // 设备信息
-        deviceModel = getDeviceModel()
-        systemVersion = getSystemVersion()
-    }
-}
-
 // MARK: - Preview
 struct StarCoreConsole_Previews: PreviewProvider {
     static var previews: some View {
