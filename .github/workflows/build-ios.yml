@@ -31,6 +31,17 @@ jobs:
       - name: Build App
         run: |
           echo "=== Building App (Simulator SDK) ==="
+          
+          # 先检查 xcodegen 是否生成正确的项目
+          echo "=== Checking generated project ==="
+          if [ -f StarCore.xcodeproj/project.pbxproj ]; then
+            echo "project.pbxproj exists"
+            grep -E "SwiftFile|sourcesBuildPhase" StarCore.xcodeproj/project.pbxproj | head -20 || echo "No Swift files found in project"
+          else
+            echo "ERROR: project.pbxproj not found!"
+            exit 1
+          fi
+          
           xcodebuild build \
             -project StarCore.xcodeproj \
             -scheme StarCore \
@@ -41,12 +52,12 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             2>&1 | tee build.log
           
-          echo "=== Build Log (last 30 lines) ==="
-          tail -30 build.log
+          echo "=== Build Log (last 50 lines) ==="
+          tail -50 build.log
           
           echo "=== Checking Build Products ==="
           echo "Looking for .app in all possible locations:"
-          find build -name "*.app" -type d 2>/dev/null
+          find build -name "*.app" -type d -exec ls -lhR {} \; 2>/dev/null | head -50
           
           echo ""
           echo "Build directory structure:"
