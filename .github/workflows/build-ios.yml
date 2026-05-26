@@ -45,7 +45,13 @@ jobs:
           tail -30 build.log
           
           echo "=== Checking Build Products ==="
-          find build -name "*.app" -type d
+          echo "Looking for .app in all possible locations:"
+          find build -name "*.app" -type d 2>/dev/null
+          
+          echo ""
+          echo "Build directory structure:"
+          ls -la build/Build/Products/ 2>/dev/null || echo "Products not found"
+          ls -la build/Build/Products/Release-iphoneos/ 2>/dev/null || echo "Release-iphoneos not found"
 
       - name: Package App IPA
         run: |
