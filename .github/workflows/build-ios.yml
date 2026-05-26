@@ -28,19 +28,15 @@ jobs:
       - name: Generate Xcode Project
         run: xcodegen generate
 
-      - name: Build Archive
+      - name: Build App
         run: |
-          echo "=== Starting Build Archive ==="
-          # xcodegen 生成的 scheme 名称与 target 名称一致
-          SCHEME="StarCore"
-          echo "Using scheme: $SCHEME"
-          
-          xcodebuild archive \
+          echo "=== Building App ==="
+          xcodebuild build \
             -project StarCore.xcodeproj \
-            -scheme "$SCHEME" \
+            -scheme StarCore \
             -sdk iphoneos \
             -configuration Release \
-            -archivePath build/StarCore.xcarchive \
+            -derivedDataPath build \
             CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_REQUIRED=NO \
             2>&1 | tee build.log
@@ -48,38 +44,22 @@ jobs:
           echo "=== Build Log (last 30 lines) ==="
           tail -30 build.log
           
-          echo "=== Archive Contents ==="
-          find build/StarCore.xcarchive -type d | head -20
+          echo "=== Checking Build Products ==="
+          find build -name "*.app" -type d
 
       - name: Package App IPA
         run: |
-          echo "=== Checking Archive Contents ==="
-          echo "Archive path: build/StarCore.xcarchive"
-          ls -la build/StarCore.xcarchive/
+          echo "=== Checking Build Products ==="
+          echo "Searching for .app files in build directory:"
+          find build -name "*.app" -type d
           
-          echo ""
-          echo "Products directory:"
-          ls -laR build/StarCore.xcarchive/Products/ 2>/dev/null || echo "Products not found"
-          
-          echo ""
-          echo "Applications directory:"
-          ls -laR build/StarCore.xcarchive/Products/Applications/ 2>/dev/null || echo "Applications not found"
-          
-          echo ""
-          echo "Searching for .app files:"
-          find build/StarCore.xcarchive -name "*.app" -type d
-          
-          echo ""
-          echo "All directories in archive:"
-          find build/StarCore.xcarchive -type d
-          
-          APP_PATH=$(find build/StarCore.xcarchive -name "*.app" -type d | head -1)
+          APP_PATH=$(find build -name "*.app" -type d | head -1)
           
           if [ -z "$APP_PATH" ]; then
-            echo "ERROR: No .app found in archive"
+            echo "ERROR: No .app found in build directory"
             echo ""
-            echo "Archive structure:"
-            find build/StarCore.xcarchive -type f | head -30
+            echo "Build directory contents:"
+            ls -laR build/ 2>/dev/null | head -50
             exit 1
           fi
           
