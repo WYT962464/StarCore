@@ -1,0 +1,167 @@
+name: Build iOS App - Debug Mode
+
+on:
+  push:
+    branches: [ v1.0-unified ]
+  workflow_dispatch:
+
+jobs:
+  build-app:
+    name: Build App IPA
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get version
+        id: version
+        run: |
+          VERSION=$(grep -oP 'CFBundleShortVersionString\s*<string>\K[^<]+' StarCore/App/Info.plist 2>/dev/null || echo "1.0.0")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "App version: $VERSION"
+
+      - name: Install xcodegen
+        run: brew install xcodegen
+
+      - name: Generate Xcode Project
+        run: xcodegen generate
+
+      - name: Debug Project Structure
+        run: |
+          echo "=== Project Structure ==="
+          ls -la
+          echo ""
+          echo "=== Swift Files ==="
+          find StarCore -name "*.swift" | wc -l
+          echo ""
+          echo "=== Generated Project Info ==="
+          if [ -f StarCore.xcodeproj/project.pbxproj ]; then
+            echo "project.pbxproj: $(wc -l < StarCore.xcodeproj/project.pbxproj) lines"
+            echo ""
+            echo "=== Swift File References in project.pbxproj ==="
+            grep -c "\.swift" StarCore.xcodeproj/project.pbxproj || echo "0 Swift files referenced"
+            echo ""
+            echo "=== Target Definition ==="
+            grep -A 5 "PBXNativeTarget.*StarCore" StarCore.xcodeproj/project.pbxproj | head -10
+            echo ""
+            echo "=== xcscheme BlueprintIdentifier ==="
+            if [ -f StarCore.xcodeproj/xcshareddata/xcschemes/StarCore.xcscheme ]; then
+              grep "BlueprintIdentifier" StarCore.xcodeproj/xcshareddata/xcschemes/StarCore.xcscheme
+            else
+              echo "No xcscheme found!"
+              find . -name "*.xcscheme"
+            fi
+          fi
+          echo ""
+          echo "=== xcodebuild -list ==="
+          xcodebuild -project StarCore.xcodeproj -list 2>&1 || true
+          echo ""
+          echo "=== xcodebuild -showBuildSettings ==="
+          xcodebuild -project StarCore.xcodeproj -scheme StarCore -showBuildSettings 2>&1 | head -20 || true
+
+      - name: Build App
+        id: build
+        continue-on-error: true
+        run: |
+          echo "=== Starting Build ==="
+          echo "Xcode version:"
+          xcodebuild -version | head -2
+          
+          echo ""
+          echo "=== Building (no pipe for reliable exit code) ==="
+          mkdir -p build
+          
+          # 不使用管道，直接重定向到文件，然后捕获退出码
+          xcodebuild build \
+            -project StarCore.xcodeproj \
+            -scheme StarCore \
+            -sdk iphonesimulator \
+            -configuration Release \
+            -derivedDataPath build \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_REQUIRED=NO \
+            > build/build.log 2>&1
+          BUILD_EXIT_CODE=$?
+          
+          echo "build_exit_code=$BUILD_EXIT_CODE" >> $GITHUB_OUTPUT
+          
+          echo ""
+          echo "=== Build Exit Code: $BUILD_EXIT_CODE ==="
+          
+          if [ $BUILD_EXIT_CODE -eq 0 ]; then
+            echo "✅ Build succeeded"
+          else
+            echo "❌ Build failed"
+            echo ""
+            echo "=== Error Summary (last 50 error lines) ==="
+            grep -iE "error:" build/build.log | tail -50 || echo "No 'error:' lines found"
+            echo ""
+            echo "=== Build Log Size ==="
+            wc -c build/build.log
+            echo ""
+            echo "=== First 100 lines of build.log ==="
+            head -100 build/build.log
+          fi
+          
+          echo ""
+          echo "=== Build Products ==="
+          find build -name "*.app" -type d 2>/dev/null | while read app; do
+            echo "Found: $app"
+            ls -lh "$app"
+          done || echo "No .app files found"
+
+      - name: Upload Build Log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build/build.log
+          retention-days: 7
+
+      - name: Package App IPA
+        if: steps.build.outputs.build_exit_code == '0'
+        run: |
+          echo "=== Finding .app files ==="
+          APP_PATH=$(find build -name "*.app" -type d | head -1)
+          
+          if [ -z "$APP_PATH" ]; then
+            echo "❌ ERROR: No .app file found!"
+            echo "Available directories in build/:"
+            find build -type d | head -20
+            exit 1
+          fi
+          
+          echo "✅ Found app: $APP_PATH"
+          du -sh "$APP_PATH"
+          ls -lh "$APP_PATH/Contents/Info.plist" 2>/dev/null || echo "No Info.plist"
+          
+          mkdir -p IPA/Payload
+          cp -R "$APP_PATH" IPA/Payload/
+          cd IPA
+          zip -r StarCore.ipa Payload/
+          
+          echo ""
+          echo "=== IPA Created ==="
+          ls -lh StarCore.ipa
+
+      - name: Upload IPA
+        if: steps.build.outputs.build_exit_code == '0'
+        uses: actions/upload-artifact@v4
+        with:
+          name: StarCore.ipa
+          path: IPA/StarCore.ipa
+          retention-days: 30
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Step | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Checkout | ✅ Done |" >> $GITHUB_STEP_SUMMARY
+          echo "| Generate Project | ✅ Done |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build | ${{ steps.build.outputs.build_exit_code == '0' && '✅ Success' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Package IPA | ${{ steps.build.outputs.build_exit_code == '0' && '✅ Success' || '⏭️ Skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Build Time:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> $GITHUB_STEP_SUMMARY
