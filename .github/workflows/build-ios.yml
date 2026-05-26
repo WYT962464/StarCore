@@ -31,18 +31,25 @@ jobs:
       - name: Build Archive
         run: |
           echo "=== Starting Build Archive ==="
+          # xcodegen 生成的 scheme 名称与 target 名称一致
+          SCHEME="StarCore"
+          echo "Using scheme: $SCHEME"
+          
           xcodebuild archive \
             -project StarCore.xcodeproj \
-            -scheme StarCore \
+            -scheme "$SCHEME" \
             -sdk iphoneos \
             -configuration Release \
             -archivePath build/StarCore.xcarchive \
             CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_REQUIRED=NO \
             2>&1 | tee build.log
-
+          
           echo "=== Build Log (last 30 lines) ==="
           tail -30 build.log
+          
+          echo "=== Archive Contents ==="
+          find build/StarCore.xcarchive -type d | head -20
 
       - name: Package App IPA
         run: |

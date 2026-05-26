@@ -5,6 +5,17 @@ options:
     iOS: '15.0'
   createIntermediateGroups: true
   projectFormat: xcode15_0
+  # 显式定义 scheme
+  schemes:
+    StarCore:
+      build:
+        targets:
+          StarCore: all
+      run:
+        executable: StarCore
+      archive:
+        targets:
+          StarCore: all
 targets:
   StarCore:
     type: application
