@@ -39,15 +39,21 @@ final class ServerConnectionManager: ObservableObject {
         tunnelPort: 8028
     )
     
+    // 公共访问方法
+    var tunnelHost: String { config.host }
+    var tunnelPort: Int { config.tunnelPort }
+    
     private var cancellables = Set<AnyCancellable>()
     
     // MARK: - Initialization
     init() {
-        // 定时检查连接状态
-        Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
-            self?.checkConnection()
-        }
-        .store(in: &cancellables)
+        // 定时检查连接状态 - 使用 Timer.publish 使其可取消
+        Timer.publish(every: 30, on: .main, in: .common)
+            .autoconnect()
+            .sink { [weak self] _ in
+                self?.checkConnection()
+            }
+            .store(in: &cancellables)
     }
     
     // MARK: - 连接检查

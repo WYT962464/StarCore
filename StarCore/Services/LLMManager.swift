@@ -248,7 +248,7 @@ final class LLMManager: ObservableObject {
         request.setValue("Bearer \(provider.apiKey)", forHTTPHeaderField: "Authorization")
         request.timeoutInterval = 60
         
-        let (response, _) = try await URLSession.shared.response(for: request)
+        let (data, response) = try await URLSession.shared.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
             throw LLMError.connectionFailed
         }
@@ -290,11 +290,13 @@ final class LLMManager: ObservableObject {
     // MARK: - 自动切换设置
     
     private func setupAutoSwitch() {
-        // 定时检查费用
-        Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
-            self?.checkAutoSwitch()
-        }
-        .store(in: &cancellables)
+        // 定时检查费用 - 使用 Timer.publish 使其可取消
+        Timer.publish(every: 60, on: .main, in: .common)
+            .autoconnect()
+            .sink { [weak self] _ in
+                self?.checkAutoSwitch()
+            }
+            .store(in: &cancellables)
     }
 }
 

@@ -141,42 +141,42 @@ struct ToolResult: Codable {
 // AnyCodable 用于编码任意类型
 struct AnyCodable: Codable {
     private let value: Any
-    private let type: String
+    private let typeName: String
     
     init<T>(_ value: T) {
         self.value = value
-        self.type = String(describing: type(of: value))
+        self.typeName = String(describing: type(of: value))
     }
     
     init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
         if let bool = try? container.decode(Bool.self) {
             self.value = bool
-            self.type = "Bool"
+            self.typeName = "Bool"
         } else if let int = try? container.decode(Int.self) {
             self.value = int
-            self.type = "Int"
+            self.typeName = "Int"
         } else if let double = try? container.decode(Double.self) {
             self.value = double
-            self.type = "Double"
+            self.typeName = "Double"
         } else if let string = try? container.decode(String.self) {
             self.value = string
-            self.type = "String"
+            self.typeName = "String"
         } else if let array = try? container.decode([AnyCodable].self) {
             self.value = array
-            self.type = "Array"
+            self.typeName = "Array"
         } else if let dict = try? container.decode([String: AnyCodable].self) {
             self.value = dict
-            self.type = "Dictionary"
+            self.typeName = "Dictionary"
         } else {
             self.value = NSNull()
-            self.type = "Null"
+            self.typeName = "Null"
         }
     }
     
     func encode(to encoder: Encoder) throws {
         var container = encoder.singleValueContainer()
-        switch type {
+        switch typeName {
         case "Bool":
             try container.encode(value as? Bool ?? false)
         case "Int":

@@ -207,7 +207,7 @@ struct SettingsView: View {
                 
                 Spacer()
                 
-                Text("\(serverConnection.config.host):\(serverConnection.config.tunnelPort)")
+                Text("\(serverConnection.tunnelHost):\(serverConnection.tunnelPort)")
                     .font(.caption)
                     .foregroundColor(.gray)
             }
