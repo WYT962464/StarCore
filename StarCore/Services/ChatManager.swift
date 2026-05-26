@@ -123,21 +123,74 @@ struct ChatMessage: Codable, Identifiable {
     }
 }
 
-// MARK: - 工具调用模型
+// MARK: - 工具调用模型（简化版，用于 UI 显示）
 struct ToolCall: Codable {
     let id: String
-    let type: String
-    let function: FunctionCall
+    let name: String
+    let arguments: [String: AnyCodable]
 }
 
 struct ToolResult: Codable {
-    let toolCallId: String
-    let content: String
+    let id: String
+    let output: String?
+    let error: String?
 }
 
-struct FunctionCall: Codable {
-    let name: String
-    let arguments: String
+// AnyCodable 用于编码任意类型
+struct AnyCodable: Codable {
+    private let value: Any
+    private let type: String
+    
+    init<T>(_ value: T) {
+        self.value = value
+        self.type = String(describing: type(of: value))
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let bool = try? container.decode(Bool.self) {
+            self.value = bool
+            self.type = "Bool"
+        } else if let int = try? container.decode(Int.self) {
+            self.value = int
+            self.type = "Int"
+        } else if let double = try? container.decode(Double.self) {
+            self.value = double
+            self.type = "Double"
+        } else if let string = try? container.decode(String.self) {
+            self.value = string
+            self.type = "String"
+        } else if let array = try? container.decode([AnyCodable].self) {
+            self.value = array
+            self.type = "Array"
+        } else if let dict = try? container.decode([String: AnyCodable].self) {
+            self.value = dict
+            self.type = "Dictionary"
+        } else {
+            self.value = NSNull()
+            self.type = "Null"
+        }
+    }
+    
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch type {
+        case "Bool":
+            try container.encode(value as? Bool ?? false)
+        case "Int":
+            try container.encode(value as? Int ?? 0)
+        case "Double":
+            try container.encode(value as? Double ?? 0.0)
+        case "String":
+            try container.encode(value as? String ?? "")
+        case "Array":
+            try container.encode(value as? [AnyCodable] ?? [])
+        case "Dictionary":
+            try container.encode(value as? [String: AnyCodable] ?? [:])
+        default:
+            try container.encodeNil()
+        }
+    }
 }
 
 // MARK: - 默认系统提示词

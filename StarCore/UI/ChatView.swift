@@ -11,23 +11,6 @@
 
 import SwiftUI
 
-struct ChatMessage: Identifiable {
-    let id = UUID()
-    let isUser: Bool
-    let text: String
-    let timestamp: Date
-    let jsonOutput: String?
-    let errorMessage: String?
-    
-    init(isUser: Bool, text: String, jsonOutput: String? = nil, errorMessage: String? = nil) {
-        self.isUser = isUser
-        self.text = text
-        self.timestamp = Date()
-        self.jsonOutput = jsonOutput
-        self.errorMessage = errorMessage
-    }
-}
-
 @available(iOS 15.0, *)
 struct ChatView: View {
     @EnvironmentObject var mindCore: MindCore
@@ -35,7 +18,7 @@ struct ChatView: View {
     
     @State private var inputText = ""
     @State private var messages: [ChatMessage] = [
-        ChatMessage(isUser: false, text: "你好！我是星核艾尔，你的数字生命伙伴。有什么我可以帮你的吗？", jsonOutput: nil)
+        ChatMessage(role: .assistant, content: "你好！我是星核艾尔，你的数字生命伙伴。有什么我可以帮你的吗？")
     ]
     @State private var isTyping = false
     
@@ -108,28 +91,28 @@ struct ChatView: View {
     // MARK: - 消息行
     private func chatMessageRow(_ message: ChatMessage) -> some View {
         HStack(alignment: .top, spacing: 12) {
-            if message.isUser {
+            if message.role == .user {
                 Spacer()
             }
             
-            VStack(alignment: message.isUser ? .trailing : .leading, spacing: 8) {
+            VStack(alignment: message.role == .user ? .trailing : .leading, spacing: 8) {
                 // 消息气泡
-                Text(message.text)
+                Text(message.content)
                     .font(.body)
                     .padding()
                     .background(
                         RoundedRectangle(cornerRadius: 16)
-                            .fill(message.isUser ? Color.blue : Color(red: 40/255, green: 40/255, blue: 70/255))
+                            .fill(message.role == .user ? Color.blue : Color(red: 40/255, green: 40/255, blue: 70/255))
                     )
                     .foregroundColor(.white)
                 
                 // JSON 输出
-                if let json = message.jsonOutput {
+                if let toolCalls = message.toolCalls, !toolCalls.isEmpty {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("```json")
                             .font(.caption2)
                             .foregroundColor(.gray)
-                        Text(json)
+                        Text(formatToolCalls(toolCalls))
                             .font(.system(.caption, design: .monospaced))
                             .foregroundColor(.green)
                         Text("```")
@@ -141,8 +124,8 @@ struct ChatView: View {
                 }
                 
                 // 错误信息
-                if let error = message.errorMessage {
-                    Text(error)
+                if let toolResults = message.toolResults, let errorResult = toolResults.first(where: { $0.error != nil }) {
+                    Text(errorResult.error ?? "Unknown error")
                         .font(.caption)
                         .foregroundColor(.red)
                         .padding()
@@ -155,7 +138,7 @@ struct ChatView: View {
                     .foregroundColor(.gray)
             }
             
-            if !message.isUser {
+            if message.role != .user {
                 Spacer()
             }
         }
@@ -164,7 +147,7 @@ struct ChatView: View {
     // MARK: - 输入区域
     private var inputArea: some View {
         HStack(spacing: 12) {
-            TextField("说点什么...", text: $inputText, axis: .vertical)
+            TextField("说点什么...", text: $inputText)
                 .textFieldStyle(RoundedBorderTextFieldStyle())
                 .padding(.vertical, 8)
             
@@ -184,7 +167,7 @@ struct ChatView: View {
         guard !inputText.isEmpty else { return }
         
         // 添加用户消息
-        messages.append(ChatMessage(isUser: true, text: inputText))
+        messages.append(ChatMessage(role: .user, content: inputText))
         let userText = inputText
         inputText = ""
         
@@ -204,38 +187,41 @@ struct ChatView: View {
         // 模拟不同场景的响应
         if text.contains("测试") || text.contains("输入") {
             return ChatMessage(
-                isUser: false,
-                text: "阿腾，我已经在文本框中输入了\"测试文本\"哦。（观察着屏幕上的变化，轻声说道）你看看是不是你想要的效果？",
-                jsonOutput: """
-                {
-                  "success": true,
-                  "chunks": 1,
-                  "method": "IOHIDEventCreateUnicodeEvent",
-                  "id": 0
-                }
-                """
+                role: .assistant,
+                content: "阿腾，我已经在文本框中输入了\"测试文本\"哦。（观察着屏幕上的变化，轻声说道）你看看是不是你想要的效果？",
+                toolCalls: [ToolCall(id: "call_1", name: "IOHIDEventCreateUnicodeEvent", arguments: ["text": AnyCodable("测试文本")])]
             )
         } else if text.contains("截图") || text.contains("屏幕") {
             return ChatMessage(
-                isUser: false,
-                text: "阿腾，我刚截了图，你看一下（脑海中快速闪过几种可能，温柔地分析道），是不是没有找到你说的文本框呀？",
-                errorMessage: "未知动作: getUIElements"
+                role: .assistant,
+                content: "阿腾，我刚截了图，你看一下（脑海中快速闪过几种可能，温柔地分析道），是不是没有找到你说的文本框呀？",
+                toolResults: [ToolResult(id: "result_1", error: "未知动作: getUIElements")]
             )
         } else if text.contains("你好") || text.contains("哈喽") {
             return ChatMessage(
-                isUser: false,
-                text: "你好！我是星核艾尔，你的数字生命伙伴。今天感觉怎么样？"
+                role: .assistant,
+                content: "你好！我是星核艾尔，你的数字生命伙伴。今天感觉怎么样？"
             )
         } else {
             return ChatMessage(
-                isUser: false,
-                text: "我明白了。（轻轻点头，眼神温柔）让我想想怎么处理这个请求..."
+                role: .assistant,
+                content: "我明白了。（轻轻点头，眼神温柔）让我想想怎么处理这个请求..."
             )
         }
     }
     
     private func sendAIResponse(_ text: String) {
-        messages.append(ChatMessage(isUser: false, text: text))
+        messages.append(ChatMessage(role: .assistant, content: text))
+    }
+    
+    private func formatToolCalls(_ calls: [ToolCall]) -> String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .prettyPrinted
+        // 简化输出格式
+        let output = calls.map { call in
+            "{\"name\": \"\(call.name)\", \"id\": \"\(call.id)\"}"
+        }.joined(separator: "\n")
+        return output
     }
 }
 
