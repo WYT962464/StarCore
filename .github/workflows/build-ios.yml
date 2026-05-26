@@ -35,13 +35,16 @@ jobs:
           # 先检查 xcodegen 是否生成正确的项目
           echo "=== Checking generated project ==="
           if [ -f StarCore.xcodeproj/project.pbxproj ]; then
-            echo "project.pbxproj exists"
-            grep -E "SwiftFile|sourcesBuildPhase" StarCore.xcodeproj/project.pbxproj | head -20 || echo "No Swift files found in project"
+            echo "project.pbxproj exists ($(wc -l < StarCore.xcodeproj/project.pbxproj) lines)"
+            echo "Checking for Swift files in project:"
+            grep -c "\.swift" StarCore.xcodeproj/project.pbxproj || echo "No .swift references found"
           else
             echo "ERROR: project.pbxproj not found!"
             exit 1
           fi
           
+          echo ""
+          echo "=== Running xcodebuild ==="
           xcodebuild build \
             -project StarCore.xcodeproj \
             -scheme StarCore \
@@ -52,17 +55,31 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             2>&1 | tee build.log
           
+          BUILD_EXIT_CODE=${PIPESTATUS[0]}
+          echo ""
+          echo "=== xcodebuild exit code: $BUILD_EXIT_CODE ==="
+          
+          echo ""
           echo "=== Build Log (last 50 lines) ==="
           tail -50 build.log
           
+          echo ""
           echo "=== Checking Build Products ==="
           echo "Looking for .app in all possible locations:"
-          find build -name "*.app" -type d -exec ls -lhR {} \; 2>/dev/null | head -50
+          find build -name "*.app" -type d -exec ls -lhR {} \; 2>/dev/null | head -100
           
           echo ""
-          echo "Build directory structure:"
+          echo "=== Build directory structure ==="
           ls -la build/Build/Products/ 2>/dev/null || echo "Products not found"
           ls -la build/Build/Products/Release-iphonesimulator/ 2>/dev/null || echo "Release-iphonesimulator not found"
+          
+          # 如果 xcodebuild 失败，显示错误
+          if [ $BUILD_EXIT_CODE -ne 0 ]; then
+            echo ""
+            echo "=== Build failed! Showing error lines ==="
+            grep -i "error:" build.log | head -20 || echo "No error: lines found"
+            exit $BUILD_EXIT_CODE
+          fi
 
       - name: Package App IPA
         run: |
