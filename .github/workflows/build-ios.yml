@@ -46,16 +46,23 @@ jobs:
 
       - name: Package App IPA
         run: |
+          echo "=== Checking Archive Contents ==="
+          find build/StarCore.xcarchive -type d -name "*.app" 2>/dev/null || echo "No .app found"
+          ls -la build/StarCore.xcarchive/Products/Applications/ 2>/dev/null || echo "Applications dir not found"
+          
           APP_PATH=$(find build/StarCore.xcarchive -name "*.app" -type d | head -1)
           
           if [ -z "$APP_PATH" ]; then
             echo "ERROR: No .app found in archive"
+            echo "Archive contents:"
+            find build/StarCore.xcarchive -type f | head -20
             exit 1
           fi
-
+          
           echo "Found app: $APP_PATH"
           
           mkdir -p IPA
+          mkdir -p IPA/Payload
           cp -R "$APP_PATH" IPA/Payload/
           cd IPA
           zip -r StarCore.ipa Payload/
@@ -83,19 +90,19 @@ jobs:
           rm -rf ~/.theos
           git clone --depth 1 https://github.com/theos/theos.git ~/.theos
           
-          # Download iOS SDK (iPhoneOS15.0)
+          # Download iOS SDK
           mkdir -p ~/.theos/sdks
           echo "Downloading iOS SDK..."
-          curl -L --connect-timeout 30 --max-time 300 \
-            -o ~/.theos/sdks/iPhoneOS15.0.sdk.tar.xz \
-            "https://github.com/aricloverALT/sdks/raw/master/iPhoneOS15.0.sdk.tar.xz" || \
-          curl -L --connect-timeout 30 --max-time 300 \
-            -o ~/.theos/sdks/iPhoneOS15.0.sdk.tar.xz \
-            "https://github.com/xybp888/iOS-SDKs/raw/master/iPhoneOS15.0.sdk.tar.xz" || \
-          { echo "SDK download failed, trying alternative..."; exit 1; }
+          curl -L --connect-timeout 60 --max-time 600 \
+            -o ~/.theos/sdks/iPhoneOS16.0.sdk.tar.xz \
+            "https://github.com/aricloverALT/sdks/raw/master/iPhoneOS16.0.sdk.tar.xz" || \
+          curl -L --connect-timeout 60 --max-time 600 \
+            -o ~/.theos/sdks/iPhoneOS16.0.sdk.tar.xz \
+            "https://github.com/xybp888/iOS-SDKs/raw/master/iPhoneOS16.0.sdk.tar.xz" || \
+          { echo "SDK download failed"; exit 1; }
           
           echo "Extracting SDK..."
-          tar -xf ~/.theos/sdks/iPhoneOS15.0.sdk.tar.xz -C ~/.theos/sdks/
+          tar -xf ~/.theos/sdks/iPhoneOS16.0.sdk.tar.xz -C ~/.theos/sdks/
           
           # Install ld64
           ~/.theos/bin/install-ld64.sh 2>&1 || true
