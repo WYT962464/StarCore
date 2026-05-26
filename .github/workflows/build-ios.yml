@@ -17,7 +17,7 @@ jobs:
 
       - name: Get version
         id: version
-        run: |\
+        run: |
           VERSION=$(grep -oP 'CFBundleShortVersionString\s*<string>\K[^<]+' StarCore/App/Info.plist 2>/dev/null || echo "1.0.0")
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "App version: $VERSION"
@@ -29,7 +29,7 @@ jobs:
         run: xcodegen generate
 
       - name: Build App
-        run: |\
+        run: |
           echo "=== Building App (Simulator SDK) ==="
           
           # 先检查 xcodegen 是否生成正确的项目
