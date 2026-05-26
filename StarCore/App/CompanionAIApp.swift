@@ -21,7 +21,7 @@ struct CompanionAIApp: App {
     
     var body: some Scene {
         WindowGroup {
-            CompanionConsole()
+            StarCoreConsole()
                 .environmentObject(hardwareSensor)
                 .environmentObject(mcpClient)
                 .environmentObject(llmManager)
