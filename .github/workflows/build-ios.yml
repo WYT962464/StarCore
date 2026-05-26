@@ -46,6 +46,17 @@ jobs:
 
       - name: Build App
         run: |
+          echo "=== Starting Build ==="
+          echo "Xcode version:"
+          xcodebuild -version
+          
+          echo ""
+          echo "=== Project Info ==="
+          xcodebuild -project StarCore.xcodeproj -showBuildSettings 2>&1 | head -30
+          
+          echo ""
+          echo "=== Building ==="
+          set -o pipefail
           xcodebuild build \
             -project StarCore.xcodeproj \
             -scheme StarCore \
@@ -55,14 +66,14 @@ jobs:
             CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_REQUIRED=NO \
             2>&1 | tee build.log
-
+          
           BUILD_EXIT_CODE=${PIPESTATUS[0]}
           
           echo ""
           echo "=== Build Exit Code: $BUILD_EXIT_CODE ==="
           echo ""
-          echo "=== Build Log (last 50 lines) ==="
-          tail -50 build.log
+          echo "=== Full Error Output ==="
+          cat build.log | grep -iE "error:|warning:|failed|cannot|unknown|undefined" || echo "No errors found in grep"
           
           echo ""
           echo "=== Build Products ==="
@@ -70,8 +81,7 @@ jobs:
           
           if [ $BUILD_EXIT_CODE -ne 0 ]; then
             echo ""
-            echo "=== Errors ==="
-            grep -iE "error:|failed" build.log | head -20
+            echo "=== FAILING - Full log saved to build.log ==="
             exit $BUILD_EXIT_CODE
           fi
 
