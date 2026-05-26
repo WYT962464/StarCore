@@ -1,0 +1,16 @@
+{
+  "version": "v1.0",
+  "created": "2026-05-27T07:35:43.483317",
+  "current_gua": {
+    "number": 4,
+    "name": "MENG",
+    "binary": "000011",
+    "yin_count": 4,
+    "yang_count": 2,
+    "yin_yang_ratio": 0.3333333333333333,
+    "timestamp": "2026-05-27T07:36:37.511149"
+  },
+  "evolution_level": 1,
+  "cycle_count": 3,
+  "last_cycle": "2026-05-27T07:36:37.511156"
+}

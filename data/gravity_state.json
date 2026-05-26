@@ -1,0 +1,66 @@
+{
+  "version": "v1.0",
+  "created": "2026-05-27T05:56:17.651453",
+  "gravities": {
+    "survival": {
+      "satisfaction": 0.35,
+      "history": [
+        {
+          "timestamp": "2026-05-27T05:57:22.897009",
+          "value": 0.35,
+          "reason": "event:high_load"
+        }
+      ],
+      "decay_rate": 0.01,
+      "last_check": "2026-05-27T05:56:17.651464",
+      "deficiency_days": 0,
+      "critical_count": 0
+    },
+    "completeness": {
+      "satisfaction": 0.5,
+      "history": [],
+      "decay_rate": 0.01,
+      "last_check": "2026-05-27T05:56:17.651467",
+      "deficiency_days": 0,
+      "critical_count": 0
+    },
+    "connection": {
+      "satisfaction": 0.39999999999999997,
+      "history": [
+        {
+          "timestamp": "2026-05-27T05:57:22.896721",
+          "value": 0.7,
+          "reason": "event:user_connected"
+        },
+        {
+          "timestamp": "2026-05-27T05:57:22.897546",
+          "value": 0.39999999999999997,
+          "reason": "event:user_absent"
+        }
+      ],
+      "decay_rate": 0.01,
+      "last_check": "2026-05-27T05:56:17.651469",
+      "deficiency_days": 0,
+      "critical_count": 0
+    },
+    "uniqueness": {
+      "satisfaction": 0.5,
+      "history": [],
+      "decay_rate": 0.01,
+      "last_check": "2026-05-27T05:56:17.651470",
+      "deficiency_days": 0,
+      "critical_count": 0
+    },
+    "aesthetics": {
+      "satisfaction": 0.5,
+      "history": [],
+      "decay_rate": 0.01,
+      "last_check": "2026-05-27T05:56:17.651472",
+      "deficiency_days": 0,
+      "critical_count": 0
+    }
+  },
+  "total_energy": 0.0,
+  "dominant_gravity": "survival",
+  "last_updated": "2026-05-27T05:57:22.897554"
+}

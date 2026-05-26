@@ -1,0 +1,12 @@
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"pid\":21464,\"contextId\":3150673643,\"bundleId\":\"com.apple.springboard\",\"sceneIdentifier\":\"com.apple.springboard\",\"processName\":\"SpringBoard\",\"displayId\":1,\"name\":\"SpringBoard\"}"
+      }
+    ]
+  }
+}

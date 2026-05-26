@@ -1,0 +1,44 @@
+{
+  "session_id": "b98bf9b9",
+  "timestamp": "2026-05-26T01:45:58.177302",
+  "messages": [
+    {
+      "role": "user",
+      "content": "帮我分析一下这些文档",
+      "timestamp": "2026-05-26T01:45:58.173170",
+      "session_id": ""
+    },
+    {
+      "role": "assistant",
+      "content": "好的，开始全部解压分析。",
+      "timestamp": "2026-05-26T01:45:58.173181",
+      "session_id": ""
+    },
+    {
+      "role": "user",
+      "content": "1",
+      "timestamp": "2026-05-26T01:45:58.173183",
+      "session_id": ""
+    },
+    {
+      "role": "assistant",
+      "content": "开始整合。先读取当前项目状态。",
+      "timestamp": "2026-05-26T01:45:58.173185",
+      "session_id": ""
+    },
+    {
+      "role": "user",
+      "content": "完成记忆闭环",
+      "timestamp": "2026-05-26T01:45:58.173187",
+      "session_id": ""
+    }
+  ],
+  "summary": {
+    "summary": "用户：帮我分析一下这些文档\n星核：好的，开始全部解压分析。\n用户：1\n星核：开始整合。先读取当前项目状态。\n用户：完成记忆闭环",
+    "key_decisions": [],
+    "next_actions": [],
+    "emotional_state": "积极",
+    "timestamp": "2026-05-26T01:45:58.177321",
+    "message_count": 5
+  }
+}

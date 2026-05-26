@@ -1,0 +1,4 @@
+{"timestamp": "2026-05-27T05:56:17.651665", "event": "initialization", "gravities": {"survival": 0.5, "completeness": 0.5, "connection": 0.5, "uniqueness": 0.5, "aesthetics": 0.5}}
+{"timestamp": "2026-05-27T05:57:22.896951", "event": "event_simulated", "data": {"event_type": "user_connected", "impact": {"connection": 0.2}}}
+{"timestamp": "2026-05-27T05:57:22.897499", "event": "event_simulated", "data": {"event_type": "high_load", "impact": {"survival": -0.15}}}
+{"timestamp": "2026-05-27T05:57:22.897966", "event": "event_simulated", "data": {"event_type": "user_absent", "impact": {"connection": -0.3}}}

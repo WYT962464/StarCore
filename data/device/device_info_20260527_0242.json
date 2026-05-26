@@ -1,0 +1,12 @@
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"screenScale\":3,\"batteryState\":\"full\",\"storageTotalBytes\":255894048768,\"memoryFreeBytes\":57278464,\"deviceName\":\"iPhone\",\"memoryTotalBytes\":2961506304,\"storageTotalGB\":238.31990432739258,\"screenHeight\":812,\"systemName\":\"iOS\",\"uptimeSeconds\":128839.08397933334,\"storageFreeGB\":137.02962875366211,\"jailbreak\":{\"packageArchitecture\":\"iphoneos-arm64\",\"packageScheme\":\"rootless\",\"type\":\"rootless\",\"rootPath\":\"\\/var\\/jb\"},\"memoryTotalMB\":2824.3125,\"model\":\"iPhone\",\"screenWidth\":375,\"batteryLevel\":100,\"systemVersion\":\"16.7.12\",\"storageFreeBytes\":147134443520,\"memoryFreeMB\":54.625,\"machine\":\"iPhone10,3\"}"
+      }
+    ]
+  }
+}

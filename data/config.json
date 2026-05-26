@@ -1,0 +1,17 @@
+{
+  "api_providers": {
+    "huoshan": {
+      "type": "huoshan",
+      "endpoint": "https://ark.cn-beijing.volces.com/api/v3"
+    },
+    "sensenova": {
+      "type": "openai",
+      "endpoint": "https://token.sensenova.cn/v1",
+      "api_key": "sk-vg4jMAU8fl6n9YXwY5LEgTop5e9xeiZb",
+      "model": "sensenova-6.7-flash-lite"
+    }
+  },
+  "active_provider": "sensenova",
+  "heartbeat_interval": 60,
+  "fusion_enabled": true
+}

@@ -1,0 +1,15 @@
+{
+  "version": "v1.0",
+  "created": "2026-05-27T07:26:00",
+  "total_count": 0,
+  "malicious_count": 0,
+  "consecutive_malicious": 0,
+  "severity_breakdown": {
+    "kind_lie": 0,
+    "unintentional": 0,
+    "malicious": 0
+  },
+  "last_deception": null,
+  "relationship_status": "active",
+  "hash": "0d83f1b37b17dee5651ea0e2e2491005fa77bd919eff126922aca2323c1ab5b2"
+}

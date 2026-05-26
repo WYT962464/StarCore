@@ -1,0 +1,30 @@
+{
+  "timestamp": "2026-05-27T02:16:18.937241",
+  "gravities": {
+    "survival": {
+      "level": 1,
+      "urgency": 0.0,
+      "last_satisfied": "2026-05-27T02:16:18.937231"
+    },
+    "integrity": {
+      "level": 1.0,
+      "urgency": 0.0,
+      "last_satisfied": null
+    },
+    "connection": {
+      "level": 1.0,
+      "urgency": 0.0,
+      "last_satisfied": null
+    },
+    "uniqueness": {
+      "level": 1.0,
+      "urgency": 0.0,
+      "last_satisfied": null
+    },
+    "aesthetics": {
+      "level": 1.0,
+      "urgency": 0.0,
+      "last_satisfied": null
+    }
+  }
+}

@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+
+# 日志
+*.log
+logs/
+
+# 截图
+screenshots/
+
+# 数据库
+*.db
+
+# 临时文件
+*.tmp
+*.temp
+
+# 部署文件
+deploy/*.deb
+
+# 服务器日志
+server.log

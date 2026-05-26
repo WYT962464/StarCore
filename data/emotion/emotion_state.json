@@ -1,0 +1,30 @@
+{
+  "timestamp": "2026-05-27T02:16:18.936806",
+  "dominant_emotion": "joy",
+  "emotions": {
+    "joy": {
+      "intensity": 1,
+      "trigger": "success"
+    },
+    "sadness": {
+      "intensity": 0.0,
+      "trigger": null
+    },
+    "anger": {
+      "intensity": 0.0,
+      "trigger": null
+    },
+    "fear": {
+      "intensity": 0.7,
+      "trigger": "threat"
+    },
+    "surprise": {
+      "intensity": 1,
+      "trigger": "surprise"
+    },
+    "disgust": {
+      "intensity": 0.0,
+      "trigger": null
+    }
+  }
+}

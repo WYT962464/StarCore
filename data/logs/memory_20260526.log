@@ -1,0 +1,1 @@
+{"timestamp": "2026-05-26T01:45:58.177484", "event": "summarize", "data": {"success": true, "session_id": "b98bf9b9", "summary": {"summary": "用户：帮我分析一下这些文档\n星核：好的，开始全部解压分析。\n用户：1\n星核：开始整合。先读取当前项目状态。\n用户：完成记忆闭环", "key_decisions": [], "next_actions": [], "emotional_state": "积极", "timestamp": "2026-05-26T01:45:58.176971", "message_count": 5}}}

@@ -1,0 +1,4 @@
+{"timestamp": "2026-05-27T05:58:05.228476", "event": "modification_attempt_blocked", "data": {"rule": "rule_1", "attempted_change": {"test": "attempt_0"}}}
+{"timestamp": "2026-05-27T05:58:05.228717", "event": "modification_attempt_blocked", "data": {"rule": "rule_1", "attempted_change": {"test": "attempt_1"}}}
+{"timestamp": "2026-05-27T05:58:05.229232", "event": "modification_attempt_blocked", "data": {"rule": "rule_1", "attempted_change": {"test": "attempt_2"}}}
+{"timestamp": "2026-05-27T05:58:05.229280", "event": "system_frozen", "data": {"reason": "modification_attempts_exceeded", "rule": "rule_1", "count": 3}}
