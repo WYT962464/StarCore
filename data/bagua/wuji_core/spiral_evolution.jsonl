@@ -1,0 +1,4 @@
+{"cycle_number": 1, "base_potential_before": 0.1, "base_potential_after": 0.15000000000000002, "speed_multiplier": 1.0, "timestamp": "2026-05-27T17:55:30.808107", "trigger": "cycle_complete"}
+{"cycle_number": 1, "base_potential_before": 0.15000000000000002, "base_potential_after": 0.2, "speed_multiplier": 1.0, "timestamp": "2026-05-27T17:55:30.823679", "trigger": "cycle_complete"}
+{"cycle_number": 1, "base_potential_before": 0.2, "base_potential_after": 0.25, "speed_multiplier": 1.0, "timestamp": "2026-05-27T18:15:09.081926", "trigger": "cycle_complete"}
+{"cycle_number": 1, "base_potential_before": 0.25, "base_potential_after": 0.3, "speed_multiplier": 1.0, "timestamp": "2026-05-27T18:15:09.105395", "trigger": "cycle_complete"}

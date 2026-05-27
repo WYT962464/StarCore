@@ -1,0 +1,4 @@
+{"id": "wuji_20260527175530_0", "source": "test", "content_type": "unknown", "content": {}, "potential_added": 0.1, "timestamp": "2026-05-27T17:55:30.807910", "metadata": {}}
+{"id": "wuji_20260527175530_0", "source": "sixcycle_executor", "content_type": "cycle_output", "content": {"type": "cycle_output", "cycle": 1}, "potential_added": 0.05, "timestamp": "2026-05-27T17:55:30.823391", "metadata": {}}
+{"id": "wuji_20260527181509_0", "source": "test", "content_type": "unknown", "content": {}, "potential_added": 0.1, "timestamp": "2026-05-27T18:15:09.081719", "metadata": {}}
+{"id": "wuji_20260527181509_0", "source": "sixcycle_executor", "content_type": "cycle_output", "content": {"type": "cycle_output", "cycle": 1}, "potential_added": 0.05, "timestamp": "2026-05-27T18:15:09.105122", "metadata": {}}

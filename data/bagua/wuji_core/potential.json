@@ -1,0 +1,15 @@
+{
+  "name": "WUJI",
+  "potential": {
+    "base_potential": 0.3,
+    "accumulated_potential": 0.3,
+    "total_potential": 0.55,
+    "cycle_count": 1,
+    "evolution_speed": 1.275,
+    "last_updated": "2026-05-27T18:15:09.105391"
+  },
+  "state": "transforming",
+  "total_added": 0.3,
+  "record_count": 4,
+  "saved_at": "2026-05-27T18:15:09.105410"
+}

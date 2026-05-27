@@ -1,0 +1,7 @@
+{"id": "system_20260527173252_0", "type": "EventType.SYSTEM", "priority": "EventPriority.NORMAL", "source": "test", "data": {"key": "value"}, "timestamp": "2026-05-27T17:32:52.746735", "processed": false, "response": null}
+{"id": "system_20260527173322_0", "type": "EventType.SYSTEM", "priority": "EventPriority.NORMAL", "source": "test", "data": {"key": "value"}, "timestamp": "2026-05-27T17:33:22.658086", "processed": false, "response": null}
+{"id": "system_20260527174543_0", "type": "EventType.SYSTEM", "priority": "EventPriority.NORMAL", "source": "test", "data": {"key": "value"}, "timestamp": "2026-05-27T17:45:43.974310", "processed": false, "response": null}
+{"id": "system_20260527175530_0", "type": "EventType.SYSTEM", "priority": "EventPriority.NORMAL", "source": "test", "data": {}, "timestamp": "2026-05-27T17:55:30.777964", "processed": false, "response": null}
+{"id": "system_20260527175530_0", "type": "EventType.SYSTEM", "priority": "EventPriority.NORMAL", "source": "executor", "data": {"phase": "bagua"}, "timestamp": "2026-05-27T17:55:30.814279", "processed": false, "response": null}
+{"id": "system_20260527181509_0", "type": "EventType.SYSTEM", "priority": "EventPriority.NORMAL", "source": "test", "data": {}, "timestamp": "2026-05-27T18:15:09.054875", "processed": false, "response": null}
+{"id": "system_20260527181509_0", "type": "EventType.SYSTEM", "priority": "EventPriority.NORMAL", "source": "executor", "data": {"phase": "bagua"}, "timestamp": "2026-05-27T18:15:09.096180", "processed": false, "response": null}

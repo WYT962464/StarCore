@@ -1,0 +1,8 @@
+{"from_liangyi": "Liangyi.YANG", "to_liangyi": "Liangyi.YIN", "trigger": "测试", "timestamp": "2026-05-27T17:45:43.993331", "context": {}}
+{"from_liangyi": "Liangyi.YIN", "to_liangyi": "Liangyi.YANG", "trigger": "测试", "timestamp": "2026-05-27T17:45:43.993483", "context": {}}
+{"from_liangyi": "Liangyi.YANG", "to_liangyi": "Liangyi.YIN", "trigger": "手动切换", "timestamp": "2026-05-27T17:55:30.801454", "context": {}}
+{"from_liangyi": "Liangyi.YIN", "to_liangyi": "Liangyi.YANG", "trigger": "手动切换", "timestamp": "2026-05-27T17:55:30.801578", "context": {}}
+{"from_liangyi": "Liangyi.YANG", "to_liangyi": "Liangyi.YIN", "trigger": "六环节执行", "timestamp": "2026-05-27T17:55:30.813810", "context": {}}
+{"from_liangyi": "Liangyi.YANG", "to_liangyi": "Liangyi.YIN", "trigger": "手动切换", "timestamp": "2026-05-27T18:15:09.077677", "context": {}}
+{"from_liangyi": "Liangyi.YIN", "to_liangyi": "Liangyi.YANG", "trigger": "手动切换", "timestamp": "2026-05-27T18:15:09.077805", "context": {}}
+{"from_liangyi": "Liangyi.YANG", "to_liangyi": "Liangyi.YIN", "trigger": "六环节执行", "timestamp": "2026-05-27T18:15:09.095643", "context": {}}

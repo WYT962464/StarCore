@@ -1,0 +1,12 @@
+{
+  "type": "gua64",
+  "version": "1.0.0",
+  "timestamp": "2026-05-27T18:45:50.249418",
+  "data": {
+    "current_gua": 31,
+    "name": "恒",
+    "yang_ratio": 0.16666666666666666,
+    "evolution_count": 10
+  },
+  "checksum": "6ef190aa97a0ebb9"
+}

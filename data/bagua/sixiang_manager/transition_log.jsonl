@@ -1,0 +1,14 @@
+{"from_symbol": "FourSymbol.TAIYANG", "to_symbol": "FourSymbol.SHAOYANG", "trigger": "自动流转", "timestamp": "2026-05-27T17:45:43.989678", "context": {}}
+{"from_symbol": "FourSymbol.SHAOYANG", "to_symbol": "FourSymbol.TAIYIN", "trigger": "自动流转", "timestamp": "2026-05-27T17:45:43.989855", "context": {}}
+{"from_symbol": "FourSymbol.TAIYIN", "to_symbol": "FourSymbol.SHAOYIN", "trigger": "自动流转", "timestamp": "2026-05-27T17:45:43.990005", "context": {}}
+{"from_symbol": "FourSymbol.SHAOYIN", "to_symbol": "FourSymbol.TAIYANG", "trigger": "自动流转", "timestamp": "2026-05-27T17:45:43.990206", "context": {}}
+{"from_symbol": "FourSymbol.TAIYANG", "to_symbol": "FourSymbol.SHAOYANG", "trigger": "自动流转", "timestamp": "2026-05-27T17:55:30.799726", "context": {}}
+{"from_symbol": "FourSymbol.SHAOYANG", "to_symbol": "FourSymbol.TAIYIN", "trigger": "自动流转", "timestamp": "2026-05-27T17:55:30.799863", "context": {}}
+{"from_symbol": "FourSymbol.TAIYIN", "to_symbol": "FourSymbol.SHAOYIN", "trigger": "自动流转", "timestamp": "2026-05-27T17:55:30.799975", "context": {}}
+{"from_symbol": "FourSymbol.SHAOYIN", "to_symbol": "FourSymbol.TAIYANG", "trigger": "自动流转", "timestamp": "2026-05-27T17:55:30.800114", "context": {}}
+{"from_symbol": "FourSymbol.TAIYANG", "to_symbol": "FourSymbol.SHAOYANG", "trigger": "自动流转", "timestamp": "2026-05-27T17:55:30.813995", "context": "六环节执行"}
+{"from_symbol": "FourSymbol.TAIYANG", "to_symbol": "FourSymbol.SHAOYANG", "trigger": "自动流转", "timestamp": "2026-05-27T18:15:09.075998", "context": {}}
+{"from_symbol": "FourSymbol.SHAOYANG", "to_symbol": "FourSymbol.TAIYIN", "trigger": "自动流转", "timestamp": "2026-05-27T18:15:09.076147", "context": {}}
+{"from_symbol": "FourSymbol.TAIYIN", "to_symbol": "FourSymbol.SHAOYIN", "trigger": "自动流转", "timestamp": "2026-05-27T18:15:09.076259", "context": {}}
+{"from_symbol": "FourSymbol.SHAOYIN", "to_symbol": "FourSymbol.TAIYANG", "trigger": "自动流转", "timestamp": "2026-05-27T18:15:09.076365", "context": {}}
+{"from_symbol": "FourSymbol.TAIYANG", "to_symbol": "FourSymbol.SHAOYANG", "trigger": "自动流转", "timestamp": "2026-05-27T18:15:09.095879", "context": "六环节执行"}

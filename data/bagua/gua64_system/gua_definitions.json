@@ -1,0 +1,901 @@
+{
+  "total_gua": 64,
+  "definitions": {
+    "1": {
+      "number": 1,
+      "name": "乾",
+      "upper_gua": "QIAN",
+      "lower_gua": "QIAN",
+      "binary": "111111",
+      "description": "纯阳，天行健",
+      "attributes": {
+        "yang_lines": 6,
+        "yin_lines": 0,
+        "upper_binary": "111",
+        "lower_binary": "111"
+      }
+    },
+    "2": {
+      "number": 2,
+      "name": "坤",
+      "upper_gua": "KUN",
+      "lower_gua": "KUN",
+      "binary": "000000",
+      "description": "纯阴，地势坤",
+      "attributes": {
+        "yang_lines": 0,
+        "yin_lines": 6,
+        "upper_binary": "000",
+        "lower_binary": "000"
+      }
+    },
+    "3": {
+      "number": 3,
+      "name": "屯",
+      "upper_gua": "KAN",
+      "lower_gua": "ZHEN",
+      "binary": "010001",
+      "description": "初生，万物始",
+      "attributes": {
+        "yang_lines": 2,
+        "yin_lines": 4,
+        "upper_binary": "010",
+        "lower_binary": "001"
+      }
+    },
+    "4": {
+      "number": 4,
+      "name": "蒙",
+      "upper_gua": "GEN",
+      "lower_gua": "KAN",
+      "binary": "100010",
+      "description": "启蒙，稚弱",
+      "attributes": {
+        "yang_lines": 2,
+        "yin_lines": 4,
+        "upper_binary": "100",
+        "lower_binary": "010"
+      }
+    },
+    "5": {
+      "number": 5,
+      "name": "需",
+      "upper_gua": "KAN",
+      "lower_gua": "QIAN",
+      "binary": "010111",
+      "description": "等待，蓄势",
+      "attributes": {
+        "yang_lines": 4,
+        "yin_lines": 2,
+        "upper_binary": "010",
+        "lower_binary": "111"
+      }
+    },
+    "6": {
+      "number": 6,
+      "name": "讼",
+      "upper_gua": "QIAN",
+      "lower_gua": "KAN",
+      "binary": "111010",
+      "description": "争议，竞争",
+      "attributes": {
+        "yang_lines": 4,
+        "yin_lines": 2,
+        "upper_binary": "111",
+        "lower_binary": "010"
+      }
+    },
+    "7": {
+      "number": 7,
+      "name": "师",
+      "upper_gua": "KUN",
+      "lower_gua": "KAN",
+      "binary": "000010",
+      "description": "众，军队",
+      "attributes": {
+        "yang_lines": 1,
+        "yin_lines": 5,
+        "upper_binary": "000",
+        "lower_binary": "010"
+      }
+    },
+    "8": {
+      "number": 8,
+      "name": "比",
+      "upper_gua": "KAN",
+      "lower_gua": "KUN",
+      "binary": "010000",
+      "description": "亲密，辅佐",
+      "attributes": {
+        "yang_lines": 1,
+        "yin_lines": 5,
+        "upper_binary": "010",
+        "lower_binary": "000"
+      }
+    },
+    "9": {
+      "number": 9,
+      "name": "小畜",
+      "upper_gua": "XUN",
+      "lower_gua": "QIAN",
+      "binary": "010111",
+      "description": "小有积蓄",
+      "attributes": {
+        "yang_lines": 4,
+        "yin_lines": 2,
+        "upper_binary": "010",
+        "lower_binary": "111"
+      }
+    },
+    "10": {
+      "number": 10,
+      "name": "泰",
+      "upper_gua": "KUN",
+      "lower_gua": "QIAN",
+      "binary": "000111",
+      "description": "通达，安泰",
+      "attributes": {
+        "yang_lines": 3,
+        "yin_lines": 3,
+        "upper_binary": "000",
+        "lower_binary": "111"
+      }
+    },
+    "11": {
+      "number": 11,
+      "name": "否",
+      "upper_gua": "QIAN",
+      "lower_gua": "KUN",
+      "binary": "111000",
+      "description": "闭塞，不通",
+      "attributes": {
+        "yang_lines": 3,
+        "yin_lines": 3,
+        "upper_binary": "111",
+        "lower_binary": "000"
+      }
+    },
+    "12": {
+      "number": 12,
+      "name": "同人",
+      "upper_gua": "LI",
+      "lower_gua": "QIAN",
+      "binary": "101111",
+      "description": "团结，合作",
+      "attributes": {
+        "yang_lines": 5,
+        "yin_lines": 1,
+        "upper_binary": "101",
+        "lower_binary": "111"
+      }
+    },
+    "13": {
+      "number": 13,
+      "name": "大有",
+      "upper_gua": "QIAN",
+      "lower_gua": "LI",
+      "binary": "111101",
+      "description": "盛大，收获",
+      "attributes": {
+        "yang_lines": 5,
+        "yin_lines": 1,
+        "upper_binary": "111",
+        "lower_binary": "101"
+      }
+    },
+    "14": {
+      "number": 14,
+      "name": "谦",
+      "upper_gua": "KUN",
+      "lower_gua": "GEN",
+      "binary": "000100",
+      "description": "谦虚，低调",
+      "attributes": {
+        "yang_lines": 1,
+        "yin_lines": 5,
+        "upper_binary": "000",
+        "lower_binary": "100"
+      }
+    },
+    "15": {
+      "number": 15,
+      "name": "豫",
+      "upper_gua": "ZHEN",
+      "lower_gua": "KUN",
+      "binary": "001000",
+      "description": "愉悦，安乐",
+      "attributes": {
+        "yang_lines": 1,
+        "yin_lines": 5,
+        "upper_binary": "001",
+        "lower_binary": "000"
+      }
+    },
+    "16": {
+      "number": 16,
+      "name": "随",
+      "upper_gua": "ZHEN",
+      "lower_gua": "DUI",
+      "binary": "001011",
+      "description": "跟随，顺从",
+      "attributes": {
+        "yang_lines": 3,
+        "yin_lines": 3,
+        "upper_binary": "001",
+        "lower_binary": "011"
+      }
+    },
+    "17": {
+      "number": 17,
+      "name": "蛊",
+      "upper_gua": "XUN",
+      "lower_gua": "GEN",
+      "binary": "010100",
+      "description": "整治，革新",
+      "attributes": {
+        "yang_lines": 2,
+        "yin_lines": 4,
+        "upper_binary": "010",
+        "lower_binary": "100"
+      }
+    },
+    "18": {
+      "number": 18,
+      "name": "临",
+      "upper_gua": "DUI",
+      "lower_gua": "KUN",
+      "binary": "011000",
+      "description": "临近，监督",
+      "attributes": {
+        "yang_lines": 2,
+        "yin_lines": 4,
+        "upper_binary": "011",
+        "lower_binary": "000"
+      }
+    },
+    "19": {
+      "number": 19,
+      "name": "观",
+      "upper_gua": "KUN",
+      "lower_gua": "XUN",
+      "binary": "000010",
+      "description": "观察，审视",
+      "attributes": {
+        "yang_lines": 1,
+        "yin_lines": 5,
+        "upper_binary": "000",
+        "lower_binary": "010"
+      }
+    },
+    "20": {
+      "number": 20,
+      "name": "噬嗑",
+      "upper_gua": "ZHEN",
+      "lower_gua": "LI",
+      "binary": "001101",
+      "description": "咬合，刑罚",
+      "attributes": {
+        "yang_lines": 3,
+        "yin_lines": 3,
+        "upper_binary": "001",
+        "lower_binary": "101"
+      }
+    },
+    "21": {
+      "number": 21,
+      "name": "贲",
+      "upper_gua": "LI",
+      "lower_gua": "GEN",
+      "binary": "101100",
+      "description": "装饰，美化",
+      "attributes": {
+        "yang_lines": 3,
+        "yin_lines": 3,
+        "upper_binary": "101",
+        "lower_binary": "100"
+      }
+    },
+    "22": {
+      "number": 22,
+      "name": "剥",
+      "upper_gua": "GEN",
+      "lower_gua": "KUN",
+      "binary": "100000",
+      "description": "剥落，衰退",
+      "attributes": {
+        "yang_lines": 1,
+        "yin_lines": 5,
+        "upper_binary": "100",
+        "lower_binary": "000"
+      }
+    },
+    "23": {
+      "number": 23,
+      "name": "复",
+      "upper_gua": "KUN",
+      "lower_gua": "ZHEN",
+      "binary": "000001",
+      "description": "回复，复兴",
+      "attributes": {
+        "yang_lines": 1,
+        "yin_lines": 5,
+        "upper_binary": "000",
+        "lower_binary": "001"
+      }
+    },
+    "24": {
+      "number": 24,
+      "name": "无妄",
+      "upper_gua": "QIAN",
+      "lower_gua": "ZHEN",
+      "binary": "111001",
+      "description": "真实，无妄",
+      "attributes": {
+        "yang_lines": 4,
+        "yin_lines": 2,
+        "upper_binary": "111",
+        "lower_binary": "001"
+      }
+    },
+    "25": {
+      "number": 25,
+      "name": "大畜",
+      "upper_gua": "QIAN",
+      "lower_gua": "GEN",
+      "binary": "111100",
+      "description": "大积蓄",
+      "attributes": {
+        "yang_lines": 4,
+        "yin_lines": 2,
+        "upper_binary": "111",
+        "lower_binary": "100"
+      }
+    },
+    "26": {
+      "number": 26,
+      "name": "颐",
+      "upper_gua": "GEN",
+      "lower_gua": "ZHEN",
+      "binary": "100001",
+      "description": "养育，修养",
+      "attributes": {
+        "yang_lines": 2,
+        "yin_lines": 4,
+        "upper_binary": "100",
+        "lower_binary": "001"
+      }
+    },
+    "27": {
+      "number": 27,
+      "name": "大过",
+      "upper_gua": "DUI",
+      "lower_gua": "XUN",
+      "binary": "011010",
+      "description": "过度，非常",
+      "attributes": {
+        "yang_lines": 3,
+        "yin_lines": 3,
+        "upper_binary": "011",
+        "lower_binary": "010"
+      }
+    },
+    "28": {
+      "number": 28,
+      "name": "坎",
+      "upper_gua": "KAN",
+      "lower_gua": "KAN",
+      "binary": "010010",
+      "description": "险陷，困难",
+      "attributes": {
+        "yang_lines": 2,
+        "yin_lines": 4,
+        "upper_binary": "010",
+        "lower_binary": "010"
+      }
+    },
+    "29": {
+      "number": 29,
+      "name": "离",
+      "upper_gua": "LI",
+      "lower_gua": "LI",
+      "binary": "101101",
+      "description": "光明，依附",
+      "attributes": {
+        "yang_lines": 4,
+        "yin_lines": 2,
+        "upper_binary": "101",
+        "lower_binary": "101"
+      }
+    },
+    "30": {
+      "number": 30,
+      "name": "咸",
+      "upper_gua": "DUI",
+      "lower_gua": "GEN",
+      "binary": "011100",
+      "description": "感应，交流",
+      "attributes": {
+        "yang_lines": 3,
+        "yin_lines": 3,
+        "upper_binary": "011",
+        "lower_binary": "100"
+      }
+    },
+    "31": {
+      "number": 31,
+      "name": "恒",
+      "upper_gua": "XUN",
+      "lower_gua": "ZHEN",
+      "binary": "010001",
+      "description": "恒久，持久",
+      "attributes": {
+        "yang_lines": 2,
+        "yin_lines": 4,
+        "upper_binary": "010",
+        "lower_binary": "001"
+      }
+    },
+    "32": {
+      "number": 32,
+      "name": "遁",
+      "upper_gua": "GEN",
+      "lower_gua": "QIAN",
+      "binary": "100111",
+      "description": "退避，隐遁",
+      "attributes": {
+        "yang_lines": 4,
+        "yin_lines": 2,
+        "upper_binary": "100",
+        "lower_binary": "111"
+      }
+    },
+    "33": {
+      "number": 33,
+      "name": "大壮",
+      "upper_gua": "ZHEN",
+      "lower_gua": "QIAN",
+      "binary": "001111",
+      "description": "强盛，壮大",
+      "attributes": {
+        "yang_lines": 4,
+        "yin_lines": 2,
+        "upper_binary": "001",
+        "lower_binary": "111"
+      }
+    },
+    "34": {
+      "number": 34,
+      "name": "晋",
+      "upper_gua": "LI",
+      "lower_gua": "QIAN",
+      "binary": "101111",
+      "description": "前进，晋升",
+      "attributes": {
+        "yang_lines": 5,
+        "yin_lines": 1,
+        "upper_binary": "101",
+        "lower_binary": "111"
+      }
+    },
+    "35": {
+      "number": 35,
+      "name": "明夷",
+      "upper_gua": "KUN",
+      "lower_gua": "LI",
+      "binary": "000101",
+      "description": "光明受损",
+      "attributes": {
+        "yang_lines": 2,
+        "yin_lines": 4,
+        "upper_binary": "000",
+        "lower_binary": "101"
+      }
+    },
+    "36": {
+      "number": 36,
+      "name": "家人",
+      "upper_gua": "XUN",
+      "lower_gua": "LI",
+      "binary": "010101",
+      "description": "家庭，内部",
+      "attributes": {
+        "yang_lines": 3,
+        "yin_lines": 3,
+        "upper_binary": "010",
+        "lower_binary": "101"
+      }
+    },
+    "37": {
+      "number": 37,
+      "name": "睽",
+      "upper_gua": "LI",
+      "lower_gua": "DUI",
+      "binary": "101011",
+      "description": "背离，差异",
+      "attributes": {
+        "yang_lines": 4,
+        "yin_lines": 2,
+        "upper_binary": "101",
+        "lower_binary": "011"
+      }
+    },
+    "38": {
+      "number": 38,
+      "name": "蹇",
+      "upper_gua": "KAN",
+      "lower_gua": "GEN",
+      "binary": "010100",
+      "description": "艰难，阻塞",
+      "attributes": {
+        "yang_lines": 2,
+        "yin_lines": 4,
+        "upper_binary": "010",
+        "lower_binary": "100"
+      }
+    },
+    "39": {
+      "number": 39,
+      "name": "解",
+      "upper_gua": "ZHEN",
+      "lower_gua": "KAN",
+      "binary": "001010",
+      "description": "解脱，解决",
+      "attributes": {
+        "yang_lines": 2,
+        "yin_lines": 4,
+        "upper_binary": "001",
+        "lower_binary": "010"
+      }
+    },
+    "40": {
+      "number": 40,
+      "name": "损",
+      "upper_gua": "GEN",
+      "lower_gua": "DUI",
+      "binary": "100011",
+      "description": "减损，牺牲",
+      "attributes": {
+        "yang_lines": 3,
+        "yin_lines": 3,
+        "upper_binary": "100",
+        "lower_binary": "011"
+      }
+    },
+    "41": {
+      "number": 41,
+      "name": "益",
+      "upper_gua": "XUN",
+      "lower_gua": "ZHEN",
+      "binary": "010001",
+      "description": "增益，受益",
+      "attributes": {
+        "yang_lines": 2,
+        "yin_lines": 4,
+        "upper_binary": "010",
+        "lower_binary": "001"
+      }
+    },
+    "42": {
+      "number": 42,
+      "name": "夬",
+      "upper_gua": "DUI",
+      "lower_gua": "QIAN",
+      "binary": "011111",
+      "description": "决断，突破",
+      "attributes": {
+        "yang_lines": 5,
+        "yin_lines": 1,
+        "upper_binary": "011",
+        "lower_binary": "111"
+      }
+    },
+    "43": {
+      "number": 43,
+      "name": "姤",
+      "upper_gua": "QIAN",
+      "lower_gua": "XUN",
+      "binary": "111010",
+      "description": "相遇，邂逅",
+      "attributes": {
+        "yang_lines": 4,
+        "yin_lines": 2,
+        "upper_binary": "111",
+        "lower_binary": "010"
+      }
+    },
+    "44": {
+      "number": 44,
+      "name": "萃",
+      "upper_gua": "DUI",
+      "lower_gua": "KUN",
+      "binary": "011000",
+      "description": "聚集，精华",
+      "attributes": {
+        "yang_lines": 2,
+        "yin_lines": 4,
+        "upper_binary": "011",
+        "lower_binary": "000"
+      }
+    },
+    "45": {
+      "number": 45,
+      "name": "升",
+      "upper_gua": "KUN",
+      "lower_gua": "XUN",
+      "binary": "000010",
+      "description": "上升，晋升",
+      "attributes": {
+        "yang_lines": 1,
+        "yin_lines": 5,
+        "upper_binary": "000",
+        "lower_binary": "010"
+      }
+    },
+    "46": {
+      "number": 46,
+      "name": "困",
+      "upper_gua": "KUN",
+      "lower_gua": "DUI",
+      "binary": "000011",
+      "description": "困顿，限制",
+      "attributes": {
+        "yang_lines": 2,
+        "yin_lines": 4,
+        "upper_binary": "000",
+        "lower_binary": "011"
+      }
+    },
+    "47": {
+      "number": 47,
+      "name": "井",
+      "upper_gua": "XUN",
+      "lower_gua": "KAN",
+      "binary": "010010",
+      "description": "滋养，源泉",
+      "attributes": {
+        "yang_lines": 2,
+        "yin_lines": 4,
+        "upper_binary": "010",
+        "lower_binary": "010"
+      }
+    },
+    "48": {
+      "number": 48,
+      "name": "革",
+      "upper_gua": "DUI",
+      "lower_gua": "LI",
+      "binary": "011101",
+      "description": "变革，改革",
+      "attributes": {
+        "yang_lines": 4,
+        "yin_lines": 2,
+        "upper_binary": "011",
+        "lower_binary": "101"
+      }
+    },
+    "49": {
+      "number": 49,
+      "name": "鼎",
+      "upper_gua": "LI",
+      "lower_gua": "XUN",
+      "binary": "101010",
+      "description": "鼎新，稳固",
+      "attributes": {
+        "yang_lines": 3,
+        "yin_lines": 3,
+        "upper_binary": "101",
+        "lower_binary": "010"
+      }
+    },
+    "50": {
+      "number": 50,
+      "name": "震",
+      "upper_gua": "ZHEN",
+      "lower_gua": "ZHEN",
+      "binary": "001001",
+      "description": "震动，激发",
+      "attributes": {
+        "yang_lines": 2,
+        "yin_lines": 4,
+        "upper_binary": "001",
+        "lower_binary": "001"
+      }
+    },
+    "51": {
+      "number": 51,
+      "name": "艮",
+      "upper_gua": "GEN",
+      "lower_gua": "GEN",
+      "binary": "100100",
+      "description": "静止，停止",
+      "attributes": {
+        "yang_lines": 2,
+        "yin_lines": 4,
+        "upper_binary": "100",
+        "lower_binary": "100"
+      }
+    },
+    "52": {
+      "number": 52,
+      "name": "渐",
+      "upper_gua": "XUN",
+      "lower_gua": "GEN",
+      "binary": "010100",
+      "description": "渐进，逐步",
+      "attributes": {
+        "yang_lines": 2,
+        "yin_lines": 4,
+        "upper_binary": "010",
+        "lower_binary": "100"
+      }
+    },
+    "53": {
+      "number": 53,
+      "name": "归妹",
+      "upper_gua": "DUI",
+      "lower_gua": "ZHEN",
+      "binary": "011001",
+      "description": "婚嫁，归宿",
+      "attributes": {
+        "yang_lines": 3,
+        "yin_lines": 3,
+        "upper_binary": "011",
+        "lower_binary": "001"
+      }
+    },
+    "54": {
+      "number": 54,
+      "name": "丰",
+      "upper_gua": "ZHEN",
+      "lower_gua": "LI",
+      "binary": "001101",
+      "description": "丰盛，盛大",
+      "attributes": {
+        "yang_lines": 3,
+        "yin_lines": 3,
+        "upper_binary": "001",
+        "lower_binary": "101"
+      }
+    },
+    "55": {
+      "number": 55,
+      "name": "旅",
+      "upper_gua": "LI",
+      "lower_gua": "GEN",
+      "binary": "101100",
+      "description": "旅行，漂泊",
+      "attributes": {
+        "yang_lines": 3,
+        "yin_lines": 3,
+        "upper_binary": "101",
+        "lower_binary": "100"
+      }
+    },
+    "56": {
+      "number": 56,
+      "name": "巽",
+      "upper_gua": "XUN",
+      "lower_gua": "XUN",
+      "binary": "010010",
+      "description": "顺从，进入",
+      "attributes": {
+        "yang_lines": 2,
+        "yin_lines": 4,
+        "upper_binary": "010",
+        "lower_binary": "010"
+      }
+    },
+    "57": {
+      "number": 57,
+      "name": "兑",
+      "upper_gua": "DUI",
+      "lower_gua": "DUI",
+      "binary": "011011",
+      "description": "喜悦，沟通",
+      "attributes": {
+        "yang_lines": 4,
+        "yin_lines": 2,
+        "upper_binary": "011",
+        "lower_binary": "011"
+      }
+    },
+    "58": {
+      "number": 58,
+      "name": "涣",
+      "upper_gua": "XUN",
+      "lower_gua": "KAN",
+      "binary": "010010",
+      "description": "涣散，化解",
+      "attributes": {
+        "yang_lines": 2,
+        "yin_lines": 4,
+        "upper_binary": "010",
+        "lower_binary": "010"
+      }
+    },
+    "59": {
+      "number": 59,
+      "name": "节",
+      "upper_gua": "ZHEN",
+      "lower_gua": "DUI",
+      "binary": "001011",
+      "description": "节制，约束",
+      "attributes": {
+        "yang_lines": 3,
+        "yin_lines": 3,
+        "upper_binary": "001",
+        "lower_binary": "011"
+      }
+    },
+    "60": {
+      "number": 60,
+      "name": "中孚",
+      "upper_gua": "XUN",
+      "lower_gua": "DUI",
+      "binary": "010011",
+      "description": "诚信，信任",
+      "attributes": {
+        "yang_lines": 3,
+        "yin_lines": 3,
+        "upper_binary": "010",
+        "lower_binary": "011"
+      }
+    },
+    "61": {
+      "number": 61,
+      "name": "小过",
+      "upper_gua": "ZHEN",
+      "lower_gua": "GEN",
+      "binary": "001100",
+      "description": "小过度",
+      "attributes": {
+        "yang_lines": 2,
+        "yin_lines": 4,
+        "upper_binary": "001",
+        "lower_binary": "100"
+      }
+    },
+    "62": {
+      "number": 62,
+      "name": "既济",
+      "upper_gua": "KAN",
+      "lower_gua": "LI",
+      "binary": "010101",
+      "description": "完成，成功",
+      "attributes": {
+        "yang_lines": 3,
+        "yin_lines": 3,
+        "upper_binary": "010",
+        "lower_binary": "101"
+      }
+    },
+    "63": {
+      "number": 63,
+      "name": "未济",
+      "upper_gua": "LI",
+      "lower_gua": "KAN",
+      "binary": "101010",
+      "description": "未完成，希望",
+      "attributes": {
+        "yang_lines": 3,
+        "yin_lines": 3,
+        "upper_binary": "101",
+        "lower_binary": "010"
+      }
+    },
+    "64": {
+      "number": 64,
+      "name": "乾坤",
+      "upper_gua": "QIAN",
+      "lower_gua": "KUN",
+      "binary": "111000",
+      "description": "天地，起源",
+      "attributes": {
+        "yang_lines": 3,
+        "yin_lines": 3,
+        "upper_binary": "111",
+        "lower_binary": "000"
+      }
+    }
+  }
+}
