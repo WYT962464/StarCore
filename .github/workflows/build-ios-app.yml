@@ -1,0 +1,131 @@
+name: Build iOS App (ios/)
+
+on:
+  push:
+    branches: [ v1.0-unified ]
+    paths:
+      - 'ios/**'
+      - '.github/workflows/build-ios-app.yml'
+  pull_request:
+    branches: [ v1.0-unified ]
+    paths:
+      - 'ios/**'
+  workflow_dispatch:
+    inputs:
+      configuration:
+        description: 'Build configuration'
+        required: false
+        default: 'Release'
+        type: choice
+        options:
+          - Release
+          - Debug
+
+env:
+  APP_NAME: StarCore
+  BUNDLE_ID: com.starcore.app
+
+jobs:
+  build:
+    name: Build IPA
+    runs-on: macos-14
+    
+    defaults:
+      run:
+        working-directory: ./ios
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Get version from Info.plist
+        id: version
+        run: |
+          VERSION=$(grep -oP 'CFBundleShortVersionString\s*<string>\K[^<]+' Info.plist || echo "1.0.0")
+          BUILD_NUM=$(grep -oP 'CFBundleVersion\s*<string>\K[^<]+' Info.plist || echo "1")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "build_num=$BUILD_NUM" >> $GITHUB_OUTPUT
+          echo "📦 App Version: $VERSION ($BUILD_NUM)"
+          
+      - name: Show project structure
+        run: |
+          echo "=== iOS Project Structure ==="
+          ls -la
+          echo ""
+          echo "=== Swift Files ==="
+          find . -name "*.swift" -type f
+          echo ""
+          echo "=== Xcode Project ==="
+          if [ -f StarCore.xcodeproj/project.pbxproj ]; then
+            echo "project.pbxproj: $(wc -l < StarCore.xcodeproj/project.pbxproj) lines"
+          fi
+          
+      - name: Build for Simulator (Debug)
+        if: github.event.inputs.configuration == 'Debug' || github.event_name == 'pull_request'
+        run: |
+          xcodebuild build             -project StarCore.xcodeproj             -scheme StarCore             -sdk iphonesimulator             -configuration Debug             -derivedDataPath build             CODE_SIGN_IDENTITY=""             CODE_SIGNING_REQUIRED=NO             2>&1 | tee build.log
+          
+      - name: Build for Device (Release)
+        if: github.event.inputs.configuration == 'Release' || github.event_name == 'push'
+        run: |
+          echo "=== Building for Device (Release) ==="
+          xcodebuild archive             -project StarCore.xcodeproj             -scheme StarCore             -sdk iphoneos             -configuration Release             -archivePath ${{ runner.temp }}/StarCore.xcarchive             CODE_SIGN_IDENTITY=""             CODE_SIGNING_REQUIRED=NO             CODE_SIGNING_ALLOWED=NO             2>&1 | tee archive.log
+          
+      - name: Package IPA
+        run: |
+          echo "=== Packaging IPA ==="
+          mkdir -p ${{ runner.temp }}/IPA/Payload
+          
+          # Find the .app bundle
+          if [ -d "${{ runner.temp }}/StarCore.xcarchive/Products/Applications" ]; then
+            APP_BUNDLE=$(find "${{ runner.temp }}/StarCore.xcarchive/Products/Applications" -name "*.app" -type d | head -1)
+          elif [ -d "build/Build/Products/Release-iphonesimulator" ]; then
+            APP_BUNDLE=$(find "build/Build/Products/Release-iphonesimulator" -name "*.app" -type d | head -1)
+          else
+            APP_BUNDLE=$(find . -name "*.app" -type d | head -1)
+          fi
+          
+          if [ -z "$APP_BUNDLE" ]; then
+            echo "❌ No .app bundle found!"
+            find . -type d -name "*.app"
+            exit 1
+          fi
+          
+          echo "Found app: $APP_BUNDLE"
+          cp -R "$APP_BUNDLE" "${{ runner.temp }}/IPA/Payload/${{ env.APP_NAME }}.app"
+          
+          cd ${{ runner.temp }}/IPA
+          zip -r ${{ env.APP_NAME }}-${{ steps.version.outputs.version }}.ipa Payload/
+          
+          echo "✅ IPA created!"
+          ls -lh ${{ env.APP_NAME }}-*.ipa
+          
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: StarCore-${{ steps.version.outputs.version }}
+          path: ${{ runner.temp }}/IPA/*.ipa
+          retention-days: 30
+          
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: |
+            ios/build.log
+            ios/archive.log
+          retention-days: 7
+
+  notify:
+    name: Notify Build Complete
+    runs-on: ubuntu-latest
+    needs: build
+    if: success() && github.event_name == 'push'
+    
+    steps:
+      - name: Build successful
+        run: |
+          echo "✅ StarCore iOS App build completed successfully!"
+          echo "Version: ${{ needs.build.outputs.version }}"
+          echo "Download from Actions artifacts"
