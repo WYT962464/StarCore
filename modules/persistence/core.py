@@ -290,13 +290,12 @@ class PersistenceCore:
             
             return None
     
-    def save_all(self, states: Dict[PersistableType, Dict[str, Any]],
-                 mode: SaveMode = SaveMode.INCREMENTAL) -> SaveRecord:
+    def save_all(self, states: Dict, mode: SaveMode = SaveMode.INCREMENTAL) -> SaveRecord:
         """
         批量保存所有状态
         
         Args:
-            states: 状态字典
+            states: 状态字典 (键可以是 PersistableType 或字符串)
             mode: 保存模式
             
         Returns:
@@ -304,10 +303,20 @@ class PersistenceCore:
         """
         with self.lock:
             record_id = f"save_{datetime.now().strftime('%Y%m%d%H%M%S')}"
-            types = list(states.keys())
+            
+            # 统一转换为 PersistableType
+            types = []
+            converted_states = {}
+            for key, data in states.items():
+                if isinstance(key, str):
+                    ptype = PersistableType(key)
+                else:
+                    ptype = key
+                types.append(ptype)
+                converted_states[ptype] = data
             
             # 保存每个状态
-            for ptype, data in states.items():
+            for ptype, data in converted_states.items():
                 self.save_state(ptype, data, mode)
             
             # 创建记录
@@ -316,8 +325,8 @@ class PersistenceCore:
                 timestamp=datetime.now().isoformat(),
                 mode=mode,
                 types=types,
-                record_count=len(states),
-                checksum=hashlib.md5(json.dumps({k.value: v for k, v in states.items()}, sort_keys=True).encode()).hexdigest()[:16]
+                record_count=len(converted_states),
+                checksum=hashlib.md5(json.dumps({k.value: v for k, v in converted_states.items()}, sort_keys=True).encode()).hexdigest()[:16]
             )
             
             # 写入数据库
