@@ -60,45 +60,70 @@ jobs:
             echo "project.pbxproj: $(wc -l < StarCore.xcodeproj/project.pbxproj) lines"
           fi
           
-      - name: Build for Simulator (Debug)
-        if: github.event.inputs.configuration == 'Debug' || github.event_name == 'pull_request'
+      - name: Build Archive
         run: |
-          xcodebuild build             -project StarCore.xcodeproj             -scheme StarCore             -sdk iphonesimulator             -configuration Debug             -derivedDataPath build             CODE_SIGN_IDENTITY=""             CODE_SIGNING_REQUIRED=NO             2>&1 | tee build.log
+          echo "=== Building Archive ==="
+          xcodebuild archive             -project StarCore.xcodeproj             -scheme StarCore             -sdk iphoneos             -configuration ${{ github.event.inputs.configuration || 'Release' }}             -archivePath ${{ runner.temp }}/StarCore.xcarchive             CODE_SIGN_IDENTITY=""             CODE_SIGNING_REQUIRED=NO             CODE_SIGNING_ALLOWED=NO             2>&1 | tee archive.log
           
-      - name: Build for Device (Release)
-        if: github.event.inputs.configuration == 'Release' || github.event_name == 'push'
+      - name: Debug Archive
+        if: failure()
         run: |
-          echo "=== Building for Device (Release) ==="
-          xcodebuild archive             -project StarCore.xcodeproj             -scheme StarCore             -sdk iphoneos             -configuration Release             -archivePath ${{ runner.temp }}/StarCore.xcarchive             CODE_SIGN_IDENTITY=""             CODE_SIGNING_REQUIRED=NO             CODE_SIGNING_ALLOWED=NO             2>&1 | tee archive.log
+          echo "=== Archive Build Failed ==="
+          echo "Checking for .app bundles..."
+          find . -name "*.app" -type d 2>/dev/null || echo "No .app found in project"
+          find ${{ runner.temp }} -name "*.app" -type d 2>/dev/null || echo "No .app in temp"
+          echo ""
+          echo "Archive log:"
+          cat archive.log | tail -50
           
       - name: Package IPA
         run: |
           echo "=== Packaging IPA ==="
           mkdir -p ${{ runner.temp }}/IPA/Payload
           
-          # Find the .app bundle
+          # Find the .app bundle from archive
+          APP_BUNDLE=""
+          
+          # Method 1: From xcarchive
           if [ -d "${{ runner.temp }}/StarCore.xcarchive/Products/Applications" ]; then
-            APP_BUNDLE=$(find "${{ runner.temp }}/StarCore.xcarchive/Products/Applications" -name "*.app" -type d | head -1)
-          elif [ -d "build/Build/Products/Release-iphonesimulator" ]; then
-            APP_BUNDLE=$(find "build/Build/Products/Release-iphonesimulator" -name "*.app" -type d | head -1)
-          else
-            APP_BUNDLE=$(find . -name "*.app" -type d | head -1)
+            APP_BUNDLE=$(find "${{ runner.temp }}/StarCore.xcarchive/Products/Applications" -maxdepth 2 -name "*.app" -type d | head -1)
+          fi
+          
+          # Method 2: From DerivedData
+          if [ -z "$APP_BUNDLE" ]; then
+            APP_BUNDLE=$(find ${{ runner.temp }}/StarCore.xcarchive -name "*.app" -type d | head -1)
+          fi
+          
+          # Method 3: From build directory
+          if [ -z "$APP_BUNDLE" ]; then
+            APP_BUNDLE=$(find ./build -name "*.app" -type d 2>/dev/null | head -1)
           fi
           
           if [ -z "$APP_BUNDLE" ]; then
             echo "❌ No .app bundle found!"
-            find . -type d -name "*.app"
+            echo "Searching everywhere..."
+            find / -name "*.app" -type d 2>/dev/null | head -10 || true
             exit 1
           fi
           
-          echo "Found app: $APP_BUNDLE"
+          echo "✅ Found app: $APP_BUNDLE"
+          ls -la "$APP_BUNDLE"
+          
+          # Copy to IPA
           cp -R "$APP_BUNDLE" "${{ runner.temp }}/IPA/Payload/${{ env.APP_NAME }}.app"
           
+          echo ""
+          echo "=== IPA Contents ==="
+          ls -la "${{ runner.temp }}/IPA/Payload/${{ env.APP_NAME }}.app"
+          
+          # Create IPA
           cd ${{ runner.temp }}/IPA
           zip -r ${{ env.APP_NAME }}-${{ steps.version.outputs.version }}.ipa Payload/
           
+          echo ""
           echo "✅ IPA created!"
           ls -lh ${{ env.APP_NAME }}-*.ipa
+          echo "IPA_SIZE=$(stat -f%z ${{ env.APP_NAME }}-*.ipa 2>/dev/null || stat -c%s ${{ env.APP_NAME }}-*.ipa)" >> $GITHUB_ENV
           
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
@@ -113,7 +138,6 @@ jobs:
         with:
           name: build-logs
           path: |
-            ios/build.log
             ios/archive.log
           retention-days: 7
 
@@ -127,5 +151,4 @@ jobs:
       - name: Build successful
         run: |
           echo "✅ StarCore iOS App build completed successfully!"
-          echo "Version: ${{ needs.build.outputs.version }}"
           echo "Download from Actions artifacts"
