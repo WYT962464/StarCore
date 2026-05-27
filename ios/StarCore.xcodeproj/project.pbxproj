@@ -6,21 +6,21 @@
 	objectVersion = 56;
 	objects = {
 
-/* Begin PBXBuildFile section */
+	/* Begin PBXBuildFile section */
 		52A84892D293BE3E361C8AF48788E372 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7976132071CF18954F36131763333368 /* ContentView.swift */; };
 		6BAA4A5A6E1553BE3672CFBA15C36CF6 /* StarCoreApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2ACD04DE116CE4C3661A5E9CC58695AE /* StarCoreApp.swift */; };
 		58CC1114DA7BB60D05755B188DC3327A /* StarCoreDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37D38481670A19F39462FE4D5320392C /* StarCoreDashboardView.swift */; };
-/* End PBXBuildFile section */
+	/* End PBXBuildFile section */
 
-/* Begin PBXFileReference section */
+	/* Begin PBXFileReference section */
 		7976132071CF18954F36131763333368 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		2ACD04DE116CE4C3661A5E9CC58695AE /* StarCoreApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarCoreApp.swift; sourceTree = "<group>"; };
 		37D38481670A19F39462FE4D5320392C /* StarCoreDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarCoreDashboardView.swift; sourceTree = "<group>"; };
 		07F8B4F03F641A6644A3C737B6CAADAB /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		D54CE5F3848CAB5CE68EFE6224A11634 /* StarCore.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = StarCore.app; sourceTree = BUILT_PRODUCTS_DIR; };
-/* End PBXFileReference section */
+	/* End PBXFileReference section */
 
-/* Begin PBXGroup section */
+	/* Begin PBXGroup section */
 		CF4C7F1F257CAF5EF6DD2E25E19B3918 = {
 			isa = PBXGroup;
 			children = (
@@ -31,9 +31,9 @@
 			);
 			sourceTree = "<group>";
 		};
-/* End PBXGroup section */
+	/* End PBXGroup section */
 
-/* Begin PBXNativeTarget section */
+	/* Begin PBXNativeTarget section */
 		E61898A4FBFE7CFC8871B97DA82F90AB /* StarCore */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 3B6D44CA8846E00BAF409ACEDD043252;
@@ -49,9 +49,9 @@
 			productReference = D54CE5F3848CAB5CE68EFE6224A11634 /* StarCore.app */;
 			productType = "com.apple.product-type.application";
 		};
-/* End PBXNativeTarget section */
+	/* End PBXNativeTarget section */
 
-/* Begin PBXProject section */
+	/* Begin PBXProject section */
 		BBB8C1AAFA6D2F96D1280E2F5548B409 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {{
@@ -79,9 +79,9 @@
 				E61898A4FBFE7CFC8871B97DA82F90AB /* StarCore */,
 			);
 		};
-/* End PBXProject section */
+	/* End PBXProject section */
 
-/* Begin PBXSourcesBuildPhase section */
+	/* Begin PBXSourcesBuildPhase section */
 		390080C98040438B51B933DF68E1DE53 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -92,9 +92,9 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-/* End PBXSourcesBuildPhase section */
+	/* End PBXSourcesBuildPhase section */
 
-/* Begin XCBuildConfiguration section */
+	/* Begin XCBuildConfiguration section */
 		049A57EDA297D1C0F3C558ABAF5105BF /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {{
@@ -205,9 +205,9 @@
 			}};
 			name = Release;
 		};
-/* End XCBuildConfiguration section */
+	/* End XCBuildConfiguration section */
 
-/* Begin XCConfigurationList section */
+	/* Begin XCConfigurationList section */
 		218F3437194B5A0E2711D3F8DB8F0D92 /* Build configuration list for PBXProject */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -226,7 +226,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-/* End XCConfigurationList section */
+	/* End XCConfigurationList section */
 	};
 	rootObject = BBB8C1AAFA6D2F96D1280E2F5548B409 /* Project object */;
 }
