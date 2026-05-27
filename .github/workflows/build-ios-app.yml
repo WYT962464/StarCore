@@ -1,0 +1,101 @@
+name: Build iOS App (ios/)
+
+on:
+  push:
+    branches: [ v1.0-unified ]
+    paths:
+      - 'ios/**'
+      - '.github/workflows/build-ios-app.yml'
+  pull_request:
+    branches: [ v1.0-unified ]
+    paths:
+      - 'ios/**'
+  workflow_dispatch:
+    inputs:
+      configuration:
+        description: 'Build configuration'
+        required: false
+        default: 'Release'
+        type: choice
+        options:
+          - Release
+          - Debug
+
+env:
+  APP_NAME: StarCore
+
+jobs:
+  build:
+    name: Build IPA
+    runs-on: macos-14
+    
+    defaults:
+      run:
+        working-directory: ./ios
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Get version
+        id: version
+        run: |
+          VERSION=$(grep -oP 'CFBundleShortVersionString\s*<string>\K[^<]+' Info.plist || echo "1.0.0")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Version: $VERSION"
+          
+      - name: Build and Package IPA
+        run: |
+          set -e
+          
+          echo "=== Building Archive ==="
+          xcodebuild archive             -project StarCore.xcodeproj             -scheme StarCore             -sdk iphoneos             -configuration ${{ github.event.inputs.configuration || 'Release' }}             -archivePath ~/StarCore.xcarchive             CODE_SIGN_IDENTITY=""             CODE_SIGNING_REQUIRED=NO             2>&1 | tee archive.log
+          
+          echo ""
+          echo "=== Finding .app Bundle ==="
+          
+          # Find the .app in the archive
+          APP_BUNDLE=$(find ~/StarCore.xcarchive -name "*.app" -type d | head -1)
+          
+          if [ -z "$APP_BUNDLE" ]; then
+            echo "❌ No .app found in archive!"
+            echo "Archive contents:"
+            ls -la ~/StarCore.xcarchive/
+            exit 1
+          fi
+          
+          echo "✅ Found: $APP_BUNDLE"
+          ls -la "$APP_BUNDLE"
+          
+          echo ""
+          echo "=== Creating IPA ==="
+          
+          # Create IPA structure
+          mkdir -p ~/ipa_build/Payload
+          cp -R "$APP_BUNDLE" ~/ipa_build/Payload/$APP_NAME.app
+          
+          echo "IPA contents:"
+          ls -la ~/ipa_build/Payload/$APP_NAME.app/
+          
+          # Create IPA
+          cd ~/ipa_build
+          zip -r ../${{ env.APP_NAME }}-${{ steps.version.outputs.version }}.ipa Payload/
+          
+          echo ""
+          echo "✅ IPA created!"
+          ls -lh ~/../${{ env.APP_NAME }}-*.ipa
+          
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: StarCore-${{ steps.version.outputs.version }}
+          path: ~/StarCore-*.ipa
+          retention-days: 30
+          
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: ios/archive.log
+          retention-days: 7
