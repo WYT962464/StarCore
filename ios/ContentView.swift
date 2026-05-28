@@ -38,12 +38,19 @@ struct ContentView: View {
                     }
                     .tag(2)
                 
-                // 标签 3: 设置
+                // 标签 3: 终端控制
+                TerminalView()
+                    .tabItem {
+                        Label("🖥️ 终端", systemImage: "terminal")
+                    }
+                    .tag(3)
+                
+                // 标签 4: 设置
                 SettingsView()
                     .tabItem {
                         Label("⚙️ 设置", systemImage: "gear")
                     }
-                    .tag(3)
+                    .tag(4)
             }
             .navigationTitle("星核 StarCore")
             .navigationBarTitleDisplayMode(.inline)
@@ -55,7 +62,6 @@ struct ContentView: View {
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: {
-                        // 云电脑连接状态
                         showCloudStatus()
                     }) {
                         Image(systemName: configManager.isCloudConnected ? "cloud.checkmark" : "cloud")
@@ -78,24 +84,192 @@ struct ModelSelectorButton: View {
     
     var body: some View {
         Menu {
-            ForEach(LLMModel.allCases) { model in
-                Button {
+            ForEach(LLMModel.allCases, id: \.self) { model in
+                Button(action: {
                     configManager.switchModel(model)
-                } label: {
-                    HStack {
-                        Text(model.displayName)
-                        if model == configManager.currentModel {
-                            Image(systemName: "checkmark")
-                        }
-                    }
+                }) {
+                    Label(model.displayName, systemImage: "star")
                 }
             }
         } label: {
-            HStack {
-                Image(systemName: "cpu")
-                Text(configManager.currentModel.displayName)
-                    .font(.caption)
+            Label(configManager.currentModel.displayName, systemImage: "star")
+                .foregroundColor(.blue)
+        }
+    }
+}
+
+// MARK: - 终端视图
+struct TerminalView: View {
+    @StateObject private var terminal = LocalTerminal.shared
+    @StateObject private var mcpClient = IOSMCPClient.shared
+    @State private var commandInput = ""
+    @State private var selectedMode = 0  // 0: 终端，1: iOS MCP
+    
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 0) {
+                // 顶部模式切换
+                Picker("模式", selection: $selectedMode) {
+                    Text("本地终端").tag(0)
+                    Text("iOS MCP").tag(1)
+                }
+                .pickerStyle(.segmented)
+                .padding()
+                
+                if selectedMode == 0 {
+                    // 终端模式
+                    terminalBody
+                } else {
+                    // iOS MCP 模式
+                    mcpBody
+                }
             }
+            .navigationTitle("🖥️ 终端控制")
+        }
+    }
+    
+    var terminalBody: some View {
+        VStack {
+            // 输出区域
+            ScrollView {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("📋 本地终端 - 越狱设备可用")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                    
+                    if terminal.lastOutput.isEmpty {
+                        Text("等待命令...")
+                            .foregroundColor(.gray)
+                            .italic()
+                    } else {
+                        Text(terminal.lastOutput)
+                            .font(.system(.body, design: .monospaced))
+                            .textSelection(.enabled)
+                    }
+                }
+                .padding()
+            }
+            
+            // 输入区域
+            HStack {
+                TextField("输入命令...", text: $commandInput)
+                    .font(.system(.body, design: .monospaced))
+                    .padding()
+                    .background(Color.gray.opacity(0.1))
+                    .cornerRadius(8)
+                
+                Button(action: {
+                    executeCommand()
+                }) {
+                    Image(systemName: "arrow.right.circle.fill")
+                        .font(.title2)
+                        .foregroundColor(.blue)
+                }
+                .disabled(commandInput.isEmpty || terminal.isExecuting)
+            }
+            .padding()
+        }
+    }
+    
+    var mcpBody: some View {
+        VStack {
+            // 连接状态
+            HStack {
+                Image(systemName: mcpClient.isConnected ? "checkmark.circle.fill" : "xmark.circle.fill")
+                    .foregroundColor(mcpClient.isConnected ? .green : .red)
+                Text(mcpClient.isConnected ? "已连接" : "未连接")
+                Spacer()
+                if !mcpClient.availableTools.isEmpty {
+                    Text("\(mcpClient.availableTools.count) 个工具")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                }
+            }
+            .padding()
+            
+            // 工具列表
+            if !mcpClient.availableTools.isEmpty {
+                List(mcpClient.availableTools, id: \.self) { tool in
+                    Button(action: {
+                        runMCPTool(tool)
+                    }) {
+                        HStack {
+                            Text(tool)
+                            Spacer()
+                            Image(systemName: "arrow.right")
+                                .foregroundColor(.gray)
+                        }
+                    }
+                }
+            } else if mcpClient.isConnected == false {
+                VStack {
+                    Image(systemName: "wifi.exclamationmark")
+                        .font(.largeTitle)
+                        .foregroundColor(.orange)
+                    Text("iOS MCP 服务未运行")
+                        .foregroundColor(.gray)
+                    Text("请确保 ios-mcp 服务在 localhost:8090 运行")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                }
+                .padding()
+            }
+            
+            // 快捷操作
+            if mcpClient.isConnected {
+                VStack(spacing: 12) {
+                    Text("快捷操作")
+                        .font(.headline)
+                    
+                    HStack {
+                        Button("📸 截图") { runMCPTool("screenshot") }
+                        Button("🏠 Home") { runMCPTool("press_home") }
+                        Button("📱 前台应用") { runMCPTool("get_frontmost_app") }
+                    }
+                    
+                    HStack {
+                        Button("👆 点击") { runMCPTool("tap_screen") }
+                        Button("👆 滑动") { runMCPTool("swipe_screen") }
+                        Button("⌨️ 输入") { runMCPTool("input_text") }
+                    }
+                }
+                .padding()
+            }
+        }
+    }
+    
+    func executeCommand() {
+        guard !commandInput.isEmpty else { return }
+        let cmd = commandInput
+        commandInput = ""
+        
+        Task {
+            let output = await terminal.execute(command: cmd)
+            print("终端输出：\(output)")
+        }
+    }
+    
+    func runMCPTool(_ tool: String) {
+        Task {
+            var result = ""
+            switch tool {
+            case "screenshot":
+                result = await mcpClient.screenshot()
+            case "press_home":
+                result = await mcpClient.pressHome()
+            case "get_frontmost_app":
+                result = await mcpClient.getFrontmostApp()
+            case "tap_screen":
+                result = await mcpClient.tap(x: 500, y: 1000)  // 示例坐标
+            case "swipe_screen":
+                result = await mcpClient.swipe(fromX: 500, fromY: 1500, toX: 500, toY: 500)
+            case "input_text":
+                result = await mcpClient.input(text: "测试输入")
+            default:
+                result = await mcpClient.callTool(name: tool, arguments: [:])
+            }
+            print("MCP 结果：\(result)")
+            // TODO: 显示结果到 UI
         }
     }
 }

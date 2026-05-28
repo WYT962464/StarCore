@@ -288,4 +288,7 @@ struct SystemState: Codable {
     var memoryCount: Int = 0
     var decisionCount: Int = 0
     var hasGuaHistory: Bool = false
+    // 新增：本地能力状态
+    var hasTerminal: Bool = false
+    var hasIOSMCP: Bool = false
 }

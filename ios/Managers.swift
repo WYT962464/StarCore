@@ -289,6 +289,10 @@ class ChatManager: ObservableObject {
         
         let hasCustomModels = defaults.data(forKey: "starcore_custom_models") != nil
         
+        // 检测本地能力
+        let hasTerminal = FileManager.default.fileExists(atPath: "/usr/bin/bash")
+        let hasIOSMCP = UserDefaults.standard.bool(forKey: "ios_mcp_connected")
+        
         return SystemState(
             needsRepair: false,
             needsStructure: memoryCount < 3,
@@ -300,7 +304,10 @@ class ChatManager: ObservableObject {
             memoryKeywords: memoryKeywords,
             memoryCount: memoryCount,
             decisionCount: decisionCount,
-            hasGuaHistory: hasGuaHistory
+            hasGuaHistory: hasGuaHistory,
+            // 新增：本地能力状态
+            hasTerminal: hasTerminal,
+            hasIOSMCP: hasIOSMCP
         )
     }
     
@@ -363,7 +370,12 @@ class ChatManager: ObservableObject {
         prompt += "   决策建议：\(decision.decision)\n"
         prompt += "   优先级：\(decision.priority.rawValue)\n"
         
-        // 4. 系统状态
+        // 4. 本地能力状态
+        prompt += "\n**本地能力**：\n"
+        prompt += "   🖥️ 终端：\(systemState.hasTerminal ? "可用" : "不可用")\n"
+        prompt += "   📱 iOS MCP：\(systemState.hasIOSMCP ? "可用（\(IOSMCPClient.shared.availableTools.count) 个工具）" : "不可用")\n"
+        
+        // 5. 系统状态
         prompt += "\n**系统状态**：\n"
         prompt += "   需要修复：\(systemState.needsRepair ? "是" : "否")\n"
         prompt += "   需要结构化：\(systemState.needsStructure ? "是" : "否")\n"
@@ -371,10 +383,10 @@ class ChatManager: ObservableObject {
         
         prompt += "\n---\n\n"
         
-        // 5. 用户消息
+        // 6. 用户消息
         prompt += "**用户消息**：\(text)\n\n"
         
-        // 6. 角色设定
+        // 7. 角色设定
         prompt += "请基于以上系统上下文，以星核 AI 助手的身份回复用户。"
         
         return prompt
@@ -547,11 +559,11 @@ class FileManager: ObservableObject {
     }
     
     func loadLocalFiles() {
-        // TODO: 扫描本地文件系统
+        // 扫描本地文件系统（越狱设备可访问 /var/jb/）
         localFiles = [
-            FileInfo(name: "development-plan.md", path: "/starcore/development-plan.md", isDirectory: false),
-            FileInfo(name: "data", path: "/starcore/data", isDirectory: true),
-            FileInfo(name: "ios", path: "/starcore/ios", isDirectory: true),
+            FileInfo(name: "development-plan.md", path: "/home/ubuntu/starcore/development-plan.md", isDirectory: false),
+            FileInfo(name: "data", path: "/home/ubuntu/starcore/data", isDirectory: true),
+            FileInfo(name: "ios", path: "/home/ubuntu/starcore/ios", isDirectory: true),
         ]
     }
     
@@ -574,5 +586,254 @@ class FileManager: ObservableObject {
     
     func downloadFromCloud(path: String) async {
         // TODO: 通过 SSH 下载文件
+    }
+}
+
+// MARK: - iOS MCP 客户端
+class IOSMCPClient: ObservableObject {
+    static let shared = IOSMCPClient()
+    
+    @Published var isConnected: Bool = false
+    @Published var availableTools: [String] = []
+    @Published var lastError: String?
+    
+    private let baseURL = "http://localhost:8090/mcp"
+    private let session = URLSession.shared
+    
+    init() {
+        checkConnection()
+    }
+    
+    func checkConnection() {
+        Task {
+            // 检测 iOS MCP 服务是否可用
+            guard let url = URL(string: baseURL) else { return }
+            
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            
+            // 发送 tools/list 请求
+            let body: [String: Any] = [
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/list",
+                "params": [:]
+            ]
+            
+            do {
+                request.httpBody = try JSONSerialization.data(withJSONObject: body)
+                let (data, response) = try await session.data(for: request)
+                
+                if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 {
+                    let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+                    if let tools = json?["result"] as? [String: Any], let toolList = tools["tools"] as? [[String: Any]] {
+                        await MainActor.run {
+                            self.availableTools = toolList.compactMap { $0["name"] as? String }
+                            self.isConnected = true
+                            self.lastError = nil
+                        }
+                        print("✅ iOS MCP 连接成功，可用工具：\(self.availableTools)")
+                        return
+                    }
+                }
+            } catch {
+                print("❌ iOS MCP 连接失败：\(error.localizedDescription)")
+            }
+            
+            await MainActor.run {
+                self.isConnected = false
+                self.availableTools = []
+                self.lastError = "无法连接到 localhost:8090"
+            }
+        }
+    }
+    
+    /// 调用 MCP 工具
+    func callTool(name: String, arguments: [String: Any]) async -> String {
+        guard let url = URL(string: baseURL) else {
+            return "❌ 无效的 URL"
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let body: [String: Any] = [
+            "jsonrpc": "2.0",
+            "id": Int(Date().timeIntervalSince1970),
+            "method": "tools/call",
+            "params": [
+                "name": name,
+                "arguments": arguments
+            ]
+        ]
+        
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+            let (data, response) = try await session.data(for: request)
+            
+            if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 {
+                let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+                
+                if let error = json?["error"] as? [String: Any] {
+                    if let message = error["message"] as? String {
+                        return "❌ MCP 错误：\(message)"
+                    }
+                }
+                
+                if let result = json?["result"] as? [String: Any],
+                   let content = result["content"] as? [[String: Any]],
+                   let firstContent = content.first,
+                   let text = firstContent["text"] as? String {
+                    return text
+                }
+                
+                return "✅ 工具执行成功（无输出）"
+            } else {
+                return "❌ HTTP 错误：\(response.statusCode)"
+            }
+        } catch {
+            return "❌ 调用失败：\(error.localizedDescription)"
+        }
+    }
+    
+    // MARK: - 便捷方法
+    
+    /// 点击屏幕
+    func tap(x: Int, y: Int) async -> String {
+        return await callTool(name: "tap_screen", arguments: ["x": x, "y": y])
+    }
+    
+    /// 滑动屏幕
+    func swipe(fromX: Int, fromY: Int, toX: Int, toY: Int) async -> String {
+        return await callTool(name: "swipe_screen", arguments: [
+            "start_x": fromX, "start_y": fromY,
+            "end_x": toX, "end_y": toY
+        ])
+    }
+    
+    /// 输入文本
+    func input(text: String) async -> String {
+        return await callTool(name: "input_text", arguments: ["text": text])
+    }
+    
+    /// 截图
+    func screenshot() async -> String {
+        return await callTool(name: "screenshot", arguments: [:])
+    }
+    
+    /// 获取前台应用
+    func getFrontmostApp() async -> String {
+        return await callTool(name: "get_frontmost_app", arguments: [:])
+    }
+    
+    /// 获取屏幕信息
+    func getScreenInfo() async -> String {
+        return await callTool(name: "get_screen_info", arguments: [:])
+    }
+    
+    /// 按下 Home 键
+    func pressHome() async -> String {
+        return await callTool(name: "press_home", arguments: [:])
+    }
+    
+    /// 唤醒设备并返回 Home
+    func wakeAndHome() async -> String {
+        return await callTool(name: "wake_and_home", arguments: [:])
+    }
+}
+
+// MARK: - 本地终端执行器
+class LocalTerminal: ObservableObject {
+    static let shared = LocalTerminal()
+    
+    @Published var lastOutput: String = ""
+    @Published var isExecuting: Bool = false
+    
+    /// 执行本地命令（需要越狱环境）
+    func execute(command: String) async -> String {
+        isExecuting = true
+        defer { isExecuting = false }
+        
+        print("🖥️ 执行命令：\(command)")
+        
+        return await withTaskCancellationHandler {
+            do {
+                let process = Process()
+                process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+                process.arguments = ["bash", "-c", command]
+                
+                let outputPipe = Pipe()
+                let errorPipe = Pipe()
+                
+                process.standardOutput = outputPipe
+                process.standardError = errorPipe
+                
+                try process.run()
+                process.waitUntilExit()
+                
+                let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
+                let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
+                
+                let output = String(data: outputData, encoding: .utf8) ?? ""
+                let error = String(data: errorData, encoding: .utf8) ?? ""
+                
+                if process.terminationStatus == 0 {
+                    print("✅ 命令执行成功")
+                    await MainActor.run { self.lastOutput = output }
+                    return output.isEmpty ? "✅ 命令执行成功（无输出）" : output
+                } else {
+                    print("❌ 命令失败，退出码：\(process.terminationStatus)")
+                    return "❌ 命令执行失败（退出码：\(process.terminationStatus)\n错误：\(error)"
+                }
+            } catch {
+                print("❌ 命令执行异常：\(error.localizedDescription)")
+                return "❌ 执行异常：\(error.localizedDescription)"
+            }
+        } onCancel: {
+            process?.terminate()
+        }
+    }
+    
+    /// 检查本地能力
+    func checkCapabilities() async -> [String: Bool] {
+        var capabilities: [String: Bool] = [:]
+        
+        // 检查越狱环境
+        let jailbreakPaths = [
+            "/var/jb",
+            "/Applications/Cydia.app",
+            "/Applications/Sileo.app",
+            "/usr/libexec/sileo"
+        ]
+        capabilities["isJailbroken"] = jailbreakPaths.contains { FileManager.default.fileExists(atPath: $0) }
+        
+        // 检查常用工具
+        let tools = ["python3", "bash", "curl", "jq", "git"]
+        for tool in tools {
+            capabilities[tool] = await checkToolExists(tool)
+        }
+        
+        return capabilities
+    }
+    
+    private func checkToolExists(_ tool: String) async -> Bool {
+        return await withCheckedContinuation { continuation in
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/which")
+            process.arguments = [tool]
+            
+            let pipe = Pipe()
+            process.standardOutput = pipe
+            
+            do {
+                try process.run()
+                process.waitUntilExit()
+                continuation.resume(returning: process.terminationStatus == 0)
+            } catch {
+                continuation.resume(returning: false)
+            }
+        }
     }
 }
