@@ -92,8 +92,9 @@ class GuaEngine: ObservableObject {
         }
         
         // 演化
+        var newGua = currentGua
         if let feedbackData = phases["feedback"] {
-            let newGua = await evolve(feedback: feedbackData)
+            newGua = await evolve(feedback: feedbackData)
             currentGua = newGua
         }
         cycleCount += 1
