@@ -12,6 +12,14 @@ on:
       - 'ios/**'
   workflow_dispatch:
     inputs:
+      branch:
+        description: 'Branch to build from'
+        required: true
+        default: 'master'
+        type: choice
+        options:
+          - master
+          - v1.0-unified
       configuration:
         description: 'Build configuration'
         required: false
@@ -37,7 +45,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: master
+          ref: ${{ github.event.inputs.branch || 'master' }}
         
       - name: Get version
         id: version
