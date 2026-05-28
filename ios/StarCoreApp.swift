@@ -65,6 +65,54 @@ enum LLMModel: String, Codable, CaseIterable, Identifiable {
     var isCloud: Bool {
         self != .local && self != .custom
     }
+    
+    // 内置模型的默认 API 配置
+    var defaultConfig: CustomModelConfig {
+        switch self {
+        case .sensenova:
+            return CustomModelConfig(
+                name: "SenseNova-6.7 Flash-Lite",
+                type: "openai",
+                apiKey: "",  // 用户需在设置中填写
+                baseURL: "https://token.sensenova.cn/v1"
+            )
+        case .openai:
+            return CustomModelConfig(
+                name: "OpenAI-GPT-4",
+                type: "openai",
+                apiKey: "",
+                baseURL: "https://api.openai.com/v1"
+            )
+        case .claude:
+            return CustomModelConfig(
+                name: "Claude-3.5",
+                type: "anthropic",
+                apiKey: "",
+                baseURL: "https://api.anthropic.com/v1"
+            )
+        case .deepseek:
+            return CustomModelConfig(
+                name: "DeepSeek-V3",
+                type: "openai",
+                apiKey: "",
+                baseURL: "https://api.deepseek.com/v1"
+            )
+        case .local:
+            return CustomModelConfig(
+                name: "本地模型",
+                type: "local",
+                apiKey: "",
+                baseURL: nil
+            )
+        case .custom:
+            return CustomModelConfig(
+                name: "自定义模型",
+                type: "openai",
+                apiKey: "",
+                baseURL: ""
+            )
+        }
+    }
 }
 
 // MARK: - 消息模型

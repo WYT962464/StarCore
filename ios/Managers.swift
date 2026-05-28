@@ -303,25 +303,35 @@ class ChatManager: ObservableObject {
         // 获取当前激活的模型配置
         print("🔍 getActiveModelConfig: currentModel=\(configManager.currentModel.displayName), customModels.count=\(configManager.customModels.count)")
         
-        if configManager.currentModel == .sensenova {
-            // 查找自定义 SenseNova 配置
-            for model in configManager.customModels {
-                print("   检查模型: \(model.name), contains SenseNova: \(model.name.contains("SenseNova"))")
-            }
-            if let customModel = configManager.customModels.first(where: { $0.name.contains("SenseNova") }) {
-                print("✅ 找到自定义模型: \(customModel.name), apiKey=\(customModel.apiKey.isEmpty ? "空" : "已配置")")
-                return customModel
+        // 1. 如果是自定义模型，查找自定义配置
+        if configManager.currentModel == .custom {
+            if let firstCustom = configManager.customModels.first {
+                print("✅ 使用自定义模型: \(firstCustom.name)")
+                return firstCustom
             }
         }
         
-        // 返回默认配置（需要用户手动填写 API Key）
-        print("⚠️ 未找到自定义模型，返回默认配置")
-        return CustomModelConfig(
-            name: "SenseNova-6.7 Flash-Lite",
-            type: "openai",
-            apiKey: "",  // 用户需在设置中填写
-            baseURL: "https://token.sensenova.cn/v1"
-        )
+        // 2. 如果是内置模型，检查是否有同名的自定义配置
+        if configManager.currentModel != .local {
+            for model in configManager.customModels {
+                print("   检查自定义模型: \(model.name)")
+                // 匹配 SenseNova 相关配置
+                if configManager.currentModel == .sensenova && model.name.contains("SenseNova") {
+                    print("✅ 找到 SenseNova 自定义配置: \(model.name)")
+                    return model
+                }
+                // 匹配其他内置模型
+                if model.name.contains(configManager.currentModel.rawValue) {
+                    print("✅ 找到 \(configManager.currentModel.rawValue) 自定义配置: \(model.name)")
+                    return model
+                }
+            }
+        }
+        
+        // 3. 返回内置模型的默认配置
+        let defaultConfig = configManager.currentModel.defaultConfig
+        print("ℹ️ 使用内置模型默认配置: \(defaultConfig.name), baseURL=\(defaultConfig.baseURL ?? "无")")
+        return defaultConfig
     }
     
     private func callSenseNovaAPI(_ text: String, modelConfig: CustomModelConfig) async -> String {

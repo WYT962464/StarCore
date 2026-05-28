@@ -51,6 +51,17 @@ struct SettingsView: View {
                     Button("添加新模型") {
                         showAddModelSheet = true
                     }
+                    
+                    // API Key 配置提示
+                    if configManager.currentModel != .local {
+                        HStack {
+                            Image(systemName: "exclamationmark.triangle")
+                                .foregroundColor(.orange)
+                            Text("⚠️ 请在模型配置中填写 API Key 才能使用")
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                        }
+                    }
                 }
                 
                 // 云电脑设置
