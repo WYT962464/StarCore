@@ -1,11 +1,11 @@
 name: Build iOS App (ios/)
 
 on:
-    push:
-      branches: [ master, v1.0-unified ]
-      paths:
-        - 'ios/**'
-        - '.github/workflows/**'
+  push:
+    branches: [ master, v1.0-unified ]
+    paths:
+      - 'ios/**'
+      - '.github/workflows/**'
   pull_request:
     branches: [ master, v1.0-unified ]
     paths:
