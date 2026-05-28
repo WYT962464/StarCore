@@ -545,8 +545,8 @@ class MemoryManager: ObservableObject {
     }
 }
 
-// MARK: - 文件管理器
-class FileManager: ObservableObject {
+// MARK: - 文件浏览器
+class FileBrowser: ObservableObject {
     @Published var localFiles: [FileInfo] = []
     @Published var cloudFiles: [FileInfo] = []
     
@@ -691,7 +691,7 @@ class IOSMCPClient: ObservableObject {
                 
                 return "✅ 工具执行成功（无输出）"
             } else {
-                return "❌ HTTP 错误：\(response.statusCode)"
+                return "❌ HTTP 错误：\(statusCode)"
             }
         } catch {
             return "❌ 调用失败：\(error.localizedDescription)"
@@ -759,19 +759,20 @@ class LocalTerminal: ObservableObject {
         print("🖥️ 执行命令：\(command)")
         
         return await withTaskCancellationHandler {
+            var process: Process? = nil
             do {
-                let process = Process()
-                process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-                process.arguments = ["bash", "-c", command]
+                process = Process()
+                process!.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+                process!.arguments = ["bash", "-c", command]
                 
                 let outputPipe = Pipe()
                 let errorPipe = Pipe()
                 
-                process.standardOutput = outputPipe
-                process.standardError = errorPipe
+                process!.standardOutput = outputPipe
+                process!.standardError = errorPipe
                 
-                try process.run()
-                process.waitUntilExit()
+                try process!.run()
+                process!.waitUntilExit()
                 
                 let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
                 let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
@@ -779,13 +780,13 @@ class LocalTerminal: ObservableObject {
                 let output = String(data: outputData, encoding: .utf8) ?? ""
                 let error = String(data: errorData, encoding: .utf8) ?? ""
                 
-                if process.terminationStatus == 0 {
+                if process!.terminationStatus == 0 {
                     print("✅ 命令执行成功")
                     await MainActor.run { self.lastOutput = output }
                     return output.isEmpty ? "✅ 命令执行成功（无输出）" : output
                 } else {
-                    print("❌ 命令失败，退出码：\(process.terminationStatus)")
-                    return "❌ 命令执行失败（退出码：\(process.terminationStatus)\n错误：\(error)"
+                    print("❌ 命令失败，退出码：\(process!.terminationStatus)")
+                    return "❌ 命令执行失败（退出码：\(process!.terminationStatus)\n错误：\(error)"
                 }
             } catch {
                 print("❌ 命令执行异常：\(error.localizedDescription)")
