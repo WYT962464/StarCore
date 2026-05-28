@@ -445,7 +445,9 @@ struct ModelConfigListView: View {
                             displayName: model.displayName,
                             isCurrent: model == configManager.currentModel,
                             isCustom: false,
-                            onTap: { configManager.switchModel(model) }
+                            onTap: { configManager.switchModel(model) },
+                            onEdit: nil,
+                            onDelete: nil
                         )
                     }
                 }
