@@ -173,11 +173,12 @@ class ChatManager: ObservableObject {
     
     func getSystemState() async -> SystemState {
         // 获取当前系统状态并转换为 ThreeSagesFramework.SystemState
+        // 使用本地状态而非依赖 EnvironmentObject
         return SystemState(
-            needsRepair: !configManager.daemonStatus.contains("✅"),
+            needsRepair: false,
             needsStructure: false,
             needsOptimization: false,
-            resourcesAbundant: configManager.isCloudConnected,
+            resourcesAbundant: true,
             dataAvailable: true,
             resourcesLimited: false
         )

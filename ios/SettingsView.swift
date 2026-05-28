@@ -16,6 +16,11 @@ struct SettingsView: View {
     
     @State private var showAddModelSheet = false
     @State private var showServerConfigSheet = false
+    @State private var showModelConfigSheet = false
+    @State private var showDecisionHistory = false
+    @State private var showGuaHistory = false
+    @State private var showFeedbackSheet = false
+    @State private var showClearDataAlert = false
     
     var body: some View {
         NavigationView {
@@ -202,11 +207,6 @@ struct SettingsView: View {
     
     // 状态变量
     @State private var showModelSelector = false
-    @State private var showModelConfigSheet = false
-    @State private var showDecisionHistory = false
-    @State private var showGuaHistory = false
-    @State private var showFeedbackSheet = false
-    @State private var showClearDataAlert = false
     
     private func openGitHub() {
         // TODO: 打开 GitHub 仓库
@@ -216,6 +216,66 @@ struct SettingsView: View {
         // TODO: 清除所有数据
         configManager.resetConfig()
         chatManager.clearMessages()
+    }
+}
+
+// MARK: - 决策历史行
+struct DecisionHistoryRow: View {
+    let decision: ThreeSagesDecision
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(decision.timestamp, style: .date)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Spacer()
+            }
+            
+            Text(decision.userInput.prefix(50))
+                .lineLimit(2)
+            
+            HStack(spacing: 8) {
+                Text("诸葛亮: \(decision.zhugeLiang)")
+                    .font(.caption)
+                    .foregroundColor(.blue)
+                Text("伟人: \(decision.maoZedong)")
+                    .font(.caption)
+                    .foregroundColor(.red)
+                Text("系统论: \(decision.systemTheory)")
+                    .font(.caption)
+                    .foregroundColor(.green)
+            }
+            
+            Text("最终决策: \(decision.finalDecision)")
+                .font(.subheadline)
+                .fontWeight(.semibold)
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+// MARK: - 卦象历史行
+struct GuaHistoryRow: View {
+    let entry: GuaHistoryEntry
+    
+    var body: some View {
+        HStack {
+            Text(entry.guaName)
+                .font(.headline)
+                .foregroundColor(.purple)
+            
+            Text(entry.timestamp, style: .date)
+                .font(.caption)
+                .foregroundColor(.secondary)
+            
+            Spacer()
+            
+            Text(entry.reason)
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .lineLimit(1)
+        }
     }
 }
 
@@ -424,140 +484,6 @@ struct GuaHistoryView: View {
                     Button("完成") { dismiss() }
                 }
             }
-        }
-    }
-}
-
-// MARK: - 反馈视图
-struct FeedbackView: View {
-    @Environment(\.dismiss) var dismiss
-    
-    @State private var feedbackText = ""
-    
-    var body: some View {
-        NavigationView {
-            Form {
-                Section("反馈内容") {
-                    TextEditor(text: $feedbackText)
-                        .frame(height: 200)
-                }
-                
-// MARK: - 决策历史行
-struct DecisionHistoryRow: View {
-    let decision: ThreeSagesDecision
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(decision.timestamp, style: .date)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                Spacer()
-            }
-            
-            Text(decision.userInput.prefix(50))
-                .lineLimit(2)
-            
-            HStack(spacing: 8) {
-                Text("诸葛亮: \(decision.zhugeLiang)")
-                    .font(.caption)
-                    .foregroundColor(.blue)
-                Text("伟人: \(decision.maoZedong)")
-                    .font(.caption)
-                    .foregroundColor(.red)
-                Text("系统论: \(decision.systemTheory)")
-                    .font(.caption)
-                    .foregroundColor(.green)
-            }
-            
-            Text("最终决策: \(decision.finalDecision)")
-                .font(.subheadline)
-                .fontWeight(.semibold)
-        }
-        .padding(.vertical, 4)
-    }
-}
-
-// MARK: - 卦象历史行
-struct GuaHistoryRow: View {
-    let entry: GuaHistoryEntry
-    
-    var body: some View {
-        HStack {
-            Text(entry.guaName)
-                .font(.headline)
-                .foregroundColor(.purple)
-            
-            Text(entry.timestamp, style: .date)
-                .font(.caption)
-                .foregroundColor(.secondary)
-            
-            Spacer()
-            
-            Text(entry.reason)
-                .font(.caption)
-                .foregroundColor(.secondary)
-                .lineLimit(1)
-        }
-    }
-}
-
-// MARK: - 决策历史行
-struct DecisionHistoryRow: View {
-    let decision: ThreeSagesDecision
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(decision.timestamp, style: .date)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                Spacer()
-            }
-            
-            Text(decision.userInput.prefix(50))
-                .lineLimit(2)
-            
-            HStack(spacing: 8) {
-                Text("诸葛亮: \(decision.zhugeLiang)")
-                    .font(.caption)
-                    .foregroundColor(.blue)
-                Text("伟人: \(decision.maoZedong)")
-                    .font(.caption)
-                    .foregroundColor(.red)
-                Text("系统论: \(decision.systemTheory)")
-                    .font(.caption)
-                    .foregroundColor(.green)
-            }
-            
-            Text("最终决策: \(decision.finalDecision)")
-                .font(.subheadline)
-                .fontWeight(.semibold)
-        }
-        .padding(.vertical, 4)
-    }
-}
-
-// MARK: - 卦象历史行
-struct GuaHistoryRow: View {
-    let entry: GuaHistoryEntry
-    
-    var body: some View {
-        HStack {
-            Text(entry.guaName)
-                .font(.headline)
-                .foregroundColor(.purple)
-            
-            Text(entry.timestamp, style: .date)
-                .font(.caption)
-                .foregroundColor(.secondary)
-            
-            Spacer()
-            
-            Text(entry.reason)
-                .font(.caption)
-                .foregroundColor(.secondary)
-                .lineLimit(1)
         }
     }
 }
