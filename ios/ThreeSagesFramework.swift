@@ -166,7 +166,9 @@ class ThreeSagesFramework: ObservableObject {
             rationale: "基于\(primarySage)维度评估，\(overallScore) 综合得分",
             priority: priority,
             nextGua: nextGua,
-            requiresCloud: overallScore < 0.6
+            // 修复：只有当任务复杂度超过本地能力时才需要云电脑
+            // 简单任务（general, analyze）本地即可处理
+            requiresCloud: overallScore < 0.4 && context.taskType != .general
         )
         
         decisionHistory.append(decision)
