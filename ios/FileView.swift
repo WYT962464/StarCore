@@ -9,7 +9,7 @@
 import SwiftUI
 
 struct FileView: View {
-    @EnvironmentObject var fileManager: FileManager
+    @EnvironmentObject var fileBrowser: FileBrowser
     @EnvironmentObject var configManager: ConfigManager
     
     @State private var selectedFolder: FileFolder = .local
@@ -78,7 +78,7 @@ struct FileView: View {
     }
     
     private var filteredFiles: [FileInfo] {
-        var files = selectedFolder == .local ? fileManager.localFiles : fileManager.cloudFiles
+        var files = selectedFolder == .local ? fileBrowser.localFiles : fileBrowser.cloudFiles
         
         if !searchText.isEmpty {
             files = files.filter {
@@ -203,7 +203,7 @@ struct FileRow: View {
 struct UploadFileView: View {
     let selectedFolder: FileView.FileFolder
     @Environment(\.dismiss) var dismiss
-    @EnvironmentObject var fileManager: FileManager
+    @EnvironmentObject var fileBrowser: FileBrowser
     
     @State private var selectedFile: URL?
     @State private var isUploading = false
@@ -251,6 +251,6 @@ struct UploadFileView: View {
 
 #Preview {
     FileView()
-        .environmentObject(FileManager())
+        .environmentObject(FileBrowser())
         .environmentObject(ConfigManager())
 }

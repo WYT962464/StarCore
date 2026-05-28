@@ -13,7 +13,7 @@ struct StarCoreApp: App {
     // 核心管理器
     @StateObject private var chatManager = ChatManager()
     @StateObject private var memoryManager = MemoryManager()
-    @StateObject private var fileManager = FileManager()
+    @StateObject private var fileBrowser = FileBrowser()
     @StateObject private var configManager = ConfigManager()
     
     // 三位一体决策框架
@@ -27,7 +27,7 @@ struct StarCoreApp: App {
             ContentView()
                 .environmentObject(chatManager)
                 .environmentObject(memoryManager)
-                .environmentObject(fileManager)
+                .environmentObject(fileBrowser)
                 .environmentObject(configManager)
                 .environmentObject(threeSages)
                 .environmentObject(guaEngine)

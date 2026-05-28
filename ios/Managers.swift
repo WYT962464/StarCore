@@ -8,6 +8,8 @@
 
 import Foundation
 import Combine
+import Darwin
+import UIKit
 
 // MARK: - 配置管理器
 class ConfigManager: ObservableObject {
@@ -673,10 +675,14 @@ class IOSMCPClient: ObservableObject {
             request.httpBody = try JSONSerialization.data(withJSONObject: body)
             let (data, response) = try await session.data(for: request)
             
-            if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 {
+            guard let httpResponse = response as? HTTPURLResponse else {
+                return "❌ 无效的响应类型"
+            }
+            
+            if httpResponse.statusCode == 200 {
                 let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
                 
-                if let error = json?["error"] as? [String: Any] {
+                if let error = json?[ "error"] as? [String: Any] {
                     if let message = error["message"] as? String {
                         return "❌ MCP 错误：\(message)"
                     }
@@ -691,7 +697,7 @@ class IOSMCPClient: ObservableObject {
                 
                 return "✅ 工具执行成功（无输出）"
             } else {
-                return "❌ HTTP 错误：\(statusCode)"
+                return "❌ HTTP 错误：\(httpResponse.statusCode)"
             }
         } catch {
             return "❌ 调用失败：\(error.localizedDescription)"
@@ -744,60 +750,59 @@ class IOSMCPClient: ObservableObject {
     }
 }
 
-// MARK: - 本地终端执行器
+// MARK: - 本地终端执行器（已禁用 - Process 编译问题）
+/// ⚠️ 注意：Process 类在 iOS 沙盒中受限，GitHub Actions 编译失败
+/// 已改用 NewTerm/a-Shell/iOS MCP 作为终端执行后端
 class LocalTerminal: ObservableObject {
     static let shared = LocalTerminal()
     
     @Published var lastOutput: String = ""
     @Published var isExecuting: Bool = false
     
-    /// 执行本地命令（需要越狱环境）
+    /// 执行本地命令 — 已禁用，返回提示信息
+    /// ⚠️ Process 类在 iOS 沙盒中受限，请使用 NewTermTerminal 或 AShellTerminal
     func execute(command: String) async -> String {
         isExecuting = true
         defer { isExecuting = false }
         
-        print("🖥️ 执行命令：\(command)")
+        print("⚠️ [LocalTerminal] Process 已禁用，请使用其他后端")
         
-        return await withTaskCancellationHandler {
-            var process: Process? = nil
-            do {
-                process = Process()
-                process!.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-                process!.arguments = ["bash", "-c", command]
-                
-                let outputPipe = Pipe()
-                let errorPipe = Pipe()
-                
-                process!.standardOutput = outputPipe
-                process!.standardError = errorPipe
-                
-                try process!.run()
-                process!.waitUntilExit()
-                
-                let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
-                let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
-                
-                let output = String(data: outputData, encoding: .utf8) ?? ""
-                let error = String(data: errorData, encoding: .utf8) ?? ""
-                
-                if process!.terminationStatus == 0 {
-                    print("✅ 命令执行成功")
-                    await MainActor.run { self.lastOutput = output }
-                    return output.isEmpty ? "✅ 命令执行成功（无输出）" : output
-                } else {
-                    print("❌ 命令失败，退出码：\(process!.terminationStatus)")
-                    return "❌ 命令执行失败（退出码：\(process!.terminationStatus)\n错误：\(error)"
-                }
-            } catch {
-                print("❌ 命令执行异常：\(error.localizedDescription)")
-                return "❌ 执行异常：\(error.localizedDescription)"
-            }
-        } onCancel: {
-            process?.terminate()
+        // 检查是否越狱环境
+        let jailbreakPaths = [
+            "/var/jb",
+            "/Applications/Cydia.app",
+            "/Applications/Sileo.app"
+        ]
+        let isJailbroken = jailbreakPaths.contains { FileManager.default.fileExists(atPath: $0) }
+        
+        if isJailbroken {
+            return """
+            ⚠️ LocalTerminal (Process) 已禁用
+            
+            原因：Process 类在 iOS 沙盒中受限，GitHub Actions 编译失败
+            
+            替代方案：
+            1. NewTermTerminal.shared.execute(command: "\(command)")
+            2. AShellTerminal.shared.execute(command: "\(command)")
+            3. TerminalManager.shared.execute("\(command)") (自动选择)
+            
+            如需本地执行，请手动在 NewTerm 中运行命令。
+            """
+        } else {
+            return """
+            ⚠️ LocalTerminal (Process) 已禁用
+            
+            原因：非越狱设备无法执行本地命令
+            
+            替代方案：
+            1. NewTermTerminal.shared.execute(command: "\(command)")
+            2. AShellTerminal.shared.execute(command: "\(command)")
+            3. TerminalManager.shared.execute("\(command)") (自动选择)
+            """
         }
     }
     
-    /// 检查本地能力
+    /// 检查本地能力 — 仅检测，不执行命令
     func checkCapabilities() async -> [String: Bool] {
         var capabilities: [String: Bool] = [:]
         
@@ -810,31 +815,99 @@ class LocalTerminal: ObservableObject {
         ]
         capabilities["isJailbroken"] = jailbreakPaths.contains { FileManager.default.fileExists(atPath: $0) }
         
-        // 检查常用工具
+        // 检查常用工具（仅检测文件存在，不执行）
         let tools = ["python3", "bash", "curl", "jq", "git"]
         for tool in tools {
-            capabilities[tool] = await checkToolExists(tool)
+            // 使用 FileManager 检测，不依赖 Process
+            let paths = [
+                "/usr/bin/\(tool)",
+                "/usr/local/bin/\(tool)",
+                "/var/jb/usr/bin/\(tool)"
+            ]
+            capabilities[tool] = paths.contains { FileManager.default.fileExists(atPath: $0) }
         }
         
         return capabilities
     }
+}
+
+
+// MARK: - NewTerm 终端集成（越狱设备）
+/// 通过 URL Scheme 调用 NewTerm 执行命令
+class NewTermTerminal: ObservableObject {
+    static let shared = NewTermTerminal()
     
-    private func checkToolExists(_ tool: String) async -> Bool {
-        return await withCheckedContinuation { continuation in
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/which")
-            process.arguments = [tool]
-            
-            let pipe = Pipe()
-            process.standardOutput = pipe
-            
-            do {
-                try process.run()
-                process.waitUntilExit()
-                continuation.resume(returning: process.terminationStatus == 0)
-            } catch {
-                continuation.resume(returning: false)
+    @Published var lastCommand: String = ""
+    @Published var isLaunching: Bool = false
+    @Published var lastError: String?
+    
+    private let scheme = "newterm"
+    
+    /// 检查 NewTerm 是否已安装
+    func isInstalled() -> Bool {
+        let url = URL(string: "\(scheme)://")!
+        return UIApplication.shared.canOpenURL(url)
+    }
+    
+    /// 启动 NewTerm 并执行命令
+    /// - Parameter command: 要执行的命令
+    @MainActor
+    func execute(command: String) {
+        let encodedCommand = command.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? command
+        
+        guard let url = URL(string: "\(scheme)://?cmd=\(encodedCommand)") else {
+            lastError = "无效的命令格式"
+            return
+        }
+        
+        isLaunching = true
+        lastCommand = command
+        lastError = nil
+        
+        UIApplication.shared.open(url, options: [:]) { [weak self] success in
+            Task { @MainActor in
+                self?.isLaunching = false
+                if !success {
+                    self?.lastError = "无法启动 NewTerm，请确认已安装 (ws.hbang.Terminal)"
+                }
             }
+        }
+    }
+    
+    /// 执行命令并等待（模拟等待，实际无法获取输出）
+    func executeAndWait(command: String) async -> String {
+        execute(command: command)
+        // NewTerm 不支持返回输出，返回提示信息
+        return "✅ 已在 NewTerm 中启动命令：\(command)\n⚠️ 注意：无法直接获取命令输出，请在 NewTerm 中查看结果"
+    }
+}
+
+// MARK: - a-Shell 终端集成（备选）
+/// a-Shell 支持 x-callback-url，可以获取命令输出
+class AShellTerminal: ObservableObject {
+    static let shared = AShellTerminal()
+    
+    @Published var lastOutput: String = ""
+    
+    private let scheme = "x-callback-url"
+    
+    func isInstalled() -> Bool {
+        return UIApplication.shared.canOpenURL(URL(string: "ashell://")!)
+    }
+    
+    /// 执行命令（a-Shell 支持输出回调）
+    func execute(command: String) async -> String {
+        let encodedCommand = command.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? command
+        
+        guard let url = URL(string: "x-callback-url://exec?cmd=\(encodedCommand)") else {
+            return "❌ 无效的命令格式"
+        }
+        
+        do {
+            try await UIApplication.shared.open(url)
+            return "✅ 已在 a-Shell 中启动命令：\(command)"
+        } catch {
+            return "❌ 无法启动 a-Shell: \(error.localizedDescription)"
         }
     }
 }
