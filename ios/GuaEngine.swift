@@ -10,7 +10,7 @@ import Foundation
 
 // MARK: - 六十四卦引擎
 class GuaEngine: ObservableObject {
-    @Published var currentGua: GuaState
+    @Published var currentGua: GuaState = GuaState(number: 1)
     @Published var cycleCount: Int = 0
     @Published var history: [GuaHistoryEntry] = []
     @Published var currentPhase: SixCyclePhase = .collect
