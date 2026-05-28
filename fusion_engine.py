@@ -63,6 +63,14 @@ except ImportError:
     GUAINTEGRATION_AVAILABLE = False
     print("⚠️ 六十四卦集成模块未找到，功能受限")
 
+# 三位一体决策框架
+try:
+    from three_sages_framework import ThreeSagesFramework, ThreeSagesDecision
+    THREE_SAGES_AVAILABLE = True
+except ImportError:
+    THREE_SAGES_AVAILABLE = False
+    print("⚠️ 三位一体决策框架未找到，功能受限")
+
 class FusionEngine:
     """融合引擎"""
     
@@ -81,6 +89,14 @@ class FusionEngine:
             self.gua = None
             self.gua_bridge = None
             print("⚠️ 六十四卦集成：不可用")
+        
+        # 三位一体决策框架
+        if THREE_SAGES_AVAILABLE:
+            self.three_sages = ThreeSagesFramework()
+            print("✅ 三位一体决策框架：已启用")
+        else:
+            self.three_sages = None
+            print("⚠️ 三位一体决策框架：不可用")
         
         print("✅ 融合引擎 v1.0 已初始化")
         print(f"   统一记忆：{self.memory.get_stats()}")
@@ -182,6 +198,32 @@ class FusionEngine:
                 lines.append(f"  校准建议: {cal.get('校准建议', '无')}")
                 return "\n".join(lines)
             
+            elif action == "three_sages":
+                ts_result = self.three_sages.get_status() if self.three_sages else None
+                if ts_result:
+                    lines = ["🧭 三位一体状态：", ""]
+                    lines.append(f"  当前焦点: {ts_result['state']['current_sage_focus']}")
+                    lines.append(f"  决策数: {ts_result['state']['decision_count']}")
+                    lines.append(f"  口诀: {self.get_sage_motto()[:50]}...")
+                    return "\n".join(lines)
+                return "三位一体框架未启用"
+            
+            elif action == "assess":
+                assessment = self.assess_three_sages()
+                lines = ["📊 三位一体评估：", ""]
+                if "assessments" in assessment:
+                    for a in assessment["assessments"]:
+                        lines.append(f"  {a['dimension']}: {a['score']:.2f} ({a['status']})")
+                return "\n".join(lines)
+            
+            elif action == "decide":
+                decision = self.decide_three_sages({"task_type": "general"})
+                lines = ["🧭 三位一体决策：", ""]
+                lines.append(f"  主要智者: {decision.get('primary_sage', 'N/A')}")
+                lines.append(f"  决策: {decision.get('decision', 'N/A')}")
+                lines.append(f"  建议卦象: {decision.get('next_gua', 'N/A')}")
+                return "\n".join(lines)
+            
             else:
                 return f"已执行星核操作：{action}"
         
@@ -212,6 +254,10 @@ class FusionEngine:
         # Phase 5: 六十四卦状态
         if self.gua:
             state["gua_integration"] = self.gua.get_status()
+        
+        # 三位一体状态
+        if self.three_sages:
+            state["three_sages"] = self.three_sages.get_status()
         
         return state
     
@@ -248,7 +294,43 @@ class FusionEngine:
         self.notifier.stop_monitoring()
         self.running = False
     
-    # ==================== Phase 5: 六十四卦方法 ====================
+    
+    # ==================== 三位一体方法 ====================
+    
+    def assess_three_sages(self, context: Dict = None) -> Dict:
+        """三位一体评估"""
+        if self.three_sages:
+            return self.three_sages.assess(context or {})
+        return {"error": "三位一体框架未启用"}
+    
+    def decide_three_sages(self, context: Dict = None, options: List[str] = None) -> Dict:
+        """三位一体决策"""
+        if self.three_sages:
+            result = self.three_sages.decide(context or {}, options or [])
+            return {
+                "decision_id": result.decision_id,
+                "primary_sage": result.primary_sage,
+                "decision": result.decision,
+                "rationale": result.rationale,
+                "priority": result.priority,
+                "next_gua": result.next_gua,
+                "assessments": result.assessments
+            }
+        return {"error": "三位一体框架未启用"}
+    
+    def get_three_sages_status(self) -> Dict:
+        """获取三位一体状态"""
+        if self.three_sages:
+            return self.three_sages.get_status()
+        return {"error": "三位一体框架未启用"}
+    
+    def get_sage_motto(self, sage: str = "integrated") -> str:
+        """获取智者口诀"""
+        if self.three_sages:
+            return self.three_sages.get_sage_motto(sage)
+        return "未知智者"
+
+# ==================== Phase 5: 六十四卦方法 ====================
     
     def get_gua_status(self) -> Dict:
         """获取六十四卦状态"""
@@ -319,6 +401,15 @@ class FusionEngine:
             lines.append(f"   自动循环: {'✅ 运行中' if self.gua.self_cycle and self.gua.self_cycle._running else '❌ 未启动'}")
             lines.append("")
         
+        # 三位一体状态
+        if self.three_sages:
+            ts_status = self.three_sages.get_status()
+            lines.append("🧭 三位一体：")
+            lines.append(f"   当前焦点: {ts_status['state']['current_sage_focus']}")
+            lines.append(f"   决策数: {ts_status['state']['decision_count']}")
+            lines.append(f"   口诀: {self.get_sage_motto()}")
+            lines.append("")
+        
         lines.extend([
             "🔔 监控状态：",
             f"   {'✅ 运行中' if self.running else '❌ 未启动'}",
@@ -331,6 +422,9 @@ class FusionEngine:
             '   "星核迷茫吗？"',
             '   "当前卦象是什么？"',
             '   "运行六环节"',
+            '   "三位一体现在什么状态？"',
+            '   "评估当前状态"',
+            '   "基于三位一体做决策"',
             "",
             "=" * 60
         ])

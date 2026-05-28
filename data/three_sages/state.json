@@ -1,0 +1,12 @@
+{
+  "version": "v1.0",
+  "created": "2026-05-29T01:01:33.759691",
+  "current_sage_focus": "nuwa",
+  "decision_count": 3,
+  "last_decision": "2026-05-29T01:04:17.398067",
+  "sage_balance": {
+    "nuwa": 0.33,
+    "cangjie": 0.33,
+    "darwin": 0.34
+  }
+}

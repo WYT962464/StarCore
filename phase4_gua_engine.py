@@ -8,9 +8,28 @@ Phase 4: 六十四卦自循环演化系统
 - 六十四卦状态集合
 - 六环节闭环（收集→存储→处理→输出→执行→获取）
 - 自循环演化引擎
+- **三位一体决策框架（女娲·仓颉·达尔文）**
 """
 
 import json
+import hashlib
+import os
+import time
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
+from enum import Enum
+import threading
+import random
+
+# 三位一体决策框架
+try:
+    from three_sages_framework import ThreeSagesFramework, ThreeSagesDecision
+    THREE_SAGES_AVAILABLE = True
+except ImportError:
+    THREE_SAGES_AVAILABLE = False
+    print("⚠️ 三位一体决策框架未找到，功能受限")
+
 import hashlib
 import os
 import time
@@ -284,10 +303,11 @@ class GuaEngine:
             stored = self._store(collected)
             cycle_result["phases"]["store"] = stored
             
-            # 3. 处理（演卦）- 核心推演
+            # 3. 处理（演卦）- 核心推演（三位一体）
             self._current_phase = SixCyclePhase.PROCESS
-            processed = self._process(collected)
+            processed = self._process_with_three_sages(collected)
             cycle_result["phases"]["process"] = processed
+
             
             # 4. 输出（释卦）
             self._current_phase = SixCyclePhase.OUTPUT
@@ -377,6 +397,51 @@ class GuaEngine:
         self._log(self.cycle_log, "process", result)
         return result
     
+
+    def _process_with_three_sages(self, collected: dict) -> dict:
+        """处理环节 - 三位一体核心推演"""
+        current_gua = self.get_current_gua()
+        initial_gua = GuaState(
+            gua_number=collected["initial_gua"]["number"],
+            yao_bits=[int(b) for b in collected["initial_gua"]["binary"]]
+        )
+        
+        # 三位一体评估
+        context = {
+            "system_state": {
+                "current_gua": current_gua.name,
+                "cpu_load": collected["hardware_data"].get("cpu_load", 0.5),
+                "memory_usage": collected["hardware_data"].get("memory_usage", 0.5),
+            },
+            "task_type": "evolution",
+            "urgency": "medium",
+            "resources": {
+                "abundant": collected["hardware_data"].get("battery_level", 0.5) > 0.7,
+                "data_available": True,
+                "limited": False
+            }
+        }
+        
+        three_sages_result = None
+        if THREE_SAGES_AVAILABLE:
+            from three_sages_framework import ThreeSagesFramework
+            framework = ThreeSagesFramework()
+            three_sages_result = framework.assess(context)
+        
+        # 爻变推演
+        new_gua = self._divination(current_gua, initial_gua, collected["hardware_data"])
+        
+        result = {
+            "current_gua": current_gua.to_dict(),
+            "initial_gua": collected["initial_gua"],
+            "new_gua": new_gua.to_dict(),
+            "yao_changes": self._calculate_yao_changes(current_gua, new_gua),
+            "three_sages": three_sages_result,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        self._log(self.cycle_log, "process", result)
+        return result
     def _output(self, processed: dict) -> dict:
         """输出环节 - 结果渲染"""
         new_gua = GuaState(
