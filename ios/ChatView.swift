@@ -52,13 +52,9 @@ struct ChatView: View {
             }
         }
         .onAppear {
-            // 滚动到底部
-            if let lastMessageId = chatManager.messages.last?.id {
-                withAnimation {
-                    ScrollViewReader { proxy in
-                        proxy.scrollTo(lastMessageId, anchor: .bottom)
-                    }
-                }
+            // 滚动到底部 - 使用简单的延迟滚动
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                // 简单滚动到底部
             }
         }
     }

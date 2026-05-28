@@ -241,11 +241,10 @@ struct ImportMemoryView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var memoryManager: MemoryManager
     
-    @State private var importSource: ImportSource = .file
+    @State private var importSource: ImportSource = .text
     @State private var importText = ""
     
     enum ImportSource: String, CaseIterable {
-        case file = "📁 文件"
         case text = "📝 文本"
         case url = "🔗 链接"
     }
@@ -263,8 +262,6 @@ struct ImportMemoryView: View {
                 
                 Section("内容") {
                     switch importSource {
-                    case .file:
-                        FilePickerView()
                     case .text:
                         TextEditor(text: $importText)
                             .frame(height: 200)
@@ -278,7 +275,7 @@ struct ImportMemoryView: View {
                         importMemory()
                         dismiss()
                     }
-                    .disabled(importText.isEmpty && importSource == .text)
+                    .disabled(importText.isEmpty)
                 }
             }
             .navigationTitle("导入记忆")

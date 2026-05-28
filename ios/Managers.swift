@@ -160,24 +160,15 @@ class ChatManager: ObservableObject {
     }
     
     func getSystemState() async -> SystemState {
-        // 获取当前系统状态
+        // 获取当前系统状态并转换为 ThreeSagesFramework.SystemState
         return SystemState(
-            daemonRunning: configManager.daemonStatus.contains("✅"),
-            cycleSystemRunning: configManager.cycleSystemStatus.contains("✅"),
-            cloudConnected: configManager.isCloudConnected,
-            batteryLevel: await getBatteryLevel(),
-            memoryUsage: await getMemoryUsage()
+            needsRepair: !configManager.daemonStatus.contains("✅"),
+            needsStructure: false,
+            needsOptimization: false,
+            resourcesAbundant: configManager.isCloudConnected,
+            dataAvailable: true,
+            resourcesLimited: false
         )
-    }
-    
-    private func getBatteryLevel() async -> Double {
-        // TODO: 获取设备电池电量
-        return 0.9
-    }
-    
-    private func getMemoryUsage() async -> Double {
-        // TODO: 获取设备内存使用率
-        return 0.5
     }
     
     func callLocalLLM(_ text: String, decision: ThreeSagesDecision) async -> Message {
@@ -223,13 +214,7 @@ class ChatManager: ObservableObject {
 }
 
 // MARK: - 系统状态
-struct SystemState: Codable {
-    var daemonRunning: Bool
-    var cycleSystemRunning: Bool
-    var cloudConnected: Bool
-    var batteryLevel: Double
-    var memoryUsage: Double
-}
+// SystemState 定义在 ThreeSagesFramework.swift 中
 
 // MARK: - 记忆管理器
 class MemoryManager: ObservableObject {
