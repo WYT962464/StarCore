@@ -1,0 +1,9 @@
+Package: com.starcore.tweak
+Name: StarCore Tweak
+Version: 1.0.0
+Architecture: arm64, arm64e
+Description: StarCore 触控注入 Tweak
+Maintainer: StarCore Team
+Author: StarCore
+Section: Tweaks
+Depends: mobilesubstrate, ellekit

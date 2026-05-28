@@ -1,0 +1,7 @@
+{
+  "version": "1.0",
+  "created": "2026-05-29T00:39:06.526272",
+  "storage_type": "persistent",
+  "backup_enabled": true,
+  "retention_days": 30
+}

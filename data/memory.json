@@ -1,0 +1,94 @@
+{
+  "version": "2.0",
+  "created": "2026-05-29T00:36:21.372858",
+  "gua": "坤",
+  "count": 10,
+  "entries": [
+    {
+      "id": "cycle_2632",
+      "timestamp": "2026-05-29T00:29:14.809003",
+      "content": "自循环 #2632 - 反馈",
+      "category": "震 ☳",
+      "gua": "震",
+      "source": "self_cycle_log.jsonl"
+    },
+    {
+      "id": "cycle_2633",
+      "timestamp": "2026-05-29T00:30:14.846890",
+      "content": "自循环 #2633 - 反馈",
+      "category": "震 ☳",
+      "gua": "震",
+      "source": "self_cycle_log.jsonl"
+    },
+    {
+      "id": "cycle_2634",
+      "timestamp": "2026-05-29T00:31:14.883249",
+      "content": "自循环 #2634 - 反馈",
+      "category": "震 ☳",
+      "gua": "震",
+      "source": "self_cycle_log.jsonl"
+    },
+    {
+      "id": "cycle_2635",
+      "timestamp": "2026-05-29T00:32:14.918760",
+      "content": "自循环 #2635 - 反馈",
+      "category": "震 ☳",
+      "gua": "震",
+      "source": "self_cycle_log.jsonl"
+    },
+    {
+      "id": "cycle_2636",
+      "timestamp": "2026-05-29T00:33:14.956096",
+      "content": "自循环 #2636 - 反馈",
+      "category": "震 ☳",
+      "gua": "震",
+      "source": "self_cycle_log.jsonl"
+    },
+    {
+      "id": "cycle_2637",
+      "timestamp": "2026-05-29T00:34:14.993613",
+      "content": "自循环 #2637 - 反馈",
+      "category": "震 ☳",
+      "gua": "震",
+      "source": "self_cycle_log.jsonl"
+    },
+    {
+      "id": "cycle_2638",
+      "timestamp": "2026-05-29T00:35:15.030591",
+      "content": "自循环 #2638 - 反馈",
+      "category": "震 ☳",
+      "gua": "震",
+      "source": "self_cycle_log.jsonl"
+    },
+    {
+      "id": "cycle_2639",
+      "timestamp": "2026-05-29T00:36:15.067091",
+      "content": "自循环 #2639 - 反馈",
+      "category": "震 ☳",
+      "gua": "震",
+      "source": "self_cycle_log.jsonl"
+    },
+    {
+      "id": "cycle_2640",
+      "timestamp": "2026-05-29T00:37:15.102176",
+      "content": "自循环 #2640 - 反馈",
+      "category": "震 ☳",
+      "gua": "震",
+      "source": "self_cycle_log.jsonl"
+    },
+    {
+      "id": "cycle_2641",
+      "timestamp": "2026-05-29T00:38:15.142404",
+      "content": "自循环 #2641 - 反馈",
+      "category": "震 ☳",
+      "gua": "震",
+      "source": "self_cycle_log.jsonl"
+    }
+  ],
+  "archive": [],
+  "config": {
+    "max_entries": 100,
+    "archive_threshold": 80,
+    "auto_archive": true
+  }
+}

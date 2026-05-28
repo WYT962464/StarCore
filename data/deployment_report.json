@@ -1,0 +1,86 @@
+{
+  "timestamp": "2026-05-27T18:56:46.822720",
+  "phase": "P3: 真实 iOS 本地部署",
+  "status": "准备完成，等待 Mac 构建",
+  "components": {
+    "ssh_tunnel": {
+      "status": "✅ 可用",
+      "port": 8028,
+      "process": "ssh -f -N -L 18090:127.0.0.1:8090 mobile@127.0.0.1 -p 8028"
+    },
+    "ios_mcp": {
+      "status": "✅ 可用",
+      "endpoint": "http://localhost:18090/health",
+      "response": {
+        "server": "ios-mcp",
+        "status": "ok"
+      }
+    },
+    "ios_project": {
+      "status": "✅ 已创建",
+      "path": "/home/ubuntu/starcore/ios",
+      "files": [
+        "StarCoreApp.swift",
+        "StarCoreDashboardView.swift",
+        "Info.plist",
+        "StarCore.xcodeproj/project.pbxproj",
+        "build.sh",
+        "build_mac.sh",
+        "DEPLOYMENT_GUIDE.md",
+        "ssh_transfer.sh",
+        "README.md"
+      ]
+    },
+    "daemon": {
+      "status": "⚠️ 需要重启",
+      "port": 9090
+    },
+    "tweak": {
+      "status": "⚠️ 需要重新注入",
+      "path": "/var/jb/usr/lib/TweakInject/StarCoreTweak.dylib"
+    }
+  },
+  "next_steps": [
+    {
+      "step": 1,
+      "action": "在 Mac 上构建 IPA",
+      "command": "cd ~/StarCore-iOS && ./build_mac.sh",
+      "note": "需要 Xcode + Apple Developer 账户"
+    },
+    {
+      "step": 2,
+      "action": "传输 IPA 到 iPhone",
+      "command": "scp build/StarCore-1.0.0.ipa mobile@192.168.1.100:~/Downloads/",
+      "note": "或使用 ssh_transfer.sh"
+    },
+    {
+      "step": 3,
+      "action": "安装 App",
+      "command": "Filza → ~/Downloads/ → 点击 IPA → Install",
+      "note": "越狱环境推荐 Filza"
+    },
+    {
+      "step": 4,
+      "action": "验证运行",
+      "command": "打开 StarCore App，检查卦象和数据",
+      "note": "确认连接 daemon"
+    },
+    {
+      "step": 5,
+      "action": "配置 Tweak",
+      "command": "重启 SpringBoard 验证注入",
+      "note": "killall SpringBoard"
+    }
+  ],
+  "prerequisites": {
+    "mac": "需要 macOS + Xcode 15+",
+    "developer": "需要 Apple Developer 账户 (或 AltStore 自签)",
+    "iphone": "越狱 iPhone (Dopamine)",
+    "network": "iPhone 与服务器网络可达"
+  },
+  "alternatives": {
+    "altstore": "使用 AltStore 自签，无需开发者账户",
+    "sidestore": "使用 SideStore (AltStore 分支)",
+    "filza": "越狱环境直接用 Filza 安装 IPA"
+  }
+}

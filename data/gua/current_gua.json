@@ -2,15 +2,15 @@
   "version": "v1.0",
   "created": "2026-05-27T07:32:45.691790",
   "current_gua": {
-    "number": 3,
-    "name": "ZHUN",
-    "binary": "000010",
+    "number": 5,
+    "name": "XU",
+    "binary": "000100",
     "yin_count": 5,
     "yang_count": 1,
     "yin_yang_ratio": 0.16666666666666666,
-    "timestamp": "2026-05-27T07:32:45.692899"
+    "timestamp": "2026-05-28T23:29:00.472005"
   },
   "evolution_level": 1,
-  "cycle_count": 2,
-  "last_cycle": "2026-05-27T07:32:45.692908"
+  "cycle_count": 4,
+  "last_cycle": "2026-05-28T23:29:00.472011"
 }
