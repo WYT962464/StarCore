@@ -41,7 +41,7 @@ struct StarCoreApp: App {
 }
 
 // MARK: - 模型枚举
-enum LLMModel: String, CaseIterable, Identifiable {
+enum LLMModel: String, Codable, CaseIterable, Identifiable {
     case sensenova = "SenseNova"
     case openai = "OpenAI"
     case claude = "Claude"

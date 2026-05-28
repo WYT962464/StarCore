@@ -219,13 +219,13 @@ class ThreeSagesFramework: ObservableObject {
 }
 
 // MARK: - 决策上下文
-struct DecisionContext {
+struct DecisionContext: Codable {
     var userInput: String
     var currentGua: GuaState
     var systemState: SystemState
     var taskType: TaskType = .general
     
-    enum TaskType: String {
+    enum TaskType: String, Codable {
         case general = "general"
         case create = "create"
         case design = "design"
@@ -237,13 +237,13 @@ struct DecisionContext {
 }
 
 // MARK: - 评估结果
-struct Assessment {
+struct Assessment: Codable {
     var dimension: String
     var score: Double
     var status: String
 }
 
-struct AssessmentResult {
+struct AssessmentResult: Codable {
     var assessments: [Assessment]
     var primarySage: String
     var overallScore: Double

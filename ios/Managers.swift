@@ -140,8 +140,6 @@ class ChatManager: ObservableObject {
     @Published var messages: [Message] = []
     @Published var isTyping = false
     
-    @EnvironmentObject var configManager: ConfigManager
-    
     private let messageKey = "starcore_messages"
     private let defaults = UserDefaults.standard
     
@@ -279,7 +277,8 @@ class FileManager: ObservableObject {
     @Published var localFiles: [FileInfo] = []
     @Published var cloudFiles: [FileInfo] = []
     
-    @EnvironmentObject var configManager: ConfigManager
+    private let localFilesKey = "starcore_local_files"
+    private let defaults = UserDefaults.standard
     
     init() {
         loadLocalFiles()
