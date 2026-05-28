@@ -99,6 +99,20 @@ class ConfigManager: ObservableObject {
         defaults.removeObject(forKey: configKey)
         loadConfig()
     }
+    
+    func addCustomModel(_ model: CustomModelConfig) {
+        // TODO: 实现自定义模型添加
+        print("Adding custom model: \(model.name)")
+    }
+    
+    func removeCustomModel(_ model: CustomModelConfig) {
+        // TODO: 实现自定义模型删除
+    }
+    
+    func getCustomModels() -> [CustomModelConfig] {
+        // TODO: 从配置中获取自定义模型列表
+        return []
+    }
 }
 
 // MARK: - 配置数据模型

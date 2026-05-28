@@ -112,32 +112,6 @@ struct FolderTabControl: View {
     }
 }
 
-// MARK: - 搜索栏
-struct SearchBar: View {
-    @Binding var text: String
-    
-    var body: some View {
-        HStack {
-            Image(systemName: "magnifyingglass")
-                .foregroundColor(.secondary)
-            
-            TextField("搜索文件...", text: $text)
-                .textFieldStyle(.plain)
-            
-            if !text.isEmpty {
-                Button(action: { text = "" }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.secondary)
-                }
-            }
-        }
-        .padding(8)
-        .background(Color.gray.opacity(0.05))
-        .cornerRadius(8)
-        .padding(.horizontal)
-    }
-}
-
 // MARK: - 文件行
 struct FileRow: View {
     let file: FileInfo
@@ -191,7 +165,7 @@ struct FileRow: View {
                     }
                 }
                 
-                Button(action: { deleteFile(file) }, role: .destructive) {
+                Button(role: .destructive, action: { deleteFile(file) }) {
                     Label("删除", systemImage: "trash")
                 }
             } label: {

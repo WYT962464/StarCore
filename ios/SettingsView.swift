@@ -12,6 +12,7 @@ struct SettingsView: View {
     @EnvironmentObject var configManager: ConfigManager
     @EnvironmentObject var chatManager: ChatManager
     @EnvironmentObject var threeSages: ThreeSagesFramework
+    @EnvironmentObject var guaEngine: GuaEngine
     
     @State private var showAddModelSheet = false
     @State private var showServerConfigSheet = false
@@ -278,7 +279,7 @@ struct AddModelView: View {
     private func saveModel() {
         let newModel = CustomModelConfig(
             name: modelName,
-            type: modelType,
+            type: modelType.rawValue,
             apiKey: apiKey,
             baseURL: baseURL.isEmpty ? nil : baseURL
         )
