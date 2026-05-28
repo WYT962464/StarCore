@@ -260,16 +260,47 @@ class ChatManager: ObservableObject {
         // 获取当前系统状态并转换为 ThreeSagesFramework.SystemState
         // 基于本地数据实际情况返回真实状态
         let defaults = UserDefaults.standard
-        let memoryCount = defaults.data(forKey: "starcore_memory") != nil ? 10 : 0
+        
+        // 真实记忆数据
+        var memoryCount = 0
+        var memoryKeywords: [String] = []
+        if let data = defaults.data(forKey: "starcore_memory") {
+            if let memories = try? JSONDecoder().decode([MemoryEntry].self, from: data) {
+                memoryCount = memories.count
+                memoryKeywords = memories.prefix(5).map { $0.key }
+            }
+        }
+        
+        // 真实决策数据
+        var decisionCount = 0
+        if let data = defaults.data(forKey: "three_sages_decisions") {
+            if let _ = try? JSONDecoder().decode([ThreeSagesDecision].self, from: data) {
+                decisionCount = 1 // 有决策记录
+            }
+        }
+        
+        // 真实卦象数据
+        var hasGuaHistory = false
+        if let data = defaults.data(forKey: "gua_history") {
+            if let _ = try? JSONDecoder().decode([GuaHistoryEntry].self, from: data) {
+                hasGuaHistory = true
+            }
+        }
+        
         let hasCustomModels = defaults.data(forKey: "starcore_custom_models") != nil
         
         return SystemState(
-            needsRepair: false,           // 系统运行正常
-            needsStructure: memoryCount < 5,  // 记忆条目少时需要结构化
-            needsOptimization: false,     // 无需优化
-            resourcesAbundant: true,      // 资源充足
-            dataAvailable: memoryCount > 0 || hasCustomModels,  // 有本地数据
-            resourcesLimited: false       // 资源不受限
+            needsRepair: false,
+            needsStructure: memoryCount < 3,
+            needsOptimization: memoryCount > 10 && decisionCount < 5,
+            resourcesAbundant: memoryCount > 5,
+            dataAvailable: memoryCount > 0 || hasCustomModels,
+            resourcesLimited: false,
+            // 新增：记忆关键词供 LLM 参考
+            memoryKeywords: memoryKeywords,
+            memoryCount: memoryCount,
+            decisionCount: decisionCount,
+            hasGuaHistory: hasGuaHistory
         )
     }
     
@@ -288,8 +319,16 @@ class ChatManager: ObservableObject {
             )
         }
         
+        // 获取系统状态（包含记忆摘要）
+        let systemState = await chatManager.getSystemState()
+        
+        // 构建包含本地系统上下文的完整 prompt
+        let contextPrompt = buildContextPrompt(text: text, decision: decision, systemState: systemState)
+        
+        print("📋 完整 Prompt:\n\(contextPrompt)")
+        
         // 调用 SenseNova API
-        let response = await callSenseNovaAPI(text, modelConfig: modelConfig)
+        let response = await callSenseNovaAPI(contextPrompt, modelConfig: modelConfig)
         
         return Message(
             role: .assistant,
@@ -297,6 +336,48 @@ class ChatManager: ObservableObject {
             model: configManager.currentModel.displayName,
             decision: decision
         )
+    }
+    
+    private func buildContextPrompt(text: String, decision: ThreeSagesDecision, systemState: SystemState) -> String {
+        var prompt = "【星核系统上下文】\n\n"
+        
+        // 1. 记忆体系状态
+        if systemState.memoryCount > 0 {
+            prompt += "📚 **记忆体系**：已存储 \(systemState.memoryCount) 条记忆\n"
+            if !systemState.memoryKeywords.isEmpty {
+                prompt += "   关键词：\(systemState.memoryKeywords.joined(separator: "、"))\n"
+            }
+        } else {
+            prompt += "📚 **记忆体系**：暂无记忆条目\n"
+        }
+        
+        // 2. 卦象状态
+        prompt += "🔮 **当前卦象**：\(decision.context.currentGua.name)卦（第\(decision.context.currentGua.number)卦）\n"
+        if systemState.hasGuaHistory {
+            prompt += "   演化周期：已有卦象演化历史\n"
+        }
+        
+        // 3. 三位一体决策
+        prompt += "🧭 **三位一体评估**：\n"
+        prompt += "   当前焦点：\(decision.primarySage)\n"
+        prompt += "   决策建议：\(decision.decision)\n"
+        prompt += "   优先级：\(decision.priority.rawValue)\n"
+        
+        // 4. 系统状态
+        prompt += "\n**系统状态**：\n"
+        prompt += "   需要修复：\(systemState.needsRepair ? "是" : "否")\n"
+        prompt += "   需要结构化：\(systemState.needsStructure ? "是" : "否")\n"
+        prompt += "   资源充足：\(systemState.resourcesAbundant ? "是" : "否")\n"
+        
+        prompt += "\n---\n\n"
+        
+        // 5. 用户消息
+        prompt += "**用户消息**：\(text)\n\n"
+        
+        // 6. 角色设定
+        prompt += "请基于以上系统上下文，以星核 AI 助手的身份回复用户。"
+        
+        return prompt
     }
     
     private func getActiveModelConfig() -> CustomModelConfig {

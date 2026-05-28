@@ -123,16 +123,54 @@ class GuaEngine: ObservableObject {
     }
     
     private func collect(input: Any?) async -> PhaseResult {
-        // 模拟数据采集
-        let hardwareData: [String: Double] = [
-            "cpu_load": Double.random(in: 0.1...0.9),
-            "memory_usage": Double.random(in: 0.2...0.8),
-            "battery_level": Double.random(in: 0.3...1.0)
+        // 真实数据采集 - 读取本地系统状态
+        let defaults = UserDefaults.standard
+        
+        // 1. 记忆体系状态
+        var memoryCount = 0
+        var memoryCategories: [String] = []
+        if let data = defaults.data(forKey: "starcore_memory") {
+            if let memories = try? JSONDecoder().decode([MemoryEntry].self, from: data) {
+                memoryCount = memories.count
+                memoryCategories = memories.map { $0.category }.filter { !$0.isEmpty }
+            }
+        }
+        
+        // 2. 决策记录状态
+        var decisionCount = 0
+        if let data = defaults.data(forKey: "three_sages_decisions") {
+            if let decisions = try? JSONDecoder().decode([ThreeSagesDecision].self, from: data) {
+                decisionCount = decisions.count
+            }
+        }
+        
+        // 3. 卦象演化历史
+        var cycleCount = 0
+        if let data = defaults.data(forKey: "gua_history") {
+            if let history = try? JSONDecoder().decode([GuaHistoryEntry].self, from: data) {
+                cycleCount = history.count
+            }
+        }
+        
+        // 4. 用户输入
+        let userInput = input as? String ?? "none"
+        
+        // 构建真实系统状态数据
+        let systemData: [String: Any] = [
+            "memory_count": memoryCount,
+            "memory_categories": memoryCategories,
+            "decision_count": decisionCount,
+            "gua_cycle_count": cycleCount,
+            "current_gua_number": currentGua.number,
+            "user_input": userInput,
+            "timestamp": Date().iso8601String
         ]
+        
+        print("📊 真实系统状态采集：\(systemData)")
         
         return PhaseResult(
             phase: .collect,
-            data: ["hardware_data": hardwareData, "input": input ?? "none"],
+            data: systemData,
             success: true
         )
     }
@@ -146,25 +184,49 @@ class GuaEngine: ObservableObject {
     }
     
     private func process(currentGua: GuaState, collected: PhaseResult?) async -> PhaseResult {
-        // 基于当前卦态和输入进行推演
-        let initialBits = collected?.data["input"] as? [Int] ?? currentGua.yaoBits
+        // 基于真实系统状态进行推演
+        let collectedData = collected?.data ?? [:]
         
-        // 简单爻变逻辑
-        var newBits = initialBits
+        // 从采集的数据中获取真实状态
+        let memoryCount = collectedData["memory_count"] as? Int ?? 0
+        let decisionCount = collectedData["decision_count"] as? Int ?? 0
+        let cycleCount = collectedData["gua_cycle_count"] as? Int ?? 0
+        let userInput = collectedData["user_input"] as? String ?? ""
+        
+        // 基于系统状态决定爻变概率
+        // 记忆越多、决策越多 → 系统越稳定 → 爻变概率越低
+        let stabilityFactor = min(1.0, Double(memoryCount + decisionCount) / 10.0)
+        let changeProbability = 0.3 * (1.0 - stabilityFactor)  // 基础 30%，系统越稳定变化越少
+        
+        var newBits = currentGua.yaoBits
+        var changeCount = 0
+        
         for i in 0..<6 {
-            if Double.random(in: 0...1) > 0.7 {
-                newBits[i] = 1 - newBits[i]  // 爻变
+            // 根据用户输入长度增加变化概率（复杂输入更多变化）
+            let inputFactor = min(1.0, Double(userInput.count) / 20.0)
+            let prob = changeProbability + (inputFactor * 0.2)
+            
+            if Double.random(in: 0...1) > (1.0 - prob) {
+                newBits[i] = 1 - newBits[i]
+                changeCount += 1
             }
         }
         
         let newGua = GuaState(yaoBits: newBits)
         
+        print("🔮 卦象推演：\(currentGua.name) → \(newGua.name)，爻变 \(changeCount) 个")
+        
         return PhaseResult(
             phase: .process,
             data: [
                 "current_gua": currentGua.number,
+                "current_gua_name": currentGua.name,
                 "new_gua": newGua.number,
-                "yao_changes": countChanges(old: currentGua.yaoBits, new: newBits)
+                "new_gua_name": newGua.name,
+                "yao_changes": changeCount,
+                "memory_count": memoryCount,
+                "decision_count": decisionCount,
+                "stability_factor": stabilityFactor
             ],
             success: true
         )
@@ -327,5 +389,14 @@ struct GuaNames {
             value = (value << 1) | bit
         }
         return value + 1
+    }
+}
+
+// MARK: - Date 扩展
+extension Date {
+    var iso8601String: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+        return formatter.string(from: self)
     }
 }

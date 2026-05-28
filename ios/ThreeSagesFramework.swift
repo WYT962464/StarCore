@@ -283,4 +283,9 @@ struct SystemState: Codable {
     var resourcesAbundant: Bool
     var dataAvailable: Bool
     var resourcesLimited: Bool
+    // 新增：记忆体系连接
+    var memoryKeywords: [String] = []
+    var memoryCount: Int = 0
+    var decisionCount: Int = 0
+    var hasGuaHistory: Bool = false
 }
