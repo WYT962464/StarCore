@@ -320,7 +320,7 @@ class ChatManager: ObservableObject {
         }
         
         // 获取系统状态（包含记忆摘要）
-        let systemState = await chatManager.getSystemState()
+        let systemState = await getSystemState()
         
         // 构建包含本地系统上下文的完整 prompt
         let contextPrompt = buildContextPrompt(text: text, decision: decision, systemState: systemState)
