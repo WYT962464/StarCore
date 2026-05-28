@@ -32,39 +32,65 @@ class ConfigManager: ObservableObject {
     private let customModelsKey = "starcore_custom_models"
     private let defaults = UserDefaults.standard
     
-    init() {
+    private init() {
         loadConfig()
         loadCustomModels()
+        print("🔧 ConfigManager 初始化完成，自定义模型数: \(customModels.count)")
+        for model in customModels {
+            print("   - \(model.name): apiKey=\(model.apiKey.isEmpty ? "空" : "已配置"), baseURL=\(model.baseURL ?? "无")")
+        }
+    }
+    
+    // 确保单例和 EnvironmentObject 使用同一数据源
+    static func getInstance() -> ConfigManager {
+        return shared
     }
     
     // MARK: - 自定义模型管理
     func loadCustomModels() {
+        print("📂 loadCustomModels: 尝试加载 \(customModelsKey)")
         if let data = defaults.data(forKey: customModelsKey) {
+            print("   找到数据: \(data.count) 字节")
             if let decoded = try? JSONDecoder().decode([CustomModelConfig].self, from: data) {
                 customModels = decoded
+                print("   ✅ 解码成功: \(decoded.count) 个模型")
+                for model in decoded {
+                    print("     - \(model.name)")
+                }
                 updateAllModels()
+            } else {
+                print("   ❌ 解码失败")
             }
+        } else {
+            print("   ℹ️ 无保存的自定义模型")
         }
     }
     
     func saveCustomModels() {
+        print("💾 saveCustomModels: 准备保存 \(customModels.count) 个模型")
         if let encoded = try? JSONEncoder().encode(customModels) {
             defaults.set(encoded, forKey: customModelsKey)
+            print("   ✅ 已保存到 UserDefaults: \(customModelsKey)")
+        } else {
+            print("   ❌ 编码失败")
         }
         updateAllModels()
     }
     
     func addCustomModel(_ model: CustomModelConfig) {
+        print("💾 addCustomModel: \(model.name), apiKey=\(model.apiKey.isEmpty ? "空" : "已配置(\(model.apiKey.count)字符)")")
         // 检查是否已存在同名模型
         if let index = customModels.firstIndex(where: { $0.name == model.name }) {
             // 更新现有模型
+            print("   更新现有模型 at index \(index)")
             customModels[index] = model
         } else {
             // 添加新模型
+            print("   添加新模型")
             customModels.append(model)
         }
         saveCustomModels()
-        print("✅ 已添加/更新模型: \(model.name)")
+        print("✅ 已添加/更新模型: \(model.name), 当前自定义模型数: \(customModels.count)")
     }
     
     func removeCustomModel(_ model: CustomModelConfig) {
@@ -280,13 +306,21 @@ class ChatManager: ObservableObject {
     
     private func getActiveModelConfig() -> CustomModelConfig {
         // 获取当前激活的模型配置
+        print("🔍 getActiveModelConfig: currentModel=\(configManager.currentModel.displayName), customModels.count=\(configManager.customModels.count)")
+        
         if configManager.currentModel == .sensenova {
             // 查找自定义 SenseNova 配置
+            for model in configManager.customModels {
+                print("   检查模型: \(model.name), contains SenseNova: \(model.name.contains("SenseNova"))")
+            }
             if let customModel = configManager.customModels.first(where: { $0.name.contains("SenseNova") }) {
+                print("✅ 找到自定义模型: \(customModel.name), apiKey=\(customModel.apiKey.isEmpty ? "空" : "已配置")")
                 return customModel
             }
         }
+        
         // 返回默认配置（需要用户手动填写 API Key）
+        print("⚠️ 未找到自定义模型，返回默认配置")
         return CustomModelConfig(
             name: "SenseNova-6.7 Flash-Lite",
             type: "openai",
