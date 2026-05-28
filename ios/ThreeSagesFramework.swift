@@ -54,7 +54,7 @@ class ThreeSagesFramework: ObservableObject {
     }
     
     // MARK: - 评估
-    func assess(context: DecisionContext) -> Assessment {
+    func assess(context: DecisionContext) -> AssessmentResult {
         let nuwaScore = assessNuwa(context: context)
         let cangjieScore = assessCangjie(context: context)
         let darwinScore = assessDarwin(context: context)
@@ -137,8 +137,9 @@ class ThreeSagesFramework: ObservableObject {
     
     // MARK: - 决策
     func decide(context: DecisionContext, options: [String]) -> ThreeSagesDecision {
-        let assessment = assess(context: context)
-        let primarySage = assessment.primarySage
+        let assessmentResult = assess(context: context)
+        let primarySage = assessmentResult.primarySage
+        let overallScore = assessmentResult.overallScore
         
         let decisionText: String
         switch primarySage {
@@ -151,21 +152,21 @@ class ThreeSagesFramework: ObservableObject {
         }
         
         let nextGua = sageGuaMap[primarySage]?.first ?? 1
-        let priority = determinePriority(overallScore: assessment.overallScore)
+        let priority = determinePriority(overallScore: overallScore)
         let decisionId = "ts_\(Date().timeIntervalSince1970)_\(decisionCount)"
         
         let decision = ThreeSagesDecision(
             decisionId: decisionId,
             timestamp: Date(),
             context: context,
-            assessments: assessment.assessments,
+            assessments: assessmentResult.assessments,
             primarySage: primarySage,
             decision: decisionText,
             suggestion: decisionText,
-            rationale: "基于\(primarySage)维度评估，\(assessment.overallScore) 综合得分",
+            rationale: "基于\(primarySage)维度评估，\(overallScore) 综合得分",
             priority: priority,
             nextGua: nextGua,
-            requiresCloud: assessment.overallScore < 0.6
+            requiresCloud: overallScore < 0.6
         )
         
         decisionHistory.append(decision)

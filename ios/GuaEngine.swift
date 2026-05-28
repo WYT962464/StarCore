@@ -69,23 +69,33 @@ class GuaEngine: ObservableObject {
         
         // 3. 处理（演卦）
         currentPhase = .process
-        phases["process"] = await process(currentGua: currentGua, collected: phases["collect"]?)
+        if let collected = phases["collect"] {
+            phases["process"] = await process(currentGua: currentGua, collected: collected)
+        }
         
         // 4. 输出（释卦）
         currentPhase = .output
-        phases["output"] = await output(processed: phases["process"]?)
+        if let processed = phases["process"] {
+            phases["output"] = await output(processed: processed)
+        }
         
         // 5. 执行（行卦）
         currentPhase = .execute
-        phases["execute"] = await execute(output: phases["output"]?)
+        if let outputData = phases["output"] {
+            phases["execute"] = await execute(output: outputData)
+        }
         
         // 6. 获取（反馈）
         currentPhase = .feedback
-        phases["feedback"] = await feedback(executed: phases["execute"]?)
+        if let executed = phases["execute"] {
+            phases["feedback"] = await feedback(executed: executed)
+        }
         
         // 演化
-        let newGua = await evolve(feedback: phases["feedback"]?)
-        currentGua = newGua
+        if let feedbackData = phases["feedback"] {
+            let newGua = await evolve(feedback: feedbackData)
+            currentGua = newGua
+        }
         cycleCount += 1
         
         let endTime = Date()
