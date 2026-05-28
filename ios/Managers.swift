@@ -876,7 +876,7 @@ class NewTermTerminal: ObservableObject {
     
     /// 执行命令并等待（模拟等待，实际无法获取输出）
     func executeAndWait(command: String) async -> String {
-        execute(command: command)
+        await execute(command: command)
         // NewTerm 不支持返回输出，返回提示信息
         return "✅ 已在 NewTerm 中启动命令：\(command)\n⚠️ 注意：无法直接获取命令输出，请在 NewTerm 中查看结果"
     }

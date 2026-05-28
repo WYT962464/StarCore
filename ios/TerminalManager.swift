@@ -140,18 +140,18 @@ class TerminalManager: ObservableObject {
     private func checkSSHTunnel() -> Bool {
         // 检查 iOS MCP 服务端口
         let port = 8090
-        var socket = sockaddr_in()
-        socket.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
-        socket.sin_family = sa_family_t(AF_INET)
-        socket.sin_port = UInt16(port).bigEndian
-        socket.sin_addr.s_addr = UInt32(0x7F000001) // 127.0.0.1
+        var addr = sockaddr_in()
+        addr.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+        addr.sin_family = sa_family_t(AF_INET)
+        addr.sin_port = UInt16(port).bigEndian
+        addr.sin_addr.s_addr = UInt32(0x7F000001) // 127.0.0.1
         
         let fd = socket(AF_INET, SOCK_STREAM, 0)
         guard fd >= 0 else { return false }
         defer { close(fd) }
         
         var timeout = 2.0
-        let result = withUnsafePointer(to: &socket) { ptr in
+        let result = withUnsafePointer(to: &addr) { ptr in
             ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) {
                 connect(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
             }
@@ -204,7 +204,7 @@ class TerminalManager: ObservableObject {
             case .local:
                 // 本地 Process 执行（越狱设备）
                 backendName = "LocalTerminal"
-                output = await localTerminal.execute(command)
+                output = await localTerminal.execute(command: command)
                 success = !output.contains("❌")
                 
             case .newterm:
