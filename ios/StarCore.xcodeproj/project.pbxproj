@@ -7,34 +7,34 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		A1B2C3D4001 /* StarCoreApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D5001 /* StarCoreApp.swift */; };
-		A1B2C3D4002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D5002 /* ContentView.swift */; };
-		A1B2C3D4003 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D5003 /* ChatView.swift */; };
-		A1B2C3D4004 /* MemoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D5004 /* MemoryView.swift */; };
-		A1B2C3D4005 /* FileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D5005 /* FileView.swift */; };
-		A1B2C3D4006 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D5006 /* SettingsView.swift */; };
-		A1B2C3D4007 /* Managers.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D5007 /* Managers.swift */; };
-		A1B2C3D4008 /* ThreeSagesFramework.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D5008 /* ThreeSagesFramework.swift */; };
-		A1B2C3D4009 /* GuaEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D5009 /* GuaEngine.swift */; };
-		A1B2C3D400A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D500A /* Assets.xcassets */; };
+		1A1B2C3D001 /* StarCoreApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1B2C3E001 /* StarCoreApp.swift */; };
+		1A1B2C3D002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1B2C3E002 /* ContentView.swift */; };
+		1A1B2C3D003 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1B2C3E003 /* ChatView.swift */; };
+		1A1B2C3D004 /* MemoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1B2C3E004 /* MemoryView.swift */; };
+		1A1B2C3D005 /* FileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1B2C3E005 /* FileView.swift */; };
+		1A1B2C3D006 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1B2C3E006 /* SettingsView.swift */; };
+		1A1B2C3D007 /* Managers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1B2C3E007 /* Managers.swift */; };
+		1A1B2C3D008 /* ThreeSagesFramework.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1B2C3E008 /* ThreeSagesFramework.swift */; };
+		1A1B2C3D009 /* GuaEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1B2C3E009 /* GuaEngine.swift */; };
+		1A1B2C3D00A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1A1B2C3E00A /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		A1B2C3D5001 /* StarCoreApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarCoreApp.swift; sourceTree = "<group>"; };
-		A1B2C3D5002 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
-		A1B2C3D5003 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
-		A1B2C3D5004 /* MemoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryView.swift; sourceTree = "<group>"; };
-		A1B2C3D5005 /* FileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileView.swift; sourceTree = "<group>"; };
-		A1B2C3D5006 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
-		A1B2C3D5007 /* Managers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers.swift; sourceTree = "<group>"; };
-		A1B2C3D5008 /* ThreeSagesFramework.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThreeSagesFramework.swift; sourceTree = "<group>"; };
-		A1B2C3D5009 /* GuaEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuaEngine.swift; sourceTree = "<group>"; };
-		A1B2C3D500A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		A1B2C3D500B /* StarCore.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = StarCore.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		1A1B2C3E001 /* StarCoreApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarCoreApp.swift; sourceTree = "<group>"; };
+		1A1B2C3E002 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		1A1B2C3E003 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
+		1A1B2C3E004 /* MemoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryView.swift; sourceTree = "<group>"; };
+		1A1B2C3E005 /* FileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileView.swift; sourceTree = "<group>"; };
+		1A1B2C3E006 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		1A1B2C3E007 /* Managers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers.swift; sourceTree = "<group>"; };
+		1A1B2C3E008 /* ThreeSagesFramework.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThreeSagesFramework.swift; sourceTree = "<group>"; };
+		1A1B2C3E009 /* GuaEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuaEngine.swift; sourceTree = "<group>"; };
+		1A1B2C3E00A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		1A1B2C3E00B /* StarCore.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = StarCore.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		A1B2C3D6001 /* Frameworks */ = {
+		1A1B2C3F001 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -44,35 +44,35 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		A1B2C3D7001 = {
+		1A1B2C40001 = {
 			isa = PBXGroup;
 			children = (
-				A1B2C3D7002 /* StarCore */,
-				A1B2C3D7003 /* Products */,
+				1A1B2C40002 /* StarCore */,
+				1A1B2C40003 /* Products */,
 			);
 			sourceTree = "<group>";
 		};
-		A1B2C3D7002 /* StarCore */ = {
+		1A1B2C40002 /* StarCore */ = {
 			isa = PBXGroup;
 			children = (
-				A1B2C3D5001 /* StarCoreApp.swift */,
-				A1B2C3D5002 /* ContentView.swift */,
-				A1B2C3D5003 /* ChatView.swift */,
-				A1B2C3D5004 /* MemoryView.swift */,
-				A1B2C3D5005 /* FileView.swift */,
-				A1B2C3D5006 /* SettingsView.swift */,
-				A1B2C3D5007 /* Managers.swift */,
-				A1B2C3D5008 /* ThreeSagesFramework.swift */,
-				A1B2C3D5009 /* GuaEngine.swift */,
-				A1B2C3D500A /* Assets.xcassets */,
+				1A1B2C3E001 /* StarCoreApp.swift */,
+				1A1B2C3E002 /* ContentView.swift */,
+				1A1B2C3E003 /* ChatView.swift */,
+				1A1B2C3E004 /* MemoryView.swift */,
+				1A1B2C3E005 /* FileView.swift */,
+				1A1B2C3E006 /* SettingsView.swift */,
+				1A1B2C3E007 /* Managers.swift */,
+				1A1B2C3E008 /* ThreeSagesFramework.swift */,
+				1A1B2C3E009 /* GuaEngine.swift */,
+				1A1B2C3E00A /* Assets.xcassets */,
 			);
 			path = ios;
 			sourceTree = "<group>";
 		};
-		A1B2C3D7003 /* Products */ = {
+		1A1B2C40003 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				A1B2C3D500B /* StarCore.app */,
+				1A1B2C3E00B /* StarCore.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -80,13 +80,13 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		A1B2C3D8001 /* StarCore */ = {
+		1A1B2C41001 /* StarCore */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = A1B2C3D9001 /* Build configuration list for PBXNativeTarget "StarCore" */;
+			buildConfigurationList = 1A1B2C42001 /* Build configuration list for PBXNativeTarget "StarCore" */;
 			buildPhases = (
-				A1B2C3D8002 /* Sources */,
-				A1B2C3D6001 /* Frameworks */,
-				A1B2C3D8003 /* Resources */,
+				1A1B2C41002 /* Sources */,
+				1A1B2C3F001 /* Frameworks */,
+				1A1B2C41003 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -94,25 +94,25 @@
 			);
 			name = StarCore;
 			productName = StarCore;
-			productReference = A1B2C3D500B /* StarCore.app */;
+			productReference = 1A1B2C3E00B /* StarCore.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
-		A1B2C3DA001 /* Project object */ = {
+		1A1B2C43001 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1500;
 				LastUpgradeCheck = 1500;
 				TargetAttributes = {
-					A1B2C3D8001 = {
+					1A1B2C41001 = {
 						CreatedOnToolsVersion = 15.0;
 					};
 				};
 			};
-			buildConfigurationList = A1B2C3DB001 /* Build configuration list for PBXProject "StarCore" */;
+			buildConfigurationList = 1A1B2C44001 /* Build configuration list for PBXProject "StarCore" */;
 			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = zh;
 			hasScannedForEncodings = 0;
@@ -121,48 +121,48 @@
 				Base,
 				zh,
 			);
-			mainGroup = A1B2C3D7001;
-			productRefGroup = A1B2C3D7003 /* Products */;
+			mainGroup = 1A1B2C40001;
+			productRefGroup = 1A1B2C40003 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				A1B2C3D8001 /* StarCore */,
+				1A1B2C41001 /* StarCore */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		A1B2C3D8003 /* Resources */ = {
+		1A1B2C41003 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A1B2C3D400A /* Assets.xcassets in Resources */,
+				1A1B2C3D00A /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		A1B2C3D8002 /* Sources */ = {
+		1A1B2C41002 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A1B2C3D4001 /* StarCoreApp.swift in Sources */,
-				A1B2C3D4002 /* ContentView.swift in Sources */,
-				A1B2C3D4003 /* ChatView.swift in Sources */,
-				A1B2C3D4004 /* MemoryView.swift in Sources */,
-				A1B2C3D4005 /* FileView.swift in Sources */,
-				A1B2C3D4006 /* SettingsView.swift in Sources */,
-				A1B2C3D4007 /* Managers.swift in Sources */,
-				A1B2C3D4008 /* ThreeSagesFramework.swift in Sources */,
-				A1B2C3D4009 /* GuaEngine.swift in Sources */,
+				1A1B2C3D001 /* StarCoreApp.swift in Sources */,
+				1A1B2C3D002 /* ContentView.swift in Sources */,
+				1A1B2C3D003 /* ChatView.swift in Sources */,
+				1A1B2C3D004 /* MemoryView.swift in Sources */,
+				1A1B2C3D005 /* FileView.swift in Sources */,
+				1A1B2C3D006 /* SettingsView.swift in Sources */,
+				1A1B2C3D007 /* Managers.swift in Sources */,
+				1A1B2C3D008 /* ThreeSagesFramework.swift in Sources */,
+				1A1B2C3D009 /* GuaEngine.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
-		A1B2C3DC001 /* Debug */ = {
+		1A1B2C45001 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -225,7 +225,7 @@
 			};
 			name = Debug;
 		};
-		A1B2C3DC002 /* Release */ = {
+		1A1B2C45002 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -282,7 +282,7 @@
 			};
 			name = Release;
 		};
-		A1B2C3DC003 /* Debug */ = {
+		1A1B2C45003 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -292,9 +292,8 @@
 				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = 星核 StarCore;
+				INFOPLIST_KEY_CFBundleDisplayName = "星核 StarCore";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
-				INFOPLIST_KEY_NSFinePrintUsageDescription = "";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -305,7 +304,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.starcore.app;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.starcore.app";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -313,7 +312,7 @@
 			};
 			name = Debug;
 		};
-		A1B2C3DC004 /* Release */ = {
+		1A1B2C45004 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -323,9 +322,8 @@
 				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = 星核 StarCore;
+				INFOPLIST_KEY_CFBundleDisplayName = "星核 StarCore";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
-				INFOPLIST_KEY_NSFinePrintUsageDescription = "";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -336,7 +334,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.starcore.app;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.starcore.app";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -347,25 +345,25 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		A1B2C3D9001 /* Build configuration list for PBXNativeTarget "StarCore" */ = {
+		1A1B2C42001 /* Build configuration list for PBXNativeTarget "StarCore" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				A1B2C3DC003 /* Debug */,
-				A1B2C3DC004 /* Release */,
+				1A1B2C45003 /* Debug */,
+				1A1B2C45004 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		A1B2C3DB001 /* Build configuration list for PBXProject "StarCore" */ = {
+		1A1B2C44001 /* Build configuration list for PBXProject "StarCore" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				A1B2C3DC001 /* Debug */,
-				A1B2C3DC002 /* Release */,
+				1A1B2C45001 /* Debug */,
+				1A1B2C45002 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};
-	rootObject = A1B2C3DA001 /* Project object */;
+	rootObject = 1A1B2C43001 /* Project object */;
 }
