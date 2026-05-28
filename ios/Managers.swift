@@ -32,18 +32,13 @@ class ConfigManager: ObservableObject {
     private let customModelsKey = "starcore_custom_models"
     private let defaults = UserDefaults.standard
     
-    private init() {
+    init() {
         loadConfig()
         loadCustomModels()
         print("🔧 ConfigManager 初始化完成，自定义模型数: \(customModels.count)")
         for model in customModels {
             print("   - \(model.name): apiKey=\(model.apiKey.isEmpty ? "空" : "已配置"), baseURL=\(model.baseURL ?? "无")")
         }
-    }
-    
-    // 确保单例和 EnvironmentObject 使用同一数据源
-    static func getInstance() -> ConfigManager {
-        return shared
     }
     
     // MARK: - 自定义模型管理
