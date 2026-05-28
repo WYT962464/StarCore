@@ -73,7 +73,7 @@ enum LLMModel: String, Codable, CaseIterable, Identifiable {
             return CustomModelConfig(
                 name: "SenseNova-6.7 Flash-Lite",
                 type: "openai",
-                apiKey: "",  // 用户需在设置中填写
+                apiKey: "sk-vg4jMAU8fl6n9YXwY5LEgTop5e9xeiZb",  // 默认测试 Key，用户可在设置中修改
                 baseURL: "https://token.sensenova.cn/v1"
             )
         case .openai:

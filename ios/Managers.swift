@@ -336,11 +336,19 @@ class ChatManager: ObservableObject {
     
     private func callSenseNovaAPI(_ text: String, modelConfig: CustomModelConfig) async -> String {
         // SenseNova API 调用（OpenAI 兼容格式）
-        let url = URL(string: modelConfig.baseURL ?? "https://token.sensenova.cn/v1/chat/completions")!
+        // 确保 URL 包含完整路径
+        let baseURL = modelConfig.baseURL ?? "https://token.sensenova.cn/v1"
+        let endpoint = "/chat/completions"
+        let fullURL = baseURL.hasSuffix("/") ? baseURL + "chat/completions" : baseURL + endpoint
+        let url = URL(string: fullURL)!
+        
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("Bearer \(modelConfig.apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        print("🔗 调用 SenseNova API: \(fullURL)")
+        print("🔑 API Key: \(modelConfig.apiKey.isEmpty ? "空" : "\(modelConfig.apiKey.prefix(10))...")")
         
         let body: [String: Any] = [
             "model": "sensenova-6.7-flash-lite",
