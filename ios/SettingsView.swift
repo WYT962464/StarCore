@@ -232,22 +232,22 @@ struct DecisionHistoryRow: View {
                 Spacer()
             }
             
-            Text(decision.userInput.prefix(50))
+            Text(decision.context.userInput.prefix(50))
                 .lineLimit(2)
             
             HStack(spacing: 8) {
-                Text("诸葛亮: \(decision.zhugeLiang)")
+                Text("诸葛亮: \(decision.assessments.first(where: { $0.dimension == "诸葛亮" })?.status ?? "")")
                     .font(.caption)
                     .foregroundColor(.blue)
-                Text("伟人: \(decision.maoZedong)")
+                Text("伟人: \(decision.assessments.first(where: { $0.dimension == "伟人" })?.status ?? "")")
                     .font(.caption)
                     .foregroundColor(.red)
-                Text("系统论: \(decision.systemTheory)")
+                Text("系统论: \(decision.assessments.first(where: { $0.dimension == "系统论" })?.status ?? "")")
                     .font(.caption)
                     .foregroundColor(.green)
             }
             
-            Text("最终决策: \(decision.finalDecision)")
+            Text("最终决策: \(decision.decision)")
                 .font(.subheadline)
                 .fontWeight(.semibold)
         }
@@ -261,7 +261,7 @@ struct GuaHistoryRow: View {
     
     var body: some View {
         HStack {
-            Text(entry.guaName)
+            Text(entry.newGua.name)
                 .font(.headline)
                 .foregroundColor(.purple)
             
@@ -271,7 +271,7 @@ struct GuaHistoryRow: View {
             
             Spacer()
             
-            Text(entry.reason)
+            Text("从 \(entry.oldGua.name)")
                 .font(.caption)
                 .foregroundColor(.secondary)
                 .lineLimit(1)

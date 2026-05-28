@@ -140,6 +140,10 @@ class ChatManager: ObservableObject {
     @Published var messages: [Message] = []
     @Published var isTyping = false
     
+    // 使用静态实例作为配置管理器
+    static let shared = ChatManager()
+    private let configManager = ConfigManager()
+    
     private let messageKey = "starcore_messages"
     private let defaults = UserDefaults.standard
     
@@ -280,6 +284,7 @@ class FileManager: ObservableObject {
     
     private let localFilesKey = "starcore_local_files"
     private let defaults = UserDefaults.standard
+    private let configManager = ConfigManager()
     
     init() {
         loadLocalFiles()
