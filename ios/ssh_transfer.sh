@@ -1,46 +1,98 @@
 #!/bin/bash
-# SSH 传输脚本 - 将 IPA 从服务器传输到 iPhone
+#
+# StarCore SSH 传输脚本
+# 将 IPA 和 Tweak 文件传输到 iPhone
+#
 
 set -e
 
-SERVER_IP="124.222.29.75"
-IPHONE_IP="192.168.1.100"
+echo "============================================================"
+echo "📡 StarCore SSH 传输脚本"
+echo "============================================================"
+
+# 配置
+SERVER_HOST="124.222.29.75"
+SERVER_USER="ubuntu"
+SERVER_PORT="8028"
+IPHONE_TUNNEL_IP="10.70.92.235"
+IPHONE_SSH_PORT="22"
 IPHONE_USER="mobile"
-IPHONE_PASSWORD="[REDACTED]"
-IPA_PATH="/home/ubuntu/starcore/ios/build/StarCore-1.0.0.ipa"
-TUNNEL_PORT="8028"
+IPHONE_PASSWORD="962464"
 
-echo "🚀 SSH 传输脚本"
-echo "================================"
+# 文件路径
+PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
+BUILD_DIR="${PROJECT_DIR}/build"
+IPA_FILE="${BUILD_DIR}/StarCore.ipa"
+TWEAK_DIR="${PROJECT_DIR}/tweak"
 
-# 检查 IPA 是否存在
-if [ ! -f "$IPA_PATH" ]; then
-    echo "❌ 错误: IPA 文件不存在: $IPA_PATH"
-    echo "   请先运行构建脚本"
+# 检查文件
+echo ""
+echo "[1/4] 检查文件..."
+
+if [ ! -f "${IPA_FILE}" ]; then
+    echo "❌ 错误：IPA 文件未找到: ${IPA_FILE}"
+    echo "   请先运行 build.sh 构建 IPA"
     exit 1
 fi
 
-echo "📝 步骤 1: 检查 SSH 隧道"
-if ! nc -z localhost $TUNNEL_PORT 2>/dev/null; then
-    echo "   ⚠️ 隧道未建立，尝试建立..."
-    ssh -f -N -L $TUNNEL_PORT:localhost:22 $IPHONE_USER@$IPHONE_IP -p 8022
-    sleep 2
+echo "✅ IPA: ${IPA_FILE} ($(du -h "${IPA_FILE}" | cut -f1))"
+
+# 传输 IPA 到服务器
+echo ""
+echo "[2/4] 传输到服务器..."
+scp -P ${SERVER_PORT} \
+    "${IPA_FILE}" \
+    "${SERVER_USER}@${SERVER_HOST}:~/starcore/ios/"
+
+echo "✅ IPA 已传输到服务器"
+
+# 通过 SSH 隧道传输到 iPhone
+echo ""
+echo "[3/4] 通过隧道传输到 iPhone..."
+ssh -p ${SERVER_PORT} \
+    -o StrictHostKeyChecking=no \
+    -o ServerAliveInterval=30 \
+    ${SERVER_USER}@${SERVER_HOST} \
+    "scp -P ${IPHONE_SSH_PORT} \
+        ~/starcore/ios/StarCore.ipa \
+        ${IPHONE_USER}@${IPHONE_TUNNEL_IP}:/tmp/"
+
+echo "✅ IPA 已传输到 iPhone (/tmp/StarCore.ipa)"
+
+# 传输 Tweak 文件（如果有）
+if [ -d "${TWEAK_DIR}" ]; then
+    echo ""
+    echo "[4/4] 传输 Tweak 文件..."
+    
+    # 传输到服务器
+    scp -P ${SERVER_PORT} \
+        -r "${TWEAK_DIR}" \
+        "${SERVER_USER}@${SERVER_HOST}:~/starcore/tweak/"
+    
+    # 通过隧道传输到 iPhone
+    ssh -p ${SERVER_PORT} \
+        -o StrictHostKeyChecking=no \
+        ${SERVER_USER}@${SERVER_HOST} \
+        "scp -P ${IPHONE_SSH_PORT} -r \
+            ~/starcore/tweak/ \
+            ${IPHONE_USER}@${IPHONE_TUNNEL_IP}:/tmp/"
+    
+    echo "✅ Tweak 文件已传输"
+else
+    echo "[4/4] 跳过 Tweak 传输（目录不存在）"
 fi
 
-echo "📝 步骤 2: 传输 IPA 到 iPhone"
-scp -P $TUNNEL_PORT "$IPA_PATH" $IPHONE_USER@localhost:~/Downloads/
-
-echo "📝 步骤 3: 验证传输"
-ssh -p $TUNNEL_PORT $IPHONE_USER@localhost "ls -la ~/Downloads/*.ipa"
-
 echo ""
-echo "✅ 传输完成!"
-echo "📦 IPA 已保存到 iPhone: ~/Downloads/StarCore-1.0.0.ipa"
+echo "============================================================"
+echo "✅ 传输完成！"
+echo "============================================================"
+echo ""
+echo "📱 iPhone 文件位置:"
+echo "   IPA: /tmp/StarCore.ipa"
+echo "   Tweak: /tmp/tweak/"
 echo ""
 echo "📋 下一步:"
-echo "   1. 在 iPhone 上打开 Filza"
-echo "   2. 导航到 ~/Downloads/"
-echo "   3. 点击 IPA 文件"
-echo "   4. 选择 'Install'"
-echo "   5. 打开 StarCore App 验证"
+echo "   1. 在 iPhone 上使用 Filza 安装 IPA"
+echo "   2. 安装 Tweak 到 /var/jb/usr/lib/TweakInject/"
+echo "   3. 重启 SpringBoard"
 echo ""

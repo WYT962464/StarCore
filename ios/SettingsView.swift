@@ -1,0 +1,472 @@
+//
+//  SettingsView.swift
+//  StarCore
+//
+//  Created by StarCore Team on 2026-05-29.
+//  设置界面 - API 配置 + 系统设置
+//
+
+import SwiftUI
+
+struct SettingsView: View {
+    @EnvironmentObject var configManager: ConfigManager
+    @EnvironmentObject var chatManager: ChatManager
+    @EnvironmentObject var threeSages: ThreeSagesFramework
+    
+    @State private var showAddModelSheet = false
+    @State private var showServerConfigSheet = false
+    
+    var body: some View {
+        NavigationView {
+            Form {
+                // 模型设置
+                Section("🤖 LLM 模型") {
+                    HStack {
+                        Text("当前模型")
+                        Spacer()
+                        Text(configManager.currentModel.displayName)
+                            .foregroundColor(.blue)
+                    }
+                    .onTapGesture {
+                        showModelSelector = true
+                    }
+                    
+                    Button("管理模型配置") {
+                        showModelConfigSheet = true
+                    }
+                    
+                    Button("添加新模型") {
+                        showAddModelSheet = true
+                    }
+                }
+                
+                // 云电脑设置
+                Section("☁️ 云电脑") {
+                    HStack {
+                        Text("服务器地址")
+                        Spacer()
+                        Text(configManager.serverIP)
+                            .foregroundColor(.secondary)
+                    }
+                    .onTapGesture {
+                        showServerConfigSheet = true
+                    }
+                    
+                    HStack {
+                        Text("SSH 隧道端口")
+                        Spacer()
+                        Text("\(configManager.sshPort)")
+                    }
+                    
+                    HStack {
+                        Text("连接状态")
+                        Spacer()
+                        if configManager.isCloudConnected {
+                            Text("✅ 已连接")
+                                .foregroundColor(.green)
+                        } else {
+                            Text("❌ 未连接")
+                                .foregroundColor(.red)
+                        }
+                    }
+                    
+                    Button(configManager.isCloudConnected ? "断开连接" : "连接云电脑") {
+                        if configManager.isCloudConnected {
+                            configManager.disconnectCloud()
+                        } else {
+                            configManager.connectCloud()
+                        }
+                    }
+                }
+                
+                // 三位一体设置
+                Section("🧭 三位一体决策") {
+                    HStack {
+                        Text("当前焦点")
+                        Spacer()
+                        Text(threeSages.currentFocus)
+                            .foregroundColor(.purple)
+                    }
+                    
+                    HStack {
+                        Text("决策记录")
+                        Spacer()
+                        Text("\(threeSages.decisionCount) 条")
+                    }
+                    
+                    Button("查看决策历史") {
+                        showDecisionHistory = true
+                    }
+                }
+                
+                // 六十四卦设置
+                Section("🔮 六十四卦") {
+                    HStack {
+                        Text("当前卦象")
+                        Spacer()
+                        Text(guaEngine.currentGua.name)
+                            .foregroundColor(.purple)
+                    }
+                    
+                    HStack {
+                        Text("演化周期")
+                        Spacer()
+                        Text("\(guaEngine.cycleCount) 次")
+                    }
+                    
+                    Button("查看卦象历史") {
+                        showGuaHistory = true
+                    }
+                }
+                
+                // 系统设置
+                Section("⚙️ 系统") {
+                    Toggle("自动连接云电脑", isOn: $configManager.autoConnectCloud)
+                    
+                    Toggle("启用三位一体决策", isOn: $configManager.enableThreeSages)
+                    
+                    Toggle("启用六十四卦自循环", isOn: $configManager.enableGuaCycle)
+                    
+                    HStack {
+                        Text("自循环间隔")
+                        Spacer()
+                        Picker("", selection: $configManager.cycleInterval) {
+                            Text("30 秒").tag(30)
+                            Text("60 秒").tag(60)
+                            Text("5 分钟").tag(300)
+                        }
+                        .pickerStyle(.segmented)
+                    }
+                }
+                
+                // 关于
+                Section("ℹ️ 关于") {
+                    HStack {
+                        Text("版本")
+                        Spacer()
+                        Text("1.0.0")
+                    }
+                    
+                    HStack {
+                        Text("卦象")
+                        Spacer()
+                        Text("乾 ☰")
+                    }
+                    
+                    Button("查看开源地址") {
+                        openGitHub()
+                    }
+                    
+                    Button("反馈问题") {
+                        showFeedbackSheet = true
+                    }
+                }
+                
+                // 危险操作
+                Section {
+                    Button("清除所有数据", role: .destructive) {
+                        showClearDataAlert = true
+                    }
+                }
+            }
+            .navigationTitle("⚙️ 设置")
+            .sheet(isPresented: $showAddModelSheet) {
+                AddModelView()
+            }
+            .sheet(isPresented: $showServerConfigSheet) {
+                ServerConfigView()
+            }
+            .sheet(isPresented: $showModelConfigSheet) {
+                ModelConfigListView()
+            }
+            .sheet(isPresented: $showDecisionHistory) {
+                DecisionHistoryView()
+            }
+            .sheet(isPresented: $showGuaHistory) {
+                GuaHistoryView()
+            }
+            .sheet(isPresented: $showFeedbackSheet) {
+                FeedbackView()
+            }
+            .alert("确认清除所有数据", isPresented: $showClearDataAlert) {
+                Button("取消", role: .cancel) {}
+                Button("确认清除", role: .destructive) {
+                    clearAllData()
+                }
+            } message: {
+                Text("此操作不可逆，将删除所有本地数据、记忆条目和配置。")
+            }
+        }
+    }
+    
+    // 状态变量
+    @State private var showModelSelector = false
+    @State private var showModelConfigSheet = false
+    @State private var showDecisionHistory = false
+    @State private var showGuaHistory = false
+    @State private var showFeedbackSheet = false
+    @State private var showClearDataAlert = false
+    
+    private func openGitHub() {
+        // TODO: 打开 GitHub 仓库
+    }
+    
+    private func clearAllData() {
+        // TODO: 清除所有数据
+        configManager.resetConfig()
+        chatManager.clearMessages()
+    }
+}
+
+// MARK: - 添加模型视图
+struct AddModelView: View {
+    @Environment(\.dismiss) var dismiss
+    @EnvironmentObject var configManager: ConfigManager
+    
+    @State private var modelName = ""
+    @State private var apiKey = ""
+    @State private var baseURL = ""
+    @State private var modelType: ModelType = .openai
+    
+    enum ModelType: String, CaseIterable, Identifiable {
+        case openai = "OpenAI 兼容"
+        case anthropic = "Anthropic"
+        case custom = "自定义"
+        
+        var id: String { self.rawValue }
+    }
+    
+    var body: some View {
+        NavigationView {
+            Form {
+                Section("模型信息") {
+                    TextField("模型名称", text: $modelName)
+                    
+                    Picker("模型类型", selection: $modelType) {
+                        ForEach(ModelType.allCases) { type in
+                            Text(type.rawValue).tag(type)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+                
+                Section("API 配置") {
+                    SecureField("API Key", text: $apiKey)
+                    
+                    TextField("Base URL", text: $baseURL)
+                        .autocapitalization(.none)
+                        .keyboardType(.URL)
+                }
+                
+                Section {
+                    Button("保存") {
+                        saveModel()
+                        dismiss()
+                    }
+                    .disabled(modelName.isEmpty || apiKey.isEmpty)
+                }
+            }
+            .navigationTitle("添加模型")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("取消") { dismiss() }
+                }
+            }
+        }
+    }
+    
+    private func saveModel() {
+        let newModel = CustomModelConfig(
+            name: modelName,
+            type: modelType,
+            apiKey: apiKey,
+            baseURL: baseURL.isEmpty ? nil : baseURL
+        )
+        configManager.addCustomModel(newModel)
+    }
+}
+
+// MARK: - 服务器配置视图
+struct ServerConfigView: View {
+    @Environment(\.dismiss) var dismiss
+    @EnvironmentObject var configManager: ConfigManager
+    
+    @State private var serverIP = ""
+    @State private var sshPort = 22
+    @State private var username = ""
+    @State private var useKeyAuth = true
+    
+    var body: some View {
+        NavigationView {
+            Form {
+                Section("服务器信息") {
+                    TextField("服务器 IP", text: $serverIP)
+                        .autocapitalization(.none)
+                        .keyboardType(.URL)
+                    
+                    TextField("用户名", text: $username)
+                }
+                
+                Section("SSH 配置") {
+                    HStack {
+                        Text("端口")
+                        Spacer()
+                        TextField("端口", value: $sshPort, format: .number)
+                            .frame(width: 80)
+                    }
+                    
+                    Toggle("使用密钥认证", isOn: $useKeyAuth)
+                    
+                    if !useKeyAuth {
+                        SecureField("密码", text: .constant(""))
+                    }
+                }
+                
+                Section {
+                    Button("保存并连接") {
+                        saveAndConnect()
+                        dismiss()
+                    }
+                    .disabled(serverIP.isEmpty)
+                }
+            }
+            .navigationTitle("云电脑配置")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("取消") { dismiss() }
+                }
+            }
+        }
+    }
+    
+    private func saveAndConnect() {
+        configManager.updateServerConfig(
+            ip: serverIP,
+            port: sshPort,
+            username: username,
+            useKeyAuth: useKeyAuth
+        )
+        configManager.connectCloud()
+    }
+}
+
+// MARK: - 模型配置列表
+struct ModelConfigListView: View {
+    @EnvironmentObject var configManager: ConfigManager
+    @Environment(\.dismiss) var dismiss
+    
+    var body: some View {
+        NavigationView {
+            List {
+                ForEach(configManager.allModels) { model in
+                    HStack {
+                        Text(model.displayName)
+                        Spacer()
+                        if model == configManager.currentModel {
+                            Image(systemName: "checkmark")
+                                .foregroundColor(.blue)
+                        }
+                    }
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        configManager.switchModel(model)
+                    }
+                }
+            }
+            .navigationTitle("模型列表")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("完成") { dismiss() }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - 决策历史视图
+struct DecisionHistoryView: View {
+    @EnvironmentObject var threeSages: ThreeSagesFramework
+    @Environment(\.dismiss) var dismiss
+    
+    var body: some View {
+        NavigationView {
+            List {
+                ForEach(threeSages.decisionHistory) { decision in
+                    DecisionHistoryRow(decision: decision)
+                }
+            }
+            .navigationTitle("决策历史")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("完成") { dismiss() }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - 卦象历史视图
+struct GuaHistoryView: View {
+    @EnvironmentObject var guaEngine: GuaEngine
+    @Environment(\.dismiss) var dismiss
+    
+    var body: some View {
+        NavigationView {
+            List {
+                ForEach(guaEngine.history) { entry in
+                    GuaHistoryRow(entry: entry)
+                }
+            }
+            .navigationTitle("卦象历史")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("完成") { dismiss() }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - 反馈视图
+struct FeedbackView: View {
+    @Environment(\.dismiss) var dismiss
+    
+    @State private var feedbackText = ""
+    
+    var body: some View {
+        NavigationView {
+            Form {
+                Section("反馈内容") {
+                    TextEditor(text: $feedbackText)
+                        .frame(height: 200)
+                }
+                
+                Section {
+                    Button("发送反馈") {
+                        sendFeedback()
+                        dismiss()
+                    }
+                    .disabled(feedbackText.isEmpty)
+                }
+            }
+            .navigationTitle("反馈问题")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("取消") { dismiss() }
+                }
+            }
+        }
+    }
+    
+    private func sendFeedback() {
+        // TODO: 发送反馈到服务器
+    }
+}
+
+#Preview {
+    SettingsView()
+        .environmentObject(ConfigManager())
+        .environmentObject(ChatManager())
+        .environmentObject(ThreeSagesFramework())
+        .environmentObject(GuaEngine())
+}
