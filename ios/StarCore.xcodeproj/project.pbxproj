@@ -17,6 +17,7 @@
 		1A1B2C3D008 /* ThreeSagesFramework.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1B2C3E008 /* ThreeSagesFramework.swift */; };
 		1A1B2C3D009 /* GuaEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1B2C3E009 /* GuaEngine.swift */; };
 		1A1B2C3D00B /* TerminalManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1B2C3E00B /* TerminalManager.swift */; };
+		1A1B2C3D00C /* SSHExecutor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1B2C3E00C /* SSHExecutor.swift */; };
 		1A1B2C3D00A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1A1B2C3E00A /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
@@ -31,6 +32,7 @@
 		1A1B2C3E008 /* ThreeSagesFramework.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThreeSagesFramework.swift; sourceTree = "<group>"; };
 		1A1B2C3E009 /* GuaEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuaEngine.swift; sourceTree = "<group>"; };
 		1A1B2C3E00B /* TerminalManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalManager.swift; sourceTree = "<group>"; };
+		1A1B2C3E00C /* SSHExecutor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHExecutor.swift; sourceTree = "<group>"; };
 		1A1B2C3E00A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		1A1B2C3E00C /* StarCore.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = StarCore.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -67,6 +69,7 @@
 				1A1B2C3E008 /* ThreeSagesFramework.swift */,
 		1A1B2C3E009 /* GuaEngine.swift */,
 		1A1B2C3E00B /* TerminalManager.swift */,
+		1A1B2C3E00C /* SSHExecutor.swift */,
 		1A1B2C3E00A /* Assets.xcassets */,
 			);
 			sourceTree = "<group>";
