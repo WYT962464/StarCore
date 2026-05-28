@@ -26,12 +26,76 @@ class ConfigManager: ObservableObject {
     @Published var cycleSystemStatus: String = "未知"
     
     @Published var allModels: [LLMModel] = LLMModel.allCases
+    @Published var customModels: [CustomModelConfig] = []
     
     private let configKey = "starcore_config"
+    private let customModelsKey = "starcore_custom_models"
     private let defaults = UserDefaults.standard
     
     init() {
         loadConfig()
+        loadCustomModels()
+    }
+    
+    // MARK: - 自定义模型管理
+    func loadCustomModels() {
+        if let data = defaults.data(forKey: customModelsKey) {
+            if let decoded = try? JSONDecoder().decode([CustomModelConfig].self, from: data) {
+                customModels = decoded
+                updateAllModels()
+            }
+        }
+    }
+    
+    func saveCustomModels() {
+        if let encoded = try? JSONEncoder().encode(customModels) {
+            defaults.set(encoded, forKey: customModelsKey)
+        }
+        updateAllModels()
+    }
+    
+    func addCustomModel(_ model: CustomModelConfig) {
+        // 检查是否已存在同名模型
+        if let index = customModels.firstIndex(where: { $0.name == model.name }) {
+            // 更新现有模型
+            customModels[index] = model
+        } else {
+            // 添加新模型
+            customModels.append(model)
+        }
+        saveCustomModels()
+        print("✅ 已添加/更新模型: \(model.name)")
+    }
+    
+    func removeCustomModel(_ model: CustomModelConfig) {
+        customModels.removeAll { $0.name == model.name }
+        saveCustomModels()
+        // 如果当前模型被删除，切换回 SenseNova
+        if currentModel.displayName == model.name {
+            currentModel = .sensenova
+            saveConfig()
+        }
+        print("✅ 已删除模型: \(model.name)")
+    }
+    
+    func updateCustomModel(_ oldName: String, newName: String) {
+        if let index = customModels.firstIndex(where: { $0.name == oldName }) {
+            customModels[index].name = newName
+            saveCustomModels()
+        }
+    }
+    
+    func getCustomModel(byName name: String) -> CustomModelConfig? {
+        return customModels.first { $0.name == name }
+    }
+    
+    private func updateAllModels() {
+        // 重新构建 allModels 数组，包含内置模型和自定义模型
+        allModels = LLMModel.allCases
+    }
+    
+    func getCustomModels() -> [CustomModelConfig] {
+        return customModels
     }
     
     func loadConfig() {

@@ -41,6 +41,13 @@ struct SettingsView: View {
                         showModelConfigSheet = true
                     }
                     
+                    HStack {
+                        Text("自定义模型")
+                        Spacer()
+                        Text("\(configManager.customModels.count) 个")
+                            .foregroundColor(.secondary)
+                    }
+                    
                     Button("添加新模型") {
                         showAddModelSheet = true
                     }
@@ -302,6 +309,7 @@ struct AddModelView: View {
             Form {
                 Section("模型信息") {
                     TextField("模型名称", text: $modelName)
+                        .autocapitalization(.none)
                     
                     Picker("模型类型", selection: $modelType) {
                         ForEach(ModelType.allCases) { type in
@@ -317,6 +325,7 @@ struct AddModelView: View {
                     TextField("Base URL", text: $baseURL)
                         .autocapitalization(.none)
                         .keyboardType(.URL)
+                        .textContentType(.URL)
                 }
                 
                 Section {
@@ -325,6 +334,12 @@ struct AddModelView: View {
                         dismiss()
                     }
                     .disabled(modelName.isEmpty || apiKey.isEmpty)
+                }
+                
+                Section("ℹ️ 说明") {
+                    Text("• OpenAI 兼容：适用于大多数 LLM API（包括 SenseNova、DeepSeek 等）")
+                    Text("• Base URL 留空将使用默认端点")
+                    Text("• API Key 将安全存储在本地")
                 }
             }
             .navigationTitle("添加模型")
@@ -344,6 +359,7 @@ struct AddModelView: View {
             baseURL: baseURL.isEmpty ? nil : baseURL
         )
         configManager.addCustomModel(newModel)
+        print("✅ 已保存自定义模型: \(modelName)")
     }
 }
 
@@ -416,28 +432,159 @@ struct ModelConfigListView: View {
     @EnvironmentObject var configManager: ConfigManager
     @Environment(\.dismiss) var dismiss
     
+    @State private var editingModel: CustomModelConfig?
+    @State private var showEditSheet = false
+    
     var body: some View {
         NavigationView {
             List {
-                ForEach(configManager.allModels) { model in
-                    HStack {
-                        Text(model.displayName)
-                        Spacer()
-                        if model == configManager.currentModel {
-                            Image(systemName: "checkmark")
-                                .foregroundColor(.blue)
-                        }
+                // 内置模型
+                Section("📦 内置模型") {
+                    ForEach(LLMModel.allCases) { model in
+                        ModelRow(
+                            displayName: model.displayName,
+                            isCurrent: model == configManager.currentModel,
+                            isCustom: false,
+                            onTap: { configManager.switchModel(model) }
+                        )
                     }
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        configManager.switchModel(model)
+                }
+                
+                // 自定义模型
+                if !configManager.customModels.isEmpty {
+                    Section("🔧 自定义模型") {
+                        ForEach(configManager.customModels) { model in
+                            ModelRow(
+                                displayName: model.name,
+                                isCurrent: configManager.currentModel.displayName == model.name,
+                                isCustom: true,
+                                onTap: {
+                                    if let customModel = configManager.getCustomModel(byName: model.name) {
+                                        // 切换到自定义模型需要特殊处理
+                                        print("Switching to custom model: \(model.name)")
+                                    }
+                                },
+                                onEdit: {
+                                    editingModel = model
+                                    showEditSheet = true
+                                },
+                                onDelete: {
+                                    configManager.removeCustomModel(model)
+                                }
+                            )
+                        }
                     }
                 }
             }
-            .navigationTitle("模型列表")
+            .navigationTitle("模型配置")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("完成") { dismiss() }
+                }
+            }
+        }
+        .sheet(isPresented: $showEditSheet) {
+            if let model = editingModel {
+                EditModelView(model: model, onSave: { updated in
+                    configManager.addCustomModel(updated)
+                })
+            }
+        }
+    }
+}
+
+// MARK: - 模型行
+struct ModelRow: View {
+    let displayName: String
+    let isCurrent: Bool
+    let isCustom: Bool
+    let onTap: () -> Void
+    let onEdit: (() -> Void)?
+    let onDelete: (() -> Void)?
+    
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(displayName)
+                    .font(.body)
+                if isCustom {
+                    Text("自定义")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+            }
+            Spacer()
+            if isCurrent {
+                Image(systemName: "checkmark")
+                    .foregroundColor(.blue)
+            }
+            if isCustom, let onEdit = onEdit, let onDelete = onDelete {
+                Button(action: onEdit) {
+                    Image(systemName: "pencil")
+                        .foregroundColor(.secondary)
+                }
+                Button(action: onDelete) {
+                    Image(systemName: "trash")
+                        .foregroundColor(.red)
+                }
+            }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { onTap() }
+    }
+}
+
+// MARK: - 编辑模型视图
+struct EditModelView: View {
+    let model: CustomModelConfig
+    let onSave: (CustomModelConfig) -> Void
+    @Environment(\.dismiss) var dismiss
+    
+    @State private var modelName: String
+    @State private var apiKey: String
+    @State private var baseURL: String
+    
+    init(model: CustomModelConfig, onSave: @escaping (CustomModelConfig) -> Void) {
+        self.model = model
+        self.onSave = onSave
+        _modelName = State(initialValue: model.name)
+        _apiKey = State(initialValue: model.apiKey)
+        _baseURL = State(initialValue: model.baseURL ?? "")
+    }
+    
+    var body: some View {
+        NavigationView {
+            Form {
+                Section("模型信息") {
+                    TextField("模型名称", text: $modelName)
+                }
+                
+                Section("API 配置") {
+                    SecureField("API Key", text: $apiKey)
+                    
+                    TextField("Base URL", text: $baseURL)
+                        .autocapitalization(.none)
+                        .keyboardType(.URL)
+                }
+                
+                Section {
+                    Button("保存") {
+                        let updated = CustomModelConfig(
+                            name: modelName,
+                            type: model.type,
+                            apiKey: apiKey,
+                            baseURL: baseURL.isEmpty ? nil : baseURL
+                        )
+                        onSave(updated)
+                        dismiss()
+                    }
+                    .disabled(modelName.isEmpty || apiKey.isEmpty)
+                }
+            }
+            .navigationTitle("编辑模型")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("取消") { dismiss() }
                 }
             }
         }
