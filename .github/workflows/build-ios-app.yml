@@ -85,13 +85,13 @@ jobs:
           
           echo ""
           echo "✅ IPA created!"
-          ls -lh ~/../${{ env.APP_NAME }}-*.ipa
+          ls -lh ~/StarCore-*.ipa
           
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
           name: StarCore-${{ steps.version.outputs.version }}
-          path: ~/StarCore-*.ipa
+          path: ~/StarCore-${{ steps.version.outputs.version }}.ipa
           retention-days: 30
           
       - name: Upload logs
