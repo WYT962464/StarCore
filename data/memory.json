@@ -2,7 +2,7 @@
   "version": "2.0",
   "created": "2026-05-29T00:36:21.372858",
   "gua": "乾",
-  "count": 10,
+  "count": 14,
   "entries": [
     {
       "id": "cycle_2632",
@@ -83,6 +83,38 @@
       "category": "震 ☳",
       "gua": "震",
       "source": "self_cycle_log.jsonl"
+    },
+    {
+      "id": "learn_nuwa",
+      "timestamp": "2026-05-29T00:42:56.624750",
+      "content": "女娲智慧：抟土造人(创造)、炼石补天(修复)、断鳌立极(秩序)、作笙簧(艺术)",
+      "category": "乾 ☰",
+      "gua": "乾",
+      "source": "nuwa_wisdom.md"
+    },
+    {
+      "id": "learn_cangjie",
+      "timestamp": "2026-05-29T00:42:56.624758",
+      "content": "仓颉智慧：观鸟迹虫文(观察)、造字(编码)、四目重光(多维)、传承文明",
+      "category": "巽 ☴",
+      "gua": "巽",
+      "source": "cangjie_wisdom.md"
+    },
+    {
+      "id": "learn_darwin",
+      "timestamp": "2026-05-29T00:42:56.624760",
+      "content": "达尔文智慧：自然选择(筛选)、渐变演化(积累)、共同祖先(复用)、适应环境",
+      "category": "震 ☳",
+      "gua": "震",
+      "source": "darwin_wisdom.md"
+    },
+    {
+      "id": "learn_integrated",
+      "timestamp": "2026-05-29T00:42:56.624762",
+      "content": "三位一体：女娲(创造)→仓颉(编码)→达尔文(演化)，螺旋上升闭环",
+      "category": "乾 ☰",
+      "gua": "乾",
+      "source": "three_sages_integrated.md"
     }
   ],
   "archive": [],
