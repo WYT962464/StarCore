@@ -150,9 +150,6 @@ class ConfigManager: ObservableObject {
     
     func checkCloudConnection() async {
         // 模拟连接检测（实际应通过 SSH 隧道验证）
-        // 这里假设 SSH 隧道已建立，检查 API 响应
-        let serverURL = "http://\(serverIP):\(sshPort)/api/status"
-        
         // 由于 iOS 无法直接建立 SSH 隧道，这里返回模拟状态
         // 实际应用中应通过 iOS MCP 或 VPN 实现
         DispatchQueue.main.async {
@@ -319,8 +316,16 @@ class ChatManager: ObservableObject {
         do {
             let (data, _) = try await URLSession.shared.data(for: request)
             let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-            return json?["choices"] as? [[String: Any]]?
-                .first?["message"] as? [String: Any]?["content"] as? String ?? "API 调用失败"
+            
+            // 修复 Swift 5.9+ 数组类型语法
+            guard let choices = json?["choices"] as? [[String: Any]],
+                  !choices.isEmpty,
+                  let firstChoice = choices.first,
+                  let message = firstChoice["message"] as? [String: Any],
+                  let content = message["content"] as? String else {
+                return "API 调用失败"
+            }
+            return content
         } catch {
             return "❌ API 调用错误: \(error.localizedDescription)"
         }
