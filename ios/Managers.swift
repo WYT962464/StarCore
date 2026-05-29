@@ -759,14 +759,14 @@ class ChatManager: ObservableObject {
         if let url = URL(string: "app-\(bundleId):") {
             if UIApplication.shared.canOpenURL(url) {
                 try? await UIApplication.shared.open(url)
-            return "✅ 已打开应用: \(bundleId)"
-        } else {
-            // 尝试通过 iOS MCP 打开
-            return await IOSMCPClient.shared.callTool(
-                name: "open_app",
-                arguments: ["bundleId": bundleId]
-            )
+                return "✅ 已打开应用: \(bundleId)"
+            }
         }
+        // 尝试通过 iOS MCP 打开
+        return await IOSMCPClient.shared.callTool(
+            name: "open_app",
+            arguments: ["bundleId": bundleId]
+        )
     }
     
     /// 打开应用（通过应用名称）
@@ -1335,7 +1335,6 @@ class AShellTerminal: ObservableObject {
             return "✅ 已在 a-Shell 中启动命令：\(command)"
         } catch {
             return "❌ 无法启动 a-Shell: \(error.localizedDescription)"
-        }
-    }
+}
 }
 }
