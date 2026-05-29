@@ -477,17 +477,21 @@ class ChatManager: ObservableObject {
         
         // 记忆写入：保存重要决策和上下文
         if !response.contains("API 调用") && !response.contains("错误") {
-            await MemoryManager.shared.saveMemory(
+            let memoryManager = MemoryManager()
+            await memoryManager.addMemory(
                 MemoryEntry(
-                    key: response.prefix(20).description,
+                    key: String(response.prefix(20)),
                     content: response,
-                    gua: decision.context.currentGua,
+                    category: "ai_response",
+                    gua: String(decision.context.currentGua.rawValue),
                     timestamp: Date()
                 )
             )
         }
         
         return Message(
+            role: .assistant,
+            content: response,
             model: configManager.currentModel.displayName,
             decision: decision
         )
@@ -729,7 +733,7 @@ class ChatManager: ObservableObject {
             
         case "exec_command":
             if let command = toolCall.arguments["command"] as? String {
-                output = await TerminalManager.shared.execute(command)
+                output = (await TerminalManager.shared.execute(command)).output
             } else {
                 output = "❌ 缺少 command 参数"
                 success = false
