@@ -842,6 +842,56 @@ class ChatManager: ObservableObject {
                 success = false
             }
             
+        case "press_recent":
+            output = await IOSMCPClient.shared.pressRecent()
+            
+        case "long_press":
+            if let x = toolCall.arguments["x"] as? Int,
+               let y = toolCall.arguments["y"] as? Int {
+                let duration = toolCall.arguments["duration"] as? Double ?? 2.0
+                output = await IOSMCPClient.shared.longPress(x: x, y: y, duration: duration)
+            } else {
+                output = "❌ 缺少 x 或 y 参数"
+                success = false
+            }
+            
+        case "get_window_hierarchy":
+            output = await IOSMCPClient.shared.getWindowHierarchy()
+            
+        case "get_device_info":
+            output = await IOSMCPClient.shared.getDeviceInfo()
+            
+        case "get_locale_info":
+            output = await IOSMCPClient.shared.getLocaleInfo()
+            
+        case "get_orientation":
+            output = await IOSMCPClient.shared.getOrientation()
+            
+        case "get_brightness":
+            output = await IOSMCPClient.shared.getBrightness()
+            
+        case "list_directory":
+            if let path = toolCall.arguments["path"] as? String {
+                output = await IOSMCPClient.shared.listDirectory(path: path)
+            } else {
+                output = "❌ 缺少 path 参数"
+                success = false
+            }
+            
+        case "delete_file":
+            if let path = toolCall.arguments["path"] as? String {
+                output = await IOSMCPClient.shared.deleteFile(path: path)
+            } else {
+                output = "❌ 缺少 path 参数"
+                success = false
+            }
+            
+        case "get_accessibility_info":
+            output = await IOSMCPClient.shared.getAccessibilityInfo()
+            
+        case "get_voice_over_status":
+            output = await IOSMCPClient.shared.getVoiceOverStatus()
+            
         default:
             output = "❌ 未知工具: \(toolCall.name)"
             success = false
@@ -1389,11 +1439,68 @@ class IOSMCPClient: ObservableObject {
         return await callTool(name: "set_setting", arguments: [
             "key": key,
             "value": value
+
+    
+    /// 按下多任务键
+    func pressRecent() async -> String {
+        return await callTool(name: "press_recent", arguments: [:])
+    }
+    
+    /// 长按屏幕
+    func longPress(x: Int, y: Int, duration: Double = 2.0) async -> String {
+        return await callTool(name: "long_press", arguments: [
+            "x": x,
+            "y": y,
+            "duration": duration
         ])
     }
+    
+    /// 获取窗口层级
+    func getWindowHierarchy() async -> String {
+        return await callTool(name: "get_window_hierarchy", arguments: [:])
+    }
+    
+    /// 获取设备信息
+    func getDeviceInfo() async -> String {
+        return await callTool(name: "get_device_info", arguments: [:])
+    }
+    
+    /// 获取区域信息
+    func getLocaleInfo() async -> String {
+        return await callTool(name: "get_locale_info", arguments: [:])
+    }
+    
+    /// 获取屏幕方向
+    func getOrientation() async -> String {
+        return await callTool(name: "get_orientation", arguments: [:])
+    }
+    
+    /// 获取屏幕亮度
+    func getBrightness() async -> String {
+        return await callTool(name: "get_brightness", arguments: [:])
+    }
+    
+    /// 列出目录
+    func listDirectory(path: String) async -> String {
+        return await callTool(name: "list_directory", arguments: ["path": path])
+    }
+    
+    /// 删除文件
+    func deleteFile(path: String) async -> String {
+        return await callTool(name: "delete_file", arguments: ["path": path])
+    }
+    
+    /// 获取辅助功能信息
+    func getAccessibilityInfo() async -> String {
+        return await callTool(name: "get_accessibility_info", arguments: [:])
+    }
+    
+    /// 获取 VoiceOver 状态
+    func getVoiceOverStatus() async -> String {
+        return await callTool(name: "get_voice_over_status", arguments: [:])
+    }
 }
-
-// MARK: - 本地终端执行器（已禁用 - Process 编译问题）
+（已禁用 - Process 编译问题）
 /// ⚠️ 注意：Process 类在 iOS 沙盒中受限，GitHub Actions 编译失败
 /// 已改用 NewTerm/a-Shell/iOS MCP 作为终端执行后端
 class LocalTerminal: ObservableObject {

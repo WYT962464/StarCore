@@ -233,6 +233,77 @@ class ToolDefinitions {
                     "value": ParameterSchema(type: "string", description: "设置值")
                 ]
             )
+
+            // === 增强交互工具 ===
+            AITool(
+                name: "press_recent",
+                description: "按下多任务键（查看最近使用的应用）",
+                parameters: [:]
+            ),
+            AITool(
+                name: "long_press",
+                description: "长按屏幕指定位置（用于触发上下文菜单）",
+                parameters: [
+                    "x": ParameterSchema(type: "integer", description: "X 坐标（像素）"),
+                    "y": ParameterSchema(type: "integer", description: "Y 坐标（像素）"),
+                    "duration": ParameterSchema(type: "number", description: "长按时长（秒）", enumValues: [1.0, 2.0, 3.0])
+                ]
+            ),
+            AITool(
+                name: "get_window_hierarchy",
+                description: "获取当前窗口的 UI 层级结构（用于无障碍分析）",
+                parameters: [:]
+            ),
+            
+            // === 设备信息工具 ===
+            AITool(
+                name: "get_device_info",
+                description: "获取设备详细信息（型号、系统版本、序列号等）",
+                parameters: [:]
+            ),
+            AITool(
+                name: "get_locale_info",
+                description: "获取区域信息（语言、时区、货币等）",
+                parameters: [:]
+            ),
+            AITool(
+                name: "get_orientation",
+                description: "获取屏幕当前方向（portrait/landscape）",
+                parameters: [:]
+            ),
+            AITool(
+                name: "get_brightness",
+                description: "获取屏幕亮度（0.0-1.0）",
+                parameters: [:]
+            ),
+            
+            // === 文件管理工具 ===
+            AITool(
+                name: "list_directory",
+                description: "列出目录内容",
+                parameters: [
+                    "path": ParameterSchema(type: "string", description: "目录绝对路径")
+                ]
+            ),
+            AITool(
+                name: "delete_file",
+                description: "删除文件或目录",
+                parameters: [
+                    "path": ParameterSchema(type: "string", description: "文件绝对路径")
+                ]
+            ),
+            
+            // === 辅助功能工具 ===
+            AITool(
+                name: "get_accessibility_info",
+                description: "获取辅助功能状态",
+                parameters: [:]
+            ),
+            AITool(
+                name: "get_voice_over_status",
+                description: "获取 VoiceOver 状态",
+                parameters: [:]
+            ),
         ]
     }
     
