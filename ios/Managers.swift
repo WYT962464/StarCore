@@ -45,6 +45,12 @@ struct ParameterSchema {
     let type: String
     let description: String?
     let enumValues: [String]?
+    
+    init(type: String, description: String? = nil, enumValues: [String]? = nil) {
+        self.type = type
+        self.description = description
+        self.enumValues = enumValues
+    }
 }
 
 /// AI 工具定义
@@ -750,9 +756,9 @@ class ChatManager: ObservableObject {
     /// 打开应用（通过 bundle ID）
     private func openApp(bundleId: String) async -> String {
         // 通过 URL Scheme 或 launchd 打开应用
-        let url = URL(string: "app-\(bundleId):") ?? URL(string: "file://\(bundleId)")
-        if UIApplication.shared.canOpenURL(url) {
-            await UIApplication.shared.open(url)
+        if let url = URL(string: "app-\(bundleId):") {
+            if UIApplication.shared.canOpenURL(url) {
+                try? await UIApplication.shared.open(url)
             return "✅ 已打开应用: \(bundleId)"
         } else {
             // 尝试通过 iOS MCP 打开
@@ -790,7 +796,8 @@ class ChatManager: ObservableObject {
     private func executeCommand(_ command: String) async -> String {
         // 优先使用 iOS MCP（如果有 exec 工具）
         // 降级到 NewTerm/a-Shell
-        return await TerminalManager.shared.execute(command)
+        let result = await TerminalManager.shared.execute(command)
+        return result.output ?? "命令执行完成"
     }
     
     /// 复制到剪贴板
@@ -822,7 +829,7 @@ class ChatManager: ObservableObject {
             trigger: nil
         )
         
-        UNUserNotificationCenter.current().add(request)
+        try? await UNUserNotificationCenter.current().add(request)
         return "🔔 已发送通知: \(title)"
     }
     
@@ -844,21 +851,13 @@ class ChatManager: ObservableObject {
             let toolsJSON = getToolsJSON()
             
             var body: [String: Any] = [
-                "model": modelConfig.modelName ?? "sensenova-6.7-flash-lite",
+                "model": modelConfig.name,
                 "messages": history + [["role": "user", "content": currentText]],
-                "temperature": modelConfig.temperature ?? 0.7,
+                "temperature": 0.7,
                 "tools": toolsJSON,
                 "tool_choice": "auto"  // 允许 AI 自动选择工具
             ]
             
-            // 添加 system prompt（如果配置了）
-            if let systemPrompt = modelConfig.systemPrompt {
-                if var firstMsg = (body["messages"] as? [[String: Any]])?.first {
-                    firstMsg["role"] = "system"
-                    firstMsg["content"] = systemPrompt
-                    body["messages"] = [firstMsg] + (body["messages"] as? [[String: Any]] ?? [])
-                }
-            }
             
             let url = URL(string: modelConfig.baseURL ?? "https://token.sensenova.cn/v1")!
             var request = URLRequest(url: url.appendingPathComponent("chat/completions"))
@@ -904,7 +903,7 @@ class ChatManager: ObservableObject {
                     if let msgContent = message["content"] as? String, !msgContent.isEmpty {
                         history.append(["role": "assistant", "content": msgContent])
                     }
-                    history += toolResults
+                    history.append(contentsOf: toolResults.map { $0 as [String: Any] })
                     
                     // 继续下一轮迭代
                     currentText = "工具执行完成，请继续回复用户。"
