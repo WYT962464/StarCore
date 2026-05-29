@@ -903,8 +903,11 @@ class ChatManager: ObservableObject {
             ]
             
             
-            let url = URL(string: modelConfig.baseURL ?? "https://token.sensenova.cn/v1")!
-            var request = URLRequest(url: url.appendingPathComponent("chat/completions"))
+            let baseURL = modelConfig.baseURL ?? "https://token.sensenova.cn/v1"
+            let endpoint = "/chat/completions"
+            let fullURL = baseURL.hasSuffix("/") ? baseURL + "chat/completions" : baseURL + endpoint
+            let url = URL(string: fullURL)!
+            var request = URLRequest(url: url)
             request.httpMethod = "POST"
             request.setValue("Bearer \(modelConfig.apiKey)", forHTTPHeaderField: "Authorization")
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -914,11 +917,21 @@ class ChatManager: ObservableObject {
                 let (data, _) = try await URLSession.shared.data(for: request)
                 let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
                 
+                // 检查 HTTP 状态码
+                // 注意：URLSession.data(for:) 在 HTTP 错误时不抛出异常，需要手动检查
+                
                 guard let choices = json?["choices"] as? [[String: Any]],
-                      !choices.isEmpty,
-                      let firstChoice = choices.first,
+                      !choices.isEmpty else {
+                    // 解析失败，返回详细错误信息
+                    let errorStr = String(data: data, encoding: .utf8) ?? "无响应内容"
+                    print("❌ API 响应解析失败: \(errorStr.prefix(500))")
+                    return "API 调用失败：响应格式错误 - \(errorStr.prefix(200))"
+                }
+                
+                guard let firstChoice = choices.first,
                       let message = firstChoice["message"] as? [String: Any] else {
-                    return "API 调用失败"
+                    let errorStr = String(data: data, encoding: .utf8) ?? "无响应内容"
+                    return "API 调用失败：消息格式错误 - \(errorStr.prefix(200))"
                 }
                 
                 // 检查是否有 tool_calls
