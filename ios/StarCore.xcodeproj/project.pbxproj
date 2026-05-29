@@ -72,7 +72,6 @@
 		1A1B2C3E00C /* SSHExecutor.swift */,
 		1A1B2C3E00A /* Assets.xcassets */,
 			288E3EDC0000F7DA /* ToolDefinitions.swift */,
-			AB534D3500001573 /* ChatManager+ToolCalling.swift */,
 
 			);
 			sourceTree = "<group>";
