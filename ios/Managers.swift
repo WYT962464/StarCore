@@ -791,6 +791,57 @@ class ChatManager: ObservableObject {
             let body = toolCall.arguments["body"] as? String ?? ""
             output = await showNotification(title: title, body: body)
             
+        case "close_app":
+            output = await IOSMCPClient.shared.closeApp()
+            
+        case "switch_to_recent_app":
+            output = await IOSMCPClient.shared.switchToRecentApp()
+            
+        case "get_battery_info":
+            output = await IOSMCPClient.shared.getBatteryInfo()
+            
+        case "get_network_info":
+            output = await IOSMCPClient.shared.getNetworkInfo()
+            
+        case "get_storage_info":
+            output = await IOSMCPClient.shared.getStorageInfo()
+            
+        case "get_memory_info":
+            output = await IOSMCPClient.shared.getMemoryInfo()
+            
+        case "get_terminal_output":
+            output = await IOSMCPClient.shared.getTerminalOutput()
+            
+        case "read_file":
+            if let path = toolCall.arguments["path"] as? String {
+                output = await IOSMCPClient.shared.readFile(path: path)
+            } else {
+                output = "❌ 缺少 path 参数"
+                success = false
+            }
+            
+        case "write_file":
+            if let path = toolCall.arguments["path"] as? String,
+               let content = toolCall.arguments["content"] as? String {
+                output = await IOSMCPClient.shared.writeFile(path: path, content: content)
+            } else {
+                output = "❌ 缺少 path 或 content 参数"
+                success = false
+            }
+            
+        case "get_settings":
+            let category = toolCall.arguments["category"] as? String ?? "all"
+            output = await IOSMCPClient.shared.getSettings(category: category)
+            
+        case "set_setting":
+            if let key = toolCall.arguments["key"] as? String,
+               let value = toolCall.arguments["value"] as? String {
+                output = await IOSMCPClient.shared.setSetting(key: key, value: value)
+            } else {
+                output = "❌ 缺少 key 或 value 参数"
+                success = false
+            }
+            
         default:
             output = "❌ 未知工具: \(toolCall.name)"
             success = false
@@ -1278,6 +1329,67 @@ class IOSMCPClient: ObservableObject {
     /// 唤醒设备并返回 Home
     func wakeAndHome() async -> String {
         return await callTool(name: "wake_and_home", arguments: [:])
+    }
+    
+    /// 关闭当前应用
+    func closeApp() async -> String {
+        return await callTool(name: "close_app", arguments: [:])
+    }
+    
+    /// 切换到最近使用的应用
+    func switchToRecentApp() async -> String {
+        return await callTool(name: "switch_to_recent_app", arguments: [:])
+    }
+    
+    /// 获取电池信息
+    func getBatteryInfo() async -> String {
+        return await callTool(name: "get_battery_info", arguments: [:])
+    }
+    
+    /// 获取网络信息
+    func getNetworkInfo() async -> String {
+        return await callTool(name: "get_network_info", arguments: [:])
+    }
+    
+    /// 获取存储信息
+    func getStorageInfo() async -> String {
+        return await callTool(name: "get_storage_info", arguments: [:])
+    }
+    
+    /// 获取内存信息
+    func getMemoryInfo() async -> String {
+        return await callTool(name: "get_memory_info", arguments: [:])
+    }
+    
+    /// 获取终端输出
+    func getTerminalOutput() async -> String {
+        return await callTool(name: "get_terminal_output", arguments: [:])
+    }
+    
+    /// 读取文件
+    func readFile(path: String) async -> String {
+        return await callTool(name: "read_file", arguments: ["path": path])
+    }
+    
+    /// 写入文件
+    func writeFile(path: String, content: String) async -> String {
+        return await callTool(name: "write_file", arguments: [
+            "path": path,
+            "content": content
+        ])
+    }
+    
+    /// 获取设置
+    func getSettings(category: String = "all") async -> String {
+        return await callTool(name: "get_settings", arguments: ["category": category])
+    }
+    
+    /// 设置系统设置
+    func setSetting(key: String, value: String) async -> String {
+        return await callTool(name: "set_setting", arguments: [
+            "key": key,
+            "value": value
+        ])
     }
 }
 
