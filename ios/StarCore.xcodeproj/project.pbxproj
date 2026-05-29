@@ -1,0 +1,232 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		B28D542A5CB6A0187EC7C666ECCADDFF /* StarCoreDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B405E1712298E7B8777C4788998675ED /* StarCoreDashboardView.swift */; };
+		DDDE89883920C19BA6DAF7D65BCF52C4 /* StarCoreApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B541BF6EF2D719D30ADC7885582D7F1 /* StarCoreApp.swift */; };
+		45890EBD11E1DBB55405227CF7738B80 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48E0F96C682DC1558B12A4D318988B60 /* ContentView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		B405E1712298E7B8777C4788998675ED /* StarCoreDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarCoreDashboardView.swift; sourceTree = "<group>"; };
+		8B541BF6EF2D719D30ADC7885582D7F1 /* StarCoreApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarCoreApp.swift; sourceTree = "<group>"; };
+		48E0F96C682DC1558B12A4D318988B60 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		B15A13ACECE86FF5B996CE6C06F36521 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		2231E3AD0E146C3D1B6DB3E68ECF08CE /* StarCore.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = StarCore.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		0627AC95CC8F780A4A8D1581DEB8AFC7 = {
+			isa = PBXGroup;
+			children = (
+				B405E1712298E7B8777C4788998675ED /* StarCoreDashboardView.swift */,
+				8B541BF6EF2D719D30ADC7885582D7F1 /* StarCoreApp.swift */,
+				48E0F96C682DC1558B12A4D318988B60 /* ContentView.swift */,
+				B15A13ACECE86FF5B996CE6C06F36521 /* Info.plist */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		068C4153FB7AEE86922A2DBA826EBA21 /* StarCore */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 26BB587E7F1ADDA37EE2048B92DCA815;
+			buildPhases = (
+				E4DD91653264945E9924374AE6C704E8 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = StarCore;
+			productName = StarCore;
+			productReference = 2231E3AD0E146C3D1B6DB3E68ECF08CE /* StarCore.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		8F836E7D15E3E5DA8C8C588F69582B68 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {{
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1500;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {{
+					068C4153FB7AEE86922A2DBA826EBA21 = {
+						CreatedOnToolsVersion = 15.0;
+					}};
+				}};
+			}};
+			buildConfigurationList = BA794F46A7E1EF6FE1F6256B036E1BF5;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+			);
+			mainGroup = 0627AC95CC8F780A4A8D1581DEB8AFC7;
+			productRefGroup = 0627AC95CC8F780A4A8D1581DEB8AFC7;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				068C4153FB7AEE86922A2DBA826EBA21 /* StarCore */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		E4DD91653264945E9924374AE6C704E8 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B28D542A5CB6A0187EC7C666ECCADDFF /* StarCoreDashboardView.swift in Sources */,
+				DDDE89883920C19BA6DAF7D65BCF52C4 /* StarCoreApp.swift in Sources */,
+				45890EBD11E1DBB55405227CF7738B80 /* ContentView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		9B56019F704ECCAA160677D4E24F628C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {{
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = Debug;
+				SWIFT_OPTIMIZATION_LEVEL = -Onone;
+			}};
+			name = Debug;
+		}};
+		F9F7A7CBE9B74FD8AAD075690E77939F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {{
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Info.plist;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.starcore.app;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			}};
+			name = Debug;
+		}};
+		58CE004DB676F234765995B19A89CFEA /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {{
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = Release;
+				SWIFT_OPTIMIZATION_LEVEL = -O;
+			}};
+			name = Release;
+		}};
+		02CB9C507985CDE444C375CAAC385DF9 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {{
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Info.plist;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.starcore.app;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			}};
+			name = Release;
+		}};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		BA794F46A7E1EF6FE1F6256B036E1BF5 /* Build configuration list for PBXProject */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				9B56019F704ECCAA160677D4E24F628C /* Debug */,
+				58CE004DB676F234765995B19A89CFEA /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		26BB587E7F1ADDA37EE2048B92DCA815 /* Build configuration list for PBXNativeTarget "StarCore" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F9F7A7CBE9B74FD8AAD075690E77939F /* Debug */,
+				02CB9C507985CDE444C375CAAC385DF9 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 8F836E7D15E3E5DA8C8C588F69582B68 /* Project object */;
+}
