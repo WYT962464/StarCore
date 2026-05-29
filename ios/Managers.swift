@@ -347,6 +347,7 @@ struct CustomModelConfig: Codable, Identifiable {
     var type: String
     var apiKey: String
     var baseURL: String?
+    var modelName: String?  // API 实际使用的模型名称（如 "sensenova"）
 }
 
 // MARK: - 对话管理器
@@ -598,7 +599,7 @@ class ChatManager: ObservableObject {
         request.timeoutInterval = 30
         
         let body: [String: Any] = [
-            "model": "sensenova-6.7-flash-lite",
+            "model": "sensenova",
             "messages": [
                 ["role": "user", "content": text]
             ],
@@ -895,7 +896,7 @@ class ChatManager: ObservableObject {
             let toolsJSON = getToolsJSON()
             
             var body: [String: Any] = [
-                "model": modelConfig.name,
+                "model": modelConfig.modelName ?? "sensenova",
                 "messages": history + [["role": "user", "content": currentText]],
                 "temperature": 0.7,
                 "tools": toolsJSON,
