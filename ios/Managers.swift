@@ -12,6 +12,131 @@ import Darwin
 import UIKit
 
 // MARK: - 配置管理器
+// MARK: - Tool Calling 类型定义
+
+/// AI 工具调用请求
+struct ToolCallRequest {
+    let id: String
+    let name: String
+    let arguments: [String: Any]
+    
+    /// 从 JSON 解析
+    init?(from json: [String: Any]) {
+        guard let id = json["id"] as? String,
+              let name = json["name"] as? String,
+              let arguments = json["arguments"] as? [String: Any] else {
+            return nil
+        }
+        self.id = id
+        self.name = name
+        self.arguments = arguments
+    }
+}
+
+/// AI 工具调用响应
+struct ToolCallResponse {
+    let toolCallId: String
+    let output: String
+    let success: Bool
+}
+
+/// 工具参数 schema
+struct ParameterSchema {
+    let type: String
+    let description: String?
+    let enumValues: [String]?
+}
+
+/// AI 工具定义
+struct AITool {
+    let name: String
+    let description: String
+    let parameters: [String: ParameterSchema]
+    
+    /// 转换为 OpenAI tools 格式
+    func toJSON() -> [String: Any] {
+        var params: [String: Any] = ["type": "object", "properties": [:]]
+        
+        for (key, param) in parameters {
+            var paramDict: [String: Any] = ["type": param.type]
+            if let desc = param.description {
+                paramDict["description"] = desc
+            }
+            if let enumValues = param.enumValues {
+                paramDict["enum"] = enumValues
+            }
+            let props = params["properties"] as? [String: Any] ?? [:]
+            params["properties"] = props.merging([key: paramDict]) { _, new in new }
+        }
+        
+        return [
+            "type": "function",
+            "function": [
+                "name": name,
+                "description": description,
+                "parameters": params
+            ]
+        ]
+    }
+}
+
+/// iOS MCP 工具定义
+class ToolDefinitions {
+    static let shared = ToolDefinitions()
+    
+    var tools: [AITool] = []
+    
+    private init() {
+        buildTools()
+    }
+    
+    private func buildTools() {
+        tools = [
+            AITool(name: "tap_screen", description: "点击屏幕指定位置", parameters: [
+                "x": ParameterSchema(type: "integer", description: "X 坐标"),
+                "y": ParameterSchema(type: "integer", description: "Y 坐标")
+            ]),
+            AITool(name: "swipe_screen", description: "滑动屏幕", parameters: [
+                "start_x": ParameterSchema(type: "integer", description: "起始 X"),
+                "start_y": ParameterSchema(type: "integer", description: "起始 Y"),
+                "end_x": ParameterSchema(type: "integer", description: "结束 X"),
+                "end_y": ParameterSchema(type: "integer", description: "结束 Y")
+            ]),
+            AITool(name: "press_home", description: "按下 Home 键", parameters: [:]),
+            AITool(name: "wake_and_home", description: "唤醒并返回主页", parameters: [:]),
+            AITool(name: "input_text", description: "输入文本", parameters: [
+                "text": ParameterSchema(type: "string", description: "要输入的文本")
+            ]),
+            AITool(name: "screenshot", description: "截取屏幕", parameters: [:]),
+            AITool(name: "get_frontmost_app", description: "获取前台应用", parameters: [:]),
+            AITool(name: "get_screen_info", description: "获取屏幕信息", parameters: [:]),
+            AITool(name: "open_app", description: "打开应用", parameters: [
+                "bundleId": ParameterSchema(type: "string", description: "Bundle ID"),
+                "appName": ParameterSchema(type: "string", description: "应用名称")
+            ]),
+            AITool(name: "exec_command", description: "执行终端命令", parameters: [
+                "command": ParameterSchema(type: "string", description: "Shell 命令")
+            ]),
+            AITool(name: "copy_to_clipboard", description: "复制到剪贴板", parameters: [
+                "text": ParameterSchema(type: "string", description: "要复制的文本")
+            ]),
+            AITool(name: "paste_from_clipboard", description: "从剪贴板粘贴", parameters: [:]),
+            AITool(name: "show_notification", description: "显示通知", parameters: [
+                "title": ParameterSchema(type: "string", description: "标题"),
+                "body": ParameterSchema(type: "string", description: "内容")
+            ])
+        ]
+    }
+    
+    func getAllToolsJSON() -> [[String: Any]] {
+        return tools.map { $0.toJSON() }
+    }
+    
+    func getToolNames() -> [String] {
+        return tools.map { $0.name }
+    }
+}
+
 class ConfigManager: ObservableObject {
     static let shared = ConfigManager()
     
@@ -510,8 +635,6 @@ class ChatManager: ObservableObject {
 //
 //  Tool Calling 扩展 - 实现 AI 自动执行操作
 //
-
-import Foundation
 
     
     /// 获取所有可用工具的 JSON 定义
