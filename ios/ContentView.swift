@@ -7,6 +7,9 @@
 
 import SwiftUI
 
+// LocalTerminal 定义在 Managers.swift 中，需要在此引用
+// 由于 Swift 文件在同一 target 中，可以直接使用
+
 struct ContentView: View {
     @EnvironmentObject var chatManager: ChatManager
     @EnvironmentObject var configManager: ConfigManager

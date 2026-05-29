@@ -1433,13 +1433,13 @@ class IOSMCPClient: ObservableObject {
     func getSettings(category: String = "all") async -> String {
         return await callTool(name: "get_settings", arguments: ["category": category])
     }
-    
     /// 设置系统设置
     func setSetting(key: String, value: String) async -> String {
         return await callTool(name: "set_setting", arguments: [
             "key": key,
             "value": value
-
+        ])
+    }
     
     /// 按下多任务键
     func pressRecent() async -> String {
@@ -1500,7 +1500,8 @@ class IOSMCPClient: ObservableObject {
         return await callTool(name: "get_voice_over_status", arguments: [:])
     }
 }
-（已禁用 - Process 编译问题）
+
+// MARK: - 本地终端执行器（已禁用 - Process 编译问题）
 /// ⚠️ 注意：Process 类在 iOS 沙盒中受限，GitHub Actions 编译失败
 /// 已改用 NewTerm/a-Shell/iOS MCP 作为终端执行后端
 class LocalTerminal: ObservableObject {
