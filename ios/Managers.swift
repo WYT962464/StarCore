@@ -755,20 +755,21 @@ class ChatManager: ObservableObject {
     
     /// 打开应用（通过 bundle ID）
     private func openApp(bundleId: String) async -> String {
-        // 通过 URL Scheme 或 launchd 打开应用
-        if let url = URL(string: "app-\(bundleId):") {
-            if UIApplication.shared.canOpenURL(url) {
-                try? await UIApplication.shared.open(url)
-                return "✅ 已打开应用: \(bundleId)"
-            } else {
-                return "❌ 无法打开应用: \(bundleId)"
-            }
+        // 通过 URL Scheme 打开应用
+        guard let url = URL(string: "app-\(bundleId):") else {
+            return "❌ 无效的应用 ID: \(bundleId)"
         }
-        // 尝试通过 iOS MCP 打开
-        return await IOSMCPClient.shared.callTool(
-            name: "open_app",
-            arguments: ["bundleId": bundleId]
-        )
+        
+        do {
+            try await UIApplication.shared.open(url)
+            return "✅ 已打开应用: \(bundleId)"
+        } catch {
+            // 尝试通过 iOS MCP 打开
+            return await IOSMCPClient.shared.callTool(
+                name: "open_app",
+                arguments: ["bundleId": bundleId]
+            )
+        }
     }
     
     /// 打开应用（通过应用名称）
