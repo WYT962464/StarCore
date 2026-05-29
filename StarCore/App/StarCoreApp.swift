@@ -1,17 +1,17 @@
 /**
- * CompanionAIApp.swift
- * 智慧陪伴型 AI App - 主入口
+ * StarCoreApp.swift
+ * 星核 - 双层架构智能体核心系统
  * 
  * 架构：
- * 手机端：硬件感知 + 工具执行 + 陪伴交互
- * 云端端：AI 决策（多云端可选）
- * 连接：SSH 隧道
+ * 阶段十：生命中枢 (LifeCore + 生存能力 + 生理引擎)
+ * 阶段十二：人格认知 (MindCore + EmotionEngine + PersonaState)
+ * 操控服务层：ZXTouch + Tweak TCP + SSH隧道
  */
 
 import SwiftUI
 
 @main
-struct CompanionAIApp: App {
+struct StarCoreApp: App {
     // MARK: - 核心服务
     @StateObject private var hardwareSensor = HardwareSensor()
     @StateObject private var mcpClient = iOSMCPClient()
@@ -28,9 +28,9 @@ struct CompanionAIApp: App {
                 .environmentObject(serverConnection)
                 .environmentObject(chatManager)
                 .onAppear {
-                    // 启动时初始化
                     hardwareSensor.refresh()
                     mcpClient.checkConnection()
+                    serverConnection.connect()
                 }
         }
     }
