@@ -483,7 +483,7 @@ class ChatManager: ObservableObject {
                     key: String(response.prefix(20)),
                     content: response,
                     category: "ai_response",
-                    gua: String(decision.context.currentGua.rawValue),
+                    gua: String(decision.context.currentGua.number),
                     timestamp: Date()
                 )
             )
