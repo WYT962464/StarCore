@@ -473,7 +473,7 @@ class ChatManager: ObservableObject {
             contextPrompt,
             modelConfig: modelConfig,
             conversationHistory: [],
-            maxToolIterations: 3
+            maxToolIterations: 5
         )
         
         // 记忆写入：保存重要决策和上下文
@@ -883,7 +883,7 @@ class ChatManager: ObservableObject {
         _ text: String,
         modelConfig: CustomModelConfig,
         conversationHistory: [[String: String]] = [],
-        maxToolIterations: Int = 3
+        maxToolIterations: Int = 5
     ) async -> String {
         var currentText = text
         var history: [[String: Any]] = conversationHistory.map { $0 as [String: Any] }
@@ -957,14 +957,14 @@ class ChatManager: ObservableObject {
                     }
                     
                     // 添加工具结果到历史，继续对话
-                    history.append(["role": "user", "content": currentText])
+                    // 不重复添加原始用户消息，只添加工具结果
                     if let msgContent = message["content"] as? String, !msgContent.isEmpty {
                         history.append(["role": "assistant", "content": msgContent])
                     }
                     history.append(contentsOf: toolResults)
                     
-                    // 继续下一轮迭代
-                    currentText = "工具执行完成，请继续回复用户。"
+                    // 继续下一轮迭代，明确指示 AI 总结工具执行结果
+                    currentText = "工具已执行完成。请根据工具返回的结果，直接回复用户的问题，不需要再调用工具。"
                     continue
                 }
                 
