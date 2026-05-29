@@ -760,6 +760,8 @@ class ChatManager: ObservableObject {
             if UIApplication.shared.canOpenURL(url) {
                 try? await UIApplication.shared.open(url)
                 return "✅ 已打开应用: \(bundleId)"
+            } else {
+                return "❌ 无法打开应用: \(bundleId)"
             }
         }
         // 尝试通过 iOS MCP 打开
@@ -841,7 +843,7 @@ class ChatManager: ObservableObject {
         maxToolIterations: Int = 3
     ) async -> String {
         var currentText = text
-        var history = conversationHistory
+        var history: [[String: Any]] = conversationHistory.map { $0 as [String: Any] }
         var iteration = 0
         
         while iteration < maxToolIterations {
@@ -903,7 +905,7 @@ class ChatManager: ObservableObject {
                     if let msgContent = message["content"] as? String, !msgContent.isEmpty {
                         history.append(["role": "assistant", "content": msgContent])
                     }
-                    history.append(contentsOf: toolResults.map { $0 as [String: Any] })
+                    history.append(contentsOf: toolResults)
                     
                     // 继续下一轮迭代
                     currentText = "工具执行完成，请继续回复用户。"
