@@ -424,7 +424,7 @@ class ChatManager: ObservableObject {
         
         // 检测本地能力
         let hasTerminal = FileManager.default.fileExists(atPath: "/usr/bin/bash")
-        let hasIOSMCP = UserDefaults.standard.bool(forKey: "ios_mcp_connected")
+        let hasIOSMCP = IOSMCPClient.shared.isConnected
         
         return SystemState(
             needsRepair: false,
@@ -475,9 +475,19 @@ class ChatManager: ObservableObject {
             maxToolIterations: 3
         )
         
+        // 记忆写入：保存重要决策和上下文
+        if !response.contains("API 调用") && !response.contains("错误") {
+            await MemoryManager.shared.saveMemory(
+                MemoryEntry(
+                    key: response.prefix(20).description,
+                    content: response,
+                    gua: decision.context.currentGua,
+                    timestamp: Date()
+                )
+            )
+        }
+        
         return Message(
-            role: .assistant,
-            content: response,
             model: configManager.currentModel.displayName,
             decision: decision
         )
@@ -719,7 +729,7 @@ class ChatManager: ObservableObject {
             
         case "exec_command":
             if let command = toolCall.arguments["command"] as? String {
-                output = await executeCommand(command)
+                output = await TerminalManager.shared.execute(command)
             } else {
                 output = "❌ 缺少 command 参数"
                 success = false
