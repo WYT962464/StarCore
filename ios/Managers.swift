@@ -315,7 +315,7 @@ class ChatManager: ObservableObject {
     
     func callLocalLLM(_ text: String, decision: ThreeSagesDecision) async -> Message {
         // 本地 LLM 调用 - 实际调用 SenseNova API
-        // 使用自定义模型配置或内置模型配置
+        // ✅ 启用 Tool Calling，支持 AI 自动执行操作
         
         let modelConfig = getActiveModelConfig()
         
@@ -336,8 +336,13 @@ class ChatManager: ObservableObject {
         
         print("📋 完整 Prompt:\n\(contextPrompt)")
         
-        // 调用 SenseNova API
-        let response = await callSenseNovaAPI(contextPrompt, modelConfig: modelConfig)
+        // ✅ 使用 Tool Calling 版本 API 调用
+        let response = await callSenseNovaAPIWithTools(
+            contextPrompt,
+            modelConfig: modelConfig,
+            conversationHistory: [],
+            maxToolIterations: 3
+        )
         
         return Message(
             role: .assistant,
