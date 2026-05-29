@@ -599,7 +599,7 @@ class ChatManager: ObservableObject {
         request.timeoutInterval = 30
         
         let body: [String: Any] = [
-            "model": "sensenova",
+            "model": "sensenova-6.7-flash-lite",
             "messages": [
                 ["role": "user", "content": text]
             ],
@@ -896,8 +896,8 @@ class ChatManager: ObservableObject {
             let toolsJSON = getToolsJSON()
             
             var body: [String: Any] = [
-                "model": modelConfig.modelName ?? "sensenova",
-                "messages": history + [["role": "user", "content": currentText]],
+                "model": modelConfig.modelName ?? "sensenova-6.7-flash-lite",
+                "messages": history + [[ "role": "user", "content": currentText]],
                 "temperature": 0.7,
                 "tools": toolsJSON,
                 "tool_choice": "auto"  // 允许 AI 自动选择工具
