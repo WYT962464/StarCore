@@ -468,12 +468,11 @@ class ChatManager: ObservableObject {
         
         print("📋 完整 Prompt:\n\(contextPrompt)")
         
-        // ✅ 使用 Tool Calling 版本 API 调用
+        // ✅ 使用 Tool Calling 版本 API 调用（动态迭代 + 循环检测）
         let response = await callSenseNovaAPIWithTools(
             contextPrompt,
             modelConfig: modelConfig,
-            conversationHistory: [],
-            maxToolIterations: 5
+            conversationHistory: []
         )
         
         // 记忆写入：保存重要决策和上下文
@@ -878,19 +877,35 @@ class ChatManager: ObservableObject {
         return "🔔 已发送通知: \(title)"
     }
     
-    /// 带 Tool Calling 的 API 调用
+    /// 带 Tool Calling 的 API 调用（动态迭代 + 循环检测）
     private func callSenseNovaAPIWithTools(
         _ text: String,
         modelConfig: CustomModelConfig,
-        conversationHistory: [[String: String]] = [],
-        maxToolIterations: Int = 5
+        conversationHistory: [[String: String]] = []
     ) async -> String {
         var currentText = text
         var history: [[String: Any]] = conversationHistory.map { $0 as [String: Any] }
         var iteration = 0
+        var maxIterations = 8  // 默认最大迭代次数
+        var lastToolCalls: [String] = []  // 记录最近调用的工具，用于循环检测
+        let consecutiveLimit = 2  // 连续相同工具调用次数限制
         
-        while iteration < maxToolIterations {
+        // 根据任务复杂度动态调整最大迭代次数
+        if text.contains("打开") || text.contains("切换") || text.contains("启动") {
+            maxIterations = 4  // 简单应用操作
+        } else if text.contains("截图") || text.contains("输入") || text.contains("复制") {
+            maxIterations = 5  // 中等复杂度
+        } else if text.contains("多个") || text.contains("然后") || text.contains("接着") {
+            maxIterations = 8  // 多步骤任务
+        } else if text.contains("终端") || text.contains("命令") {
+            maxIterations = 6  // 终端命令
+        }
+        
+        print("📊 任务复杂度评估：maxIterations=\(maxIterations)")
+        
+        while iteration < maxIterations {
             iteration += 1
+            print("🔄 迭代 \(iteration)/\(maxIterations)")
             
             // 构建包含 tools 的请求
             let toolsJSON = getToolsJSON()
@@ -940,6 +955,28 @@ class ChatManager: ObservableObject {
                    !toolCallsJSON.isEmpty {
                     print("🔧 AI 请求调用工具，共 \(toolCallsJSON.count) 个")
                     
+                    // 提取当前调用的工具名称
+                    var currentToolCalls: [String] = []
+                    for toolCallJSON in toolCallsJSON {
+                        if let toolCall = ToolCallRequest(from: toolCallJSON) {
+                            currentToolCalls.append(toolCall.name)
+                        }
+                    }
+                    
+                    // 循环检测：检查是否连续调用相同工具
+                    lastToolCalls.append(contentsOf: currentToolCalls)
+                    if lastToolCalls.count >= consecutiveLimit {
+                        let recentTools = Array(lastToolCalls.suffix(consecutiveLimit))
+                        if Set(recentTools).count == 1 {
+                            print("⚠️ 检测到工具调用循环：连续 \(consecutiveLimit) 次调用相同工具 \(recentTools[0])")
+                            return "⚠️ 工具调用循环检测：AI 连续 \(consecutiveLimit) 次调用相同工具 \(recentTools[0])，已自动终止。请尝试更明确的指令。"
+                        }
+                        // 保持最近 10 个工具调用记录
+                        if lastToolCalls.count > 10 {
+                            lastToolCalls.removeFirst(lastToolCalls.count - 10)
+                        }
+                    }
+                    
                     // 执行所有工具调用
                     var toolResults: [[String: Any]] = []
                     for toolCallJSON in toolCallsJSON {
@@ -980,7 +1017,7 @@ class ChatManager: ObservableObject {
             }
         }
         
-        return "⚠️ 工具调用超过最大迭代次数 (\(maxToolIterations))"
+        return "⚠️ 工具调用超过最大迭代次数 (\(maxIterations))，任务可能过于复杂，请尝试分解为更简单的步骤。"
     }
 
 }
