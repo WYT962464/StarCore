@@ -587,13 +587,15 @@ class ChatManager: ObservableObject {
         let fullURL = baseURL.hasSuffix("/") ? baseURL + "chat/completions" : baseURL + endpoint
         let url = URL(string: fullURL)!
         
+        print("🔗 调用 SenseNova API: \(fullURL)")
+        print("🔑 API Key: \(modelConfig.apiKey.isEmpty ? "空" : "\(modelConfig.apiKey.prefix(10))...")")
+        
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("Bearer \(modelConfig.apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        
-        print("🔗 调用 SenseNova API: \(fullURL)")
-        print("🔑 API Key: \(modelConfig.apiKey.isEmpty ? "空" : "\(modelConfig.apiKey.prefix(10))...")")
+        // 添加超时设置
+        request.timeoutInterval = 30
         
         let body: [String: Any] = [
             "model": "sensenova-6.7-flash-lite",
@@ -606,7 +608,18 @@ class ChatManager: ObservableObject {
         request.httpBody = try? JSONSerialization.data(withJSONObject: body)
         
         do {
-            let (data, _) = try await URLSession.shared.data(for: request)
+            // 使用带 timeout 的 dataTask
+            let (data, response) = try await URLSession.shared.data(for: request)
+            
+            // 检查 HTTP 状态码
+            if let httpResponse = response as? HTTPURLResponse {
+                print("📊 HTTP 状态码: \(httpResponse.statusCode)")
+                if httpResponse.statusCode != 200 {
+                    let errorStr = String(data: data, encoding: .utf8) ?? "无响应内容"
+                    return "❌ API 错误 (HTTP \(httpResponse.statusCode)): \(errorStr.prefix(200))"
+                }
+            }
+            
             let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
             
             // 修复 Swift 5.9+ 数组类型语法
@@ -615,9 +628,23 @@ class ChatManager: ObservableObject {
                   let firstChoice = choices.first,
                   let message = firstChoice["message"] as? [String: Any],
                   let content = message["content"] as? String else {
-                return "API 调用失败"
+                return "API 调用失败：响应格式错误"
             }
             return content
+        } catch let error as URLError {
+            // 网络错误详细分类
+            switch error.code {
+            case .notConnectedToInternet:
+                return "❌ 网络错误：iPhone 未连接到互联网，请检查 WiFi/蜂窝数据"
+            case .timedOut:
+                return "❌ 网络错误：连接超时，请检查网络或稍后重试"
+            case .cannotFindHost, .cannotConnectToHost:
+                return "❌ 网络错误：无法连接到 SenseNova API 服务器"
+            case .secureConnectionFailed:
+                return "❌ 网络错误：SSL 证书验证失败"
+            default:
+                return "❌ 网络错误: \(error.localizedDescription) (代码: \(error.code.rawValue))"
+            }
         } catch {
             return "❌ API 调用错误: \(error.localizedDescription)"
         }
